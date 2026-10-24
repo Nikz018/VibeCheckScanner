@@ -5,6 +5,7 @@ node_modules
 *.log
 dist
 coverage
+tsconfig.tsbuildinfo
 .prisma
 playwright-report
 test-results
