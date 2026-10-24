@@ -1,0 +1,112 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vibecheck
+      POSTGRES_PASSWORD: vibecheck
+      POSTGRES_DB: vibecheck
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vibecheck -d vibecheck"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://vibecheck:vibecheck@postgres:5432/vibecheck
+      REDIS_URL: redis://redis:6379
+      APP_URL: http://localhost:3000
+      SESSION_SECRET: dev-only-change-me
+      DEV_EXPOSE_MAGIC_LINK: "true"
+      ALLOW_LOCAL_TARGETS: "true"
+      LOCALHOST_REWRITE_HOST: host.docker.internal
+      PLAYWRIGHT_ENABLED: "false"
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-}
+      STRIPE_PRICE_REPORT: ${STRIPE_PRICE_REPORT:-}
+      STRIPE_PRICE_RESCAN: ${STRIPE_PRICE_RESCAN:-}
+      STRIPE_PRICE_MONITOR: ${STRIPE_PRICE_MONITOR:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-scans@localhost}
+      MONITOR_INTERVAL_HOURS: ${MONITOR_INTERVAL_HOURS:-24}
+      BADGE_STALE_DAYS: ${BADGE_STALE_DAYS:-30}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 25s
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
+      DATABASE_URL: postgresql://vibecheck:vibecheck@postgres:5432/vibecheck
+      REDIS_URL: redis://redis:6379
+      APP_URL: http://localhost:3000
+      ALLOW_LOCAL_TARGETS: "true"
+      LOCALHOST_REWRITE_HOST: host.docker.internal
+      PLAYWRIGHT_ENABLED: "true"
+      MONITOR_INTERVAL_HOURS: ${MONITOR_INTERVAL_HOURS:-24}
+      BADGE_STALE_DAYS: ${BADGE_STALE_DAYS:-30}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-scans@localhost}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  demo-open:
+    build: ./demo-targets/open-backend
+    ports:
+      - "4010:4010"
+
+  demo-paywall:
+    build: ./demo-targets/paywall
+    ports:
+      - "4011:4011"
+
+  demo-leaky:
+    build: ./demo-targets/leaky-basics
+    ports:
+      - "4012:4012"
+
+volumes:
+  pgdata:
