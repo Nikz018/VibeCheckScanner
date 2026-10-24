@@ -70,6 +70,24 @@ Set `PLAYWRIGHT_CHANNEL=chrome` to launch the system Chrome instead of Playwrigh
 
 `npm test` does not need Postgres or Redis except for `src/lib/stripe-webhook.test.ts`, which skips unless `DATABASE_URL` is set. The rest checks the catalog, the report sanitizer, scoring, badge freshness, and a scan of the three demo targets.
 
+### Cursor cloud environment
+
+The image should already have Node 22, PostgreSQL 16, and Redis 7. Paste these into the environment settings. Install runs when the environment is built. Start runs on every boot and can be run again without starting a second copy of the app.
+
+Install Script:
+
+```bash
+bash scripts/dev-install.sh
+```
+
+Start Script:
+
+```bash
+bash scripts/dev-start.sh
+```
+
+`dev-install.sh` runs `npm ci` and `npx prisma generate`. `dev-start.sh` copies `.env.example` to `.env` only when `.env` is missing, starts PostgreSQL and Redis when they are down, pushes the Prisma schema, and opens tmux sessions `vibecheck-demos`, `vibecheck-web`, and `vibecheck-worker`. It waits until http://127.0.0.1:3000/api/health returns 200, prints `VibeCheck dev environment is up`, and exits 0. These scripts do not contain production secrets. Put Stripe keys in the environment secret store or in the gitignored `.env` after the copy.
+
 ## Ownership proof
 
 Active probes do not start until both of these are true:
@@ -188,4 +206,6 @@ npm test             # catalog, sanitizer, score, badge, demo-target scans, webh
 npm run checklist    # regenerate docs/SECURITY_CHECKLIST.md
 npm run db:push
 bash scripts/e2e-local.sh   # Postgres, Redis, web, worker, and the signed-in scan flow
+bash scripts/dev-install.sh # Cursor Install Script: npm ci and prisma generate
+bash scripts/dev-start.sh   # Cursor Start Script: Postgres, Redis, demos, web, worker
 ```
