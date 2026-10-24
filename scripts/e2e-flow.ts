@@ -1,0 +1,168 @@
+import { readFileSync } from "node:fs";
+import Stripe from "stripe";
+import { prisma } from "../src/lib/db";
+
+const base = process.env.APP_URL || "http://127.0.0.1:3000";
+const email = process.env.E2E_EMAIL || "e2e-local@example.com";
+const origin = process.env.E2E_ORIGIN || "http://127.0.0.1:4010";
+const secretKey = process.env.STRIPE_SECRET_KEY || "";
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
+
+let cookie = "";
+
+async function main(): Promise<void> {
+  const health = await request("/api/health");
+  expect(health.status === 200, `health ${health.status}`);
+
+  const login = await request("/api/auth/request", { method: "POST", json: { email, next: "/dashboard" } });
+  expect(login.status === 200, `magic link ${login.status} ${login.text}`);
+  const devLink = JSON.parse(login.text).devLink as string;
+  expect(typeof devLink === "string" && devLink.includes("token="), "dev magic link missing");
+  const verify = await request(new URL(devLink).pathname + new URL(devLink).search);
+  expect(verify.status === 307 || verify.status === 302, `verify redirect ${verify.status}`);
+  expect(cookie.includes("vc_session="), "session cookie missing");
+
+  const project = await request("/api/projects", { method: "POST", json: { url: origin } });
+  expect(project.status === 200, `project ${project.status} ${project.text}`);
+  const created = JSON.parse(project.text) as { projectId: string; token: string; demo: boolean };
+  expect(created.demo === true, "origin was not recognized as a local demo");
+
+  const proof = await request(`/api/projects/${created.projectId}/demo-proof`, { method: "POST", json: {} });
+  expect(proof.status === 200, `demo proof ${proof.status} ${proof.text}`);
+  const wellKnown = await fetch(`${origin}/.well-known/vibecheck-verify.txt`);
+  const body = (await wellKnown.text()).trim();
+  expect(wellKnown.status === 200 && body === created.token, "well-known file did not echo the token");
+
+  const queued = await request(`/api/projects/${created.projectId}/verify`, {
+    method: "POST",
+    json: { consent: true, mode: "full", use: "teaser" },
+  });
+  expect(queued.status === 200, `queue scan ${queued.status} ${queued.text}`);
+  const scanId = JSON.parse(queued.text).scanId as string;
+
+  const deadline = Date.now() + 90_000;
+  let status = "queued";
+  let error = "";
+  while (Date.now() < deadline) {
+    const poll = await request(`/api/scans/${scanId}`);
+    const payload = JSON.parse(poll.text) as { status: string; error: string | null };
+    status = payload.status;
+    error = payload.error || "";
+    if (status === "completed" || status === "failed") break;
+    await sleep(2000);
+  }
+  expect(status === "completed", `scan ended as ${status} ${error}`);
+
+  const teaser = await request(`/scans/${scanId}`);
+  expect(teaser.status === 200, `teaser page ${teaser.status}`);
+  expect(teaser.text.includes("Sample issues"), "teaser missing sample heading");
+  expect(teaser.text.includes("more findings are hidden"), "teaser missing hidden count");
+  expect(teaser.text.includes("Firebase data is world-readable"), "teaser missing a sample finding");
+  expect(!teaser.text.includes("autoindex off"), "teaser leaked a locked fix");
+  expect(!teaser.text.includes("Private credential embedded in client code"), "teaser leaked a locked title");
+
+  const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+  const payload = JSON.stringify({
+    id: `evt_e2e_${scanId}`,
+    object: "event",
+    type: "checkout.session.completed",
+    data: {
+      object: {
+        id: `cs_e2e_${scanId}`,
+        object: "checkout.session",
+        mode: "payment",
+        payment_status: "paid",
+        payment_intent: `pi_e2e_${scanId}`,
+        metadata: { userId: user.id, tier: "report", scanId },
+      },
+    },
+  });
+  const stripe = new Stripe(secretKey);
+  const signature = stripe.webhooks.generateTestHeaderString({ payload, secret: webhookSecret });
+  const hook = await fetch(`${base}/api/stripe/webhook`, {
+    method: "POST",
+    headers: { "stripe-signature": signature, "content-type": "application/json" },
+    body: payload,
+  });
+  const hookText = await hook.text();
+  expect(hook.status === 200, `webhook ${hook.status} ${hookText}`);
+
+  const full = await request(`/scans/${scanId}`);
+  expect(full.status === 200, `full page ${full.status}`);
+  expect(full.text.includes("autoindex off"), "full report did not unlock the hidden fix");
+  expect(full.text.includes("Private credential embedded in client code"), "full report did not unlock the hidden title");
+  expect(!full.text.includes("more findings are hidden"), "full report still shows the teaser lock");
+
+  const shareOn = await request(`/api/scans/${scanId}/share`, { method: "POST", json: { enabled: true } });
+  expect(shareOn.status === 200, `share on ${shareOn.status} ${shareOn.text}`);
+  const token = JSON.parse(shareOn.text).token as string;
+  const share = await request(`/share/${token}`);
+  expect(share.status === 200, `share page ${share.status}`);
+  expect(share.text.includes("VibeCheck"), "share page missing score label");
+  expect(share.text.includes("Scanned"), "share page missing scan date");
+  expect(!share.text.includes("Firebase data is world-readable"), "share page leaked a finding");
+  expect(!share.text.includes("autoindex off"), "share page leaked a fix");
+  expect(!share.text.includes(origin), "share page leaked the target origin");
+
+  const shareOff = await request(`/api/scans/${scanId}/share`, { method: "POST", json: { enabled: false } });
+  expect(shareOff.status === 200, `share off ${shareOff.status}`);
+  const hidden = await request(`/share/${token}`);
+  expect(hidden.status === 404, `disabled share page ${hidden.status}`);
+
+  const shareAgain = await request(`/api/scans/${scanId}/share`, { method: "POST", json: { enabled: true } });
+  expect(shareAgain.status === 200, `share on again ${shareAgain.status}`);
+  const badge = await request(`/api/badge/${token}`);
+  expect(badge.status === 200, `badge ${badge.status}`);
+  expect(badge.text.includes("VibeCheck score") || badge.text.includes("Passed VibeCheck"), "badge missing score label");
+  expect(badge.text.includes("Scanned"), "badge missing scan date");
+  expect(!badge.text.includes("Firebase"), "badge leaked a finding");
+
+  const workerLog = readFileSync(process.env.E2E_WORKER_LOG || "/tmp/vibecheck-worker.log", "utf8");
+  const headless =
+    workerLog.includes("headless render finished") ? "finished" :
+    workerLog.includes("headless render exceeded") ? "killed" :
+    workerLog.includes("headless render unavailable") ? "unavailable" :
+    "missing";
+  expect(headless !== "missing", "worker log has no headless render result");
+
+  console.log(JSON.stringify({ ok: true, scanId, shareToken: token, headless, scoreHint: full.text.includes("VibeCheck score") }, null, 2));
+  await prisma.$disconnect();
+}
+
+async function request(path: string, init: { method?: string; json?: unknown } = {}): Promise<{ status: number; text: string }> {
+  const response = await fetch(path.startsWith("http") ? path : `${base}${path}`, {
+    method: init.method || "GET",
+    redirect: "manual",
+    headers: {
+      ...(init.json !== undefined ? { "content-type": "application/json" } : {}),
+      ...(cookie ? { cookie } : {}),
+    },
+    body: init.json !== undefined ? JSON.stringify(init.json) : undefined,
+  });
+  const setCookies = typeof response.headers.getSetCookie === "function" ? response.headers.getSetCookie() : [];
+  if (setCookies.length) {
+    cookie = setCookies.map((entry) => entry.split(";")[0]).join("; ");
+  }
+  const text = await response.text();
+  return { status: response.status, text };
+}
+
+function expect(condition: unknown, message: string): asserts condition {
+  if (!condition) throw new Error(message);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+main().catch(async (error) => {
+  console.error(error instanceof Error ? error.message : error);
+  try {
+    const log = readFileSync(process.env.E2E_WORKER_LOG || "/tmp/vibecheck-worker.log", "utf8");
+    console.error(log.slice(-4000));
+  } catch {
+    // worker log may not exist yet
+  }
+  await prisma.$disconnect().catch(() => undefined);
+  process.exit(1);
+});

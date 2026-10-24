@@ -46,6 +46,14 @@ Sign in with any email. With `DEV_EXPOSE_MAGIC_LINK=true` the login screen print
 
 ### Without Docker
 
+`scripts/e2e-local.sh` installs PostgreSQL and Redis with apt when they are missing, creates the `vibecheck` database, writes a gitignored `.env`, pushes the Prisma schema, and runs the signed-in flow against the open-backend demo: magic link, ownership file, consent, queued scan, free teaser, a signed Stripe fixture that unlocks the report, the share toggle, and the SVG badge.
+
+```bash
+bash scripts/e2e-local.sh
+```
+
+To start the same processes yourself:
+
 ```bash
 cp .env.example .env
 # point DATABASE_URL and REDIS_URL at local Postgres and Redis
@@ -58,7 +66,9 @@ npm run worker
 
 Leave `LOCALHOST_REWRITE_HOST` empty when the app runs on the host. Inside Compose it is `host.docker.internal` so the containers can reach demo ports published on the host.
 
-`npm test` does not need Postgres or Redis. It checks the catalog, the report sanitizer, scoring, badge freshness, and a scan of the three demo targets.
+Set `PLAYWRIGHT_CHANNEL=chrome` to launch the system Chrome instead of Playwright's downloaded browser. `BROWSER_TIMEOUT_MS` (default 20000) kills that browser if it exceeds the budget. The scan still finishes from the pages it already fetched, and the report does not mention the browser.
+
+`npm test` does not need Postgres or Redis except for `src/lib/stripe-webhook.test.ts`, which skips unless `DATABASE_URL` is set. The rest checks the catalog, the report sanitizer, scoring, badge freshness, and a scan of the three demo targets.
 
 ## Ownership proof
 
@@ -98,7 +108,7 @@ The checklist in [docs/SECURITY_CHECKLIST.md](docs/SECURITY_CHECKLIST.md) is gen
 
 Headline ranks 1–10 sort first in the report and choose the free teaser samples. They do not replace the rest of the catalog. A full scan attempts every family. A mini check does not, and it must not show those families as passed.
 
-The headless render is optional. Set `PLAYWRIGHT_ENABLED=false` to use HTTP fetching only. Static bundles are still downloaded and reviewed. If the browser cannot launch, the scan continues with the fetched files and does not mention that in the report.
+The headless render is optional. Set `PLAYWRIGHT_ENABLED=false` to use HTTP fetching only. Static bundles are still downloaded and reviewed. If the browser cannot launch, or if it runs longer than `BROWSER_TIMEOUT_MS`, the worker kills that browser process and the scan continues with the fetched files. The report does not mention the browser.
 
 ## Stripe
 
@@ -122,6 +132,22 @@ Put the signing secret in `STRIPE_WEBHOOK_SECRET`. A paid Checkout session unloc
 
 Until those env vars are set, the upgrade buttons return a clear configuration error and the free teaser still works.
 
+Signature checks and tier unlocking do not need a Stripe account. `src/lib/stripe-webhook.test.ts` builds a Checkout event, signs it with Stripe's test header helper, and posts it at the webhook route. With the local fixture values below, a `report` event sets that scan to full access, a `rescan` event adds one rescan credit and one report credit, a second delivery of the same event id does not apply again, and a subscription event marks the account active. A missing or invalid signature returns 400 and writes nothing.
+
+```text
+STRIPE_SECRET_KEY=sk_test_local_fixture_not_a_real_key
+STRIPE_WEBHOOK_SECRET=whsec_local_fixture_not_from_stripe
+```
+
+Those two values are not a Stripe account. A real test-mode setup still needs all of the following from the Stripe dashboard (or from `stripe listen` for the webhook secret):
+
+- `STRIPE_SECRET_KEY` (`sk_test_...`) so Checkout can create a session
+- `STRIPE_WEBHOOK_SECRET` (`whsec_...`) from the dashboard endpoint or `stripe listen`
+- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (`pk_test_...`)
+- `STRIPE_PRICE_REPORT`, `STRIPE_PRICE_RESCAN`, and `STRIPE_PRICE_MONITOR`
+
+`scripts/e2e-local.sh` runs the fixture test and then posts one signed `report` event at the running app. It does not call Stripe.
+
 ## Email
 
 Monitoring alerts are always stored on the dashboard. If `SMTP_HOST` is set, the worker also sends them with Nodemailer. Magic links use the same SMTP settings. In development, `DEV_EXPOSE_MAGIC_LINK=true` shows the link on the login form.
@@ -136,7 +162,7 @@ Magic links are stored as hashes. The session cookie is HTTP-only. This avoids a
 
 **Worker on Railway or Fly.** Use `Dockerfile.worker`. Same `DATABASE_URL` and `REDIS_URL`. Set `PLAYWRIGHT_ENABLED=true` if you want the rendered-page pass. Set `ALLOW_LOCAL_TARGETS=false`. Set `APP_URL` to the public web origin so alert links and magic links are correct.
 
-**One VM.** `docker compose up --build` runs Postgres, Redis, web, worker, and the demo targets. Remove the demo services before any public deploy, and turn off local targets.
+**One VM.** `docker compose up --build` runs Postgres, Redis, web, worker, and the demo targets. The web and worker processes retry the schema push until Postgres accepts connections. Remove the demo services before any public deploy, and turn off local targets.
 
 Stripe webhooks should target `https://<your-web-host>/api/stripe/webhook`.
 
@@ -158,7 +184,8 @@ Raw module ids stay in the database `raw` column. The report renderer strips too
 npm run dev          # web
 npm run worker       # queue consumer
 npm run demos        # three local demo origins
-npm test             # catalog, sanitizer, score, badge, demo-target scans
+npm test             # catalog, sanitizer, score, badge, demo-target scans, webhook fixture when DATABASE_URL is set
 npm run checklist    # regenerate docs/SECURITY_CHECKLIST.md
 npm run db:push
+bash scripts/e2e-local.sh   # Postgres, Redis, web, worker, and the signed-in scan flow
 ```
