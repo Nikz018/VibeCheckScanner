@@ -1,0 +1,41 @@
+{
+  "name": "vibecheck",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "worker": "tsx src/worker/index.ts",
+    "db:push": "prisma db push",
+    "db:generate": "prisma generate",
+    "demos": "node scripts/demos.js",
+    "test": "node --import tsx --test --test-reporter spec src/lib/catalog.test.ts src/lib/sanitize.test.ts src/lib/report.test.ts src/lib/score.test.ts src/lib/badge.test.ts src/lib/http.test.ts src/lib/stripe-webhook.test.ts src/worker/pipeline.test.ts",
+    "checklist": "tsx scripts/render-checklist.ts",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.16.0",
+    "bullmq": "^5.58.0",
+    "ioredis": "^5.7.0",
+    "next": "^15.5.0",
+    "nodemailer": "^7.0.5",
+    "playwright": "^1.55.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "stripe": "^18.5.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.17.0",
+    "@types/nodemailer": "^6.4.17",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "prisma": "^6.16.0",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}

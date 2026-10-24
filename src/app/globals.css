@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --paper: #f4f0e6;
+  --ink: #14201b;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 420px at 90% -10%, rgba(223, 242, 91, 0.16), transparent 60%),
+    radial-gradient(700px 380px at -10% 20%, rgba(31, 122, 69, 0.18), transparent 55%),
+    #101410;
+  color: #f4f0e6;
+}
+
+::selection {
+  background: #dff25b;
+  color: #14201b;
+}
+
+.paper {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  padding: 0.7rem 1.1rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn-lime {
+  background: #dff25b;
+  color: #14201b;
+}
+
+.btn-ink {
+  background: #14201b;
+  color: #f4f0e6;
+}
+
+.btn-ghost {
+  border: 1px solid rgba(244, 240, 230, 0.25);
+  color: #f4f0e6;
+}
+
+.btn-ghost-ink {
+  border: 1px solid rgba(20, 32, 27, 0.2);
+  color: #14201b;
+}
+
+.field {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(20, 32, 27, 0.15);
+  background: white;
+  color: #14201b;
+  padding: 0.8rem 0.9rem;
+}
+
+.field-dark {
+  border-color: rgba(244, 240, 230, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: #f4f0e6;
+}

@@ -1,0 +1,157 @@
+import type { CustomerReport } from "@/lib/report";
+import type { Severity } from "@/lib/catalog";
+import { UpgradePanel } from "./UpgradePanel";
+import { SharePanel } from "./SharePanel";
+import { MonitorToggle } from "./MonitorToggle";
+import Link from "next/link";
+
+const SEVERITY_STYLE: Record<Severity, string> = {
+  critical: "bg-[#f3c7bc] text-[#6e2414]",
+  high: "bg-[#f8d7a8] text-[#6a3d09]",
+  medium: "bg-[#f3e7a2] text-[#5c4a10]",
+  low: "bg-[#e4e0d4] text-[#3d453f]",
+  info: "bg-[#e7eee8] text-[#24503a]",
+};
+
+export function ReportView({
+  report,
+  targetLabel,
+  sample = false,
+  scanId,
+  share,
+  project,
+}: {
+  report: CustomerReport;
+  targetLabel?: string;
+  sample?: boolean;
+  scanId?: string;
+  share?: { enabled: boolean; token: string | null };
+  project?: { id: string; monitorEnabled: boolean; monitoringAllowed: boolean };
+}) {
+  return (
+    <div className="space-y-6">
+      <section className="paper rounded-[28px] p-6 text-ink shadow-card md:p-8">
+        <div className="flex flex-wrap items-end justify-between gap-6">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-[#6d6758]">{sample ? "Sample report" : report.mode === "mini" ? "Mini check" : "Launch scan"}</p>
+            <h1 className="mt-2 font-display text-5xl leading-none">{report.score ?? "—"}</h1>
+            <p className="mt-2 text-sm text-[#4c5a52]">
+              {report.passed ? "Passed VibeCheck" : "VibeCheck score"} · {report.totalFindings} finding{report.totalFindings === 1 ? "" : "s"}
+              {report.stale ? " · rescan needed" : ""}
+            </p>
+            {targetLabel ? <p className="mt-2 text-sm">Origin: {targetLabel}</p> : null}
+          </div>
+          <div className="grid grid-cols-5 gap-2 text-center text-xs">
+            {Object.entries(report.severityCounts).map(([severity, count]) => (
+              <div key={severity} className={`rounded-2xl px-3 py-2 ${SEVERITY_STYLE[severity as Severity]}`}>
+                <div className="font-display text-2xl">{count}</div>
+                {severity}
+              </div>
+            ))}
+          </div>
+        </div>
+        {report.stale ? (
+          <p className="mt-4 rounded-2xl bg-[#fff1c9] px-4 py-3 text-sm">This scan is more than 30 days old. The badge reads “rescan needed” until you run it again.</p>
+        ) : null}
+        <p className="mt-4 text-sm text-[#536058]">Score starts at 100. Critical −25, high −12, medium −6, low −2. 85 or higher with no critical or high findings reads as Passed VibeCheck.</p>
+        <p className="mt-2 text-sm text-[#536058]">{report.disclaimer}</p>
+      </section>
+
+      <section className="grid gap-3 md:grid-cols-4">
+        {report.coverage.map((row) => (
+          <article key={row.family} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <h2 className="text-sm font-semibold">{row.label}</h2>
+            <p className="mt-2 font-display text-2xl capitalize">{row.status === "not_run" ? "Not run" : row.status === "incomplete" ? "Partial" : row.status === "error" ? "Not completed" : row.status === "pass" ? "No issues" : `${row.findingCount} finding${row.findingCount === 1 ? "" : "s"}`}</p>
+            <p className="mt-1 text-xs text-[#c9c2b2]">
+              {row.checksRun.length} checks ran{row.checksNotRun.length ? ` · ${row.checksNotRun.length} not included` : ""}
+            </p>
+          </article>
+        ))}
+      </section>
+
+      {report.access === "teaser" ? (
+        <section className="space-y-4">
+          <h2 className="font-display text-3xl">Sample issues</h2>
+          <div className="grid gap-4">
+            {report.samples.map((finding) => (
+              <FindingCard key={finding.checkId} finding={finding} />
+            ))}
+          </div>
+          <p className="text-sm text-[#d9d3c5]">{report.hiddenCount} more findings are hidden on the free teaser.</p>
+          {scanId ? <UpgradePanel scanId={scanId} /> : null}
+        </section>
+      ) : (
+        <>
+          {report.priority.length > 0 ? (
+            <section className="space-y-4">
+              <h2 className="font-display text-3xl">Priority issues</h2>
+              <div className="grid gap-4">
+                {report.priority.map((finding) => (
+                  <FindingCard key={finding.checkId} finding={finding} />
+                ))}
+              </div>
+            </section>
+          ) : (
+            <p className="text-[#d9d3c5]">No headline issues on this scan.</p>
+          )}
+          {report.families.map((group) => (
+            <section key={group.family} className="space-y-3">
+              <h2 className="font-display text-2xl">{group.label}</h2>
+              {group.findings
+                .filter((finding) => finding.headlineRank === null)
+                .map((finding) => (
+                  <FindingCard key={finding.checkId} finding={finding} />
+                ))}
+              {group.findings.every((finding) => finding.headlineRank !== null) ? (
+                <p className="text-sm text-[#c9c2b2]">Headline findings for this family are in the priority list above.</p>
+              ) : null}
+            </section>
+          ))}
+        </>
+      )}
+
+      {report.mode === "mini" ? (
+        <div className="rounded-3xl border border-lime/40 bg-lime/10 p-5">
+          <h3 className="font-display text-2xl">This was the mini check</h3>
+          <p className="mt-2 text-sm text-[#d9d3c5]">Headers and public files ran. Supabase, Firebase, admin routes, and the rest of the launch scan did not. Coverage above marks those families as not run.</p>
+          <Link href="/scans/new" className="btn btn-lime mt-4">
+            Run a full launch scan
+          </Link>
+        </div>
+      ) : null}
+
+      {scanId && share ? <SharePanel scanId={scanId} enabled={share.enabled} token={share.token} /> : null}
+      {project ? (
+        <div className="paper rounded-3xl p-5 text-ink">
+          <h3 className="font-display text-2xl">Continuous monitoring</h3>
+          <p className="mb-3 mt-1 text-sm text-[#536058]">Scheduled rescans use the same ownership proof. If you remove the token, the next run stops.</p>
+          <MonitorToggle projectId={project.id} enabled={project.monitorEnabled} allowed={project.monitoringAllowed} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function FindingCard({ finding }: { finding: CustomerReport["samples"][number] }) {
+  return (
+    <article className="paper rounded-3xl p-5 text-ink">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className={`rounded-full px-2 py-1 font-semibold uppercase ${SEVERITY_STYLE[finding.severity]}`}>{finding.severity}</span>
+        <span className="text-[#5c675f]">{finding.familyLabel}</span>
+        {finding.headlineRank ? <span className="text-[#5c675f]">Headline {finding.headlineRank}</span> : null}
+      </div>
+      <h3 className="mt-3 font-display text-2xl">{finding.title}</h3>
+      <div className="mt-3 space-y-3 text-sm leading-6">
+        <p>
+          <span className="font-semibold">Evidence. </span>
+          {finding.evidence}
+        </p>
+        <p>
+          <span className="font-semibold">Impact. </span>
+          {finding.impact}
+        </p>
+        <pre className="overflow-auto whitespace-pre-wrap rounded-2xl bg-[#14201b] p-4 text-[#f4f0e6]">{finding.fix}</pre>
+      </div>
+    </article>
+  );
+}
