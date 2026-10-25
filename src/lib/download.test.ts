@@ -93,7 +93,11 @@ test("markdown and print html keep location and fix, and drop raw secrets and to
   assert.match(markdown, /### Fix/);
   assert.match(html, /data-report="vibecheck-print"/);
   assert.match(html, /class="finding"/);
-  assert.match(html, /VibeCheck score/);
+  assert.match(markdown, /VibeCheck score: 50\/100 \(Needs work\)/);
+  assert.match(html, /50\/100/);
+  assert.match(html, /Needs work/);
+  assert.match(html, /Higher is safer/);
+  assert.match(html, /data-score-gauge="50"/);
   assert.match(html, /<pre>[^<]*<\/pre>/);
 });
 

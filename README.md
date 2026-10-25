@@ -17,9 +17,9 @@ This is not a certification, and it is not a promise that an app stays safe afte
 
 The mini check is separate and free. It only runs header and public-file checks, and the coverage summary marks every other family as not run.
 
-A finished scan can opt into a public score page and an SVG badge. Those show the score and the scan date. They do not show findings. After 30 days they read **rescan needed**.
+A finished scan can opt into a public score page and an SVG badge. Those show the score out of 100 and the scan date. They do not show findings. After 30 days they read **rescan needed**.
 
-Score starts at 100. Critical findings subtract 25, high 12, medium 6, low 2. A score of 85 or higher with no critical or high findings is labeled Passed VibeCheck.
+Score starts at 100. Critical findings subtract 25, high 12, medium 6, low 2. Reports show the result as a score out of 100: 0–39 Critical risk, 40–69 Needs work, 70–89 Good, and 90–100 Strong.
 
 ## Local setup
 

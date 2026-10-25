@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ScoreGauge } from "@/components/ScoreGauge";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { monitoringActive } from "@/lib/entitlements";
@@ -69,15 +70,17 @@ export default async function DashboardPage() {
           {scans.length === 0 ? <li className="py-4 text-sm text-[#c9c2b2]">No scans yet.</li> : null}
           {scans.map((scan) => (
             <li key={scan.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
-              <div>
-                <Link href={`/scans/${scan.id}`} className="font-semibold underline">
-                  {scan.project.url}
-                </Link>
-                <p className="text-[#b7b1a4]">
-                  {scan.mode} · {scan.status} · {scan.reportAccess}
-                  {scan.score !== null ? ` · score ${scan.score}` : ""}
-                  {scan.scheduled ? " · scheduled" : ""}
-                </p>
+              <div className="flex items-center gap-3">
+                <ScoreGauge score={scan.score} size="sm" tone="dark" />
+                <div>
+                  <Link href={`/scans/${scan.id}`} className="font-semibold underline">
+                    {scan.project.url}
+                  </Link>
+                  <p className="text-[#b7b1a4]">
+                    {scan.mode} · {scan.status} · {scan.reportAccess}
+                    {scan.scheduled ? " · scheduled" : ""}
+                  </p>
+                </div>
               </div>
               <span className="text-[#b7b1a4]">{scan.createdAt.toISOString().slice(0, 10)}</span>
             </li>

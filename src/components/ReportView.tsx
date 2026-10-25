@@ -3,6 +3,7 @@ import type { Severity } from "@/lib/catalog";
 import { UpgradePanel } from "./UpgradePanel";
 import { SharePanel } from "./SharePanel";
 import { MonitorToggle } from "./MonitorToggle";
+import { ScoreGauge } from "./ScoreGauge";
 import Link from "next/link";
 
 const SEVERITY_STYLE: Record<Severity, string> = {
@@ -31,12 +32,14 @@ export function ReportView({
   return (
     <div className="space-y-6">
       <section className="paper rounded-[28px] p-6 text-ink shadow-card md:p-8">
-        <div className="flex flex-wrap items-end justify-between gap-6">
+        <div className="flex flex-wrap items-center justify-between gap-6">
           <div>
             <p className="text-xs uppercase tracking-[0.18em] text-[#6d6758]">{sample ? "Sample report" : report.mode === "mini" ? "Mini check" : "Launch scan"}</p>
-            <h1 className="mt-2 font-display text-5xl leading-none">{report.score ?? "—"}</h1>
-            <p className="mt-2 text-sm text-[#4c5a52]">
-              {report.passed ? "Passed VibeCheck" : "VibeCheck score"} · {report.totalFindings} finding{report.totalFindings === 1 ? "" : "s"}
+            <div className="mt-3">
+              <ScoreGauge score={report.score} tone="light" />
+            </div>
+            <p className="mt-3 text-sm text-[#4c5a52]">
+              {report.totalFindings} finding{report.totalFindings === 1 ? "" : "s"}
               {report.stale ? " · rescan needed" : ""}
             </p>
             {targetLabel ? <p className="mt-2 text-sm">Origin: {targetLabel}</p> : null}
@@ -63,7 +66,7 @@ export function ReportView({
         {report.stale ? (
           <p className="mt-4 rounded-2xl bg-[#fff1c9] px-4 py-3 text-sm">This scan is more than 30 days old. The badge reads “rescan needed” until you run it again.</p>
         ) : null}
-        <p className="mt-4 text-sm text-[#536058]">Score starts at 100. Critical −25, high −12, medium −6, low −2. 85 or higher with no critical or high findings reads as Passed VibeCheck.</p>
+        <p className="mt-4 text-sm text-[#536058]">Score starts at 100. Critical −25, high −12, medium −6, low −2.</p>
         <p className="mt-2 text-sm text-[#536058]">{report.disclaimer}</p>
       </section>
 

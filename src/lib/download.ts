@@ -2,6 +2,7 @@ import { POINT_IN_TIME_DISCLAIMER, formatScanDate } from "./badge";
 import { SEVERITIES } from "./catalog";
 import type { CustomerFinding, CustomerReport } from "./report";
 import { containsToolBrand } from "./sanitize";
+import { SCORE_EXPLAINER, formatScoreRatio, renderScoreGaugeSvg, scoreBand } from "./score-gauge";
 import { toolBrandPattern } from "./tool-denylist";
 
 export function downloadAccess(input: {
@@ -45,7 +46,7 @@ export function renderFixMarkdown(report: CustomerReport, targetUrl: string): st
   const lines: string[] = [
     "Fix these security issues in my app.",
     "",
-    `VibeCheck scanned \`${host}\` on ${when}. VibeCheck score: ${report.score ?? "—"}. ${report.disclaimer}`,
+    `VibeCheck scanned \`${host}\` on ${when}. VibeCheck score: ${scoreLine(report)}. ${report.disclaimer}`,
     "",
     "Apply each fix in the application. Keep secrets on the server. The values below are already redacted.",
     "",
@@ -138,8 +139,10 @@ export function renderPrintHtml(report: CustomerReport, targetUrl: string): stri
     .cover { padding: 8px 0 12px; }
     .brand { display: flex; align-items: center; gap: 10px; font-family: Georgia, serif; font-size: 22px; font-weight: 700; }
     .mark { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: #dff25b; color: #14201b; font-size: 14px; }
-    .score { margin: 18px 0 0; font-family: Georgia, serif; font-size: 64px; line-height: 0.9; }
-    .label { margin: 6px 0 0; color: #3d453f; }
+    .gauge { width: 220px; margin-top: 12px; }
+    .gauge svg { display: block; width: 100%; height: auto; }
+    .explain { margin: 8px 0 0; max-width: 440px; color: #3d453f; font-size: 12px; }
+    .label { margin: 8px 0 0; color: #3d453f; }
     .meta-line { margin: 4px 0; }
     .counts { display: flex; gap: 8px; margin: 16px 0; padding: 0; list-style: none; }
     .counts li { flex: 1; border-radius: 12px; background: #f4f0e6; padding: 8px; text-align: center; text-transform: uppercase; font-size: 10px; }
@@ -170,8 +173,9 @@ export function renderPrintHtml(report: CustomerReport, targetUrl: string): stri
 <body>
   <article class="cover" data-report="vibecheck-print">
     <div class="brand"><span class="mark">VC</span> VibeCheck</div>
-    <p class="score">${report.score ?? "—"}</p>
-    <p class="label">${report.passed ? "Passed VibeCheck" : "VibeCheck score"} · ${report.totalFindings} finding${report.totalFindings === 1 ? "" : "s"}</p>
+    <div class="gauge">${renderScoreGaugeSvg({ score: report.score, tone: "light" })}</div>
+    <p class="explain">${escapeHtml(SCORE_EXPLAINER)}</p>
+    <p class="label">${report.totalFindings} finding${report.totalFindings === 1 ? "" : "s"}</p>
     <p class="meta-line"><strong>Target.</strong> ${escapeHtml(targetUrl)}</p>
     <p class="meta-line"><strong>Scanned.</strong> ${escapeHtml(when)}</p>
     <ul class="counts">${counts}</ul>
@@ -227,6 +231,11 @@ function fence(code: string): string {
   const body = code || "";
   const marker = body.includes("```") ? "````" : "```";
   return `${marker}\n${body}\n${marker}`;
+}
+
+function scoreLine(report: CustomerReport): string {
+  if (report.score === null) return "—";
+  return `${formatScoreRatio(report.score)} (${scoreBand(report.score).label})`;
 }
 
 function safeHostLabel(targetUrl: string): string {

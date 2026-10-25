@@ -64,6 +64,8 @@ async function main(): Promise<void> {
   expect(!teaser.text.includes("/assets/app.js"), "teaser leaked a bundle location");
   expect(!teaser.text.includes("Steps to reproduce"), "teaser leaked repro steps");
   expect(!teaser.text.includes("sk_test_demo_not_real"), "teaser leaked a secret");
+  expect(teaser.text.includes("/100"), "teaser missing the score ratio");
+  expect(teaser.text.includes("Higher is safer"), "teaser missing the score explainer");
   expect(!teaser.text.includes("Download PDF"), "teaser showed a download button");
   const pdfLocked = await request(`/api/scans/${scanId}/pdf`);
   const mdLocked = await request(`/api/scans/${scanId}/markdown`);
@@ -111,6 +113,8 @@ async function main(): Promise<void> {
   expect(full.text.includes("Line "), "full report missing a source line");
   expect(!full.text.includes("sk_test_demo_not_real_000000000000000"), "full report leaked a raw secret");
   expect(!full.text.includes("ada@example.com"), "full report leaked an email");
+  expect(full.text.includes("/100"), "full report missing the score ratio");
+  expect(full.text.includes("Higher is safer"), "full report missing the score explainer");
   expect(full.text.includes("Download PDF"), "full report missing the PDF button");
   expect(full.text.includes("Download for AI fix"), "full report missing the markdown button");
 
@@ -127,6 +131,9 @@ async function main(): Promise<void> {
   const printHtml = await request(`/api/scans/${scanId}/print`);
   expect(printHtml.status === 200, `print ${printHtml.status}`);
   expect(printHtml.text.includes("data-report=\"vibecheck-print\""), "print template missing");
+  expect(printHtml.text.includes("/100"), "print missing the score ratio");
+  expect(printHtml.text.includes("Higher is safer"), "print missing the score explainer");
+  expect(printHtml.text.includes("data-score-gauge"), "print missing the score gauge");
   expect(printHtml.text.includes("/rtdb/.json"), "print missing location");
   expect(!printHtml.text.includes("sk_test_demo_not_real_000000000000000"), "print leaked a raw secret");
   expect(!printHtml.text.toLowerCase().includes("playwright"), "print named a tool");
@@ -144,7 +151,8 @@ async function main(): Promise<void> {
   const token = JSON.parse(shareOn.text).token as string;
   const share = await request(`/share/${token}`);
   expect(share.status === 200, `share page ${share.status}`);
-  expect(share.text.includes("VibeCheck"), "share page missing score label");
+  expect(share.text.includes("/100"), "share page missing the score ratio");
+  expect(share.text.includes("Higher is safer"), "share page missing the score explainer");
   expect(share.text.includes("Scanned"), "share page missing scan date");
   expect(!share.text.includes("Firebase data is world-readable"), "share page leaked a finding");
   expect(!share.text.includes("autoindex off"), "share page leaked a fix");
@@ -159,7 +167,7 @@ async function main(): Promise<void> {
   expect(shareAgain.status === 200, `share on again ${shareAgain.status}`);
   const badge = await request(`/api/badge/${token}`);
   expect(badge.status === 200, `badge ${badge.status}`);
-  expect(badge.text.includes("VibeCheck score") || badge.text.includes("Passed VibeCheck"), "badge missing score label");
+  expect(/VibeCheck \d+\/100/.test(badge.text), "badge missing the score ratio");
   expect(badge.text.includes("Scanned"), "badge missing scan date");
   expect(!badge.text.includes("Firebase"), "badge leaked a finding");
 
@@ -171,7 +179,7 @@ async function main(): Promise<void> {
     "missing";
   expect(headless !== "missing", "worker log has no headless render result");
 
-  console.log(JSON.stringify({ ok: true, scanId, shareToken: token, headless, scoreHint: full.text.includes("VibeCheck score") }, null, 2));
+  console.log(JSON.stringify({ ok: true, scanId, shareToken: token, headless, scoreHint: full.text.includes("/100") }, null, 2));
   await prisma.$disconnect();
 }
 
