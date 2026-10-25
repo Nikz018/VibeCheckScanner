@@ -1,11 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ScoreGauge } from "@/components/ScoreGauge";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { monitoringActive } from "@/lib/entitlements";
+import { privateMetadata } from "@/lib/seo/metadata";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = privateMetadata("Dashboard");
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();

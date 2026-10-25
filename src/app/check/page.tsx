@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { NewScanForm } from "@/components/NewScanForm";
 import { getCurrentUser } from "@/lib/auth";
+import { privateMetadata } from "@/lib/seo/metadata";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = privateMetadata("Mini check");
 
 export default async function CheckPage({ searchParams }: { searchParams: Promise<{ url?: string }> }) {
   const user = await getCurrentUser();

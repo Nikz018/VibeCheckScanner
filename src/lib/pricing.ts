@@ -4,6 +4,7 @@ export const TIERS = {
     env: "STRIPE_PRICE_REPORT",
     name: "Full report",
     priceLabel: "$49",
+    amountUsd: 49,
     cadence: "one-time",
     blurb: "Unlock the full report for one scan: every finding, evidence, and copy-paste fix.",
     mode: "payment" as const,
@@ -13,6 +14,7 @@ export const TIERS = {
     env: "STRIPE_PRICE_RESCAN",
     name: "Report + rescan",
     priceLabel: "$99",
+    amountUsd: 99,
     cadence: "one-time",
     blurb: "Full report on this scan, plus one credit to rescan after you ship fixes.",
     mode: "payment" as const,
@@ -22,6 +24,7 @@ export const TIERS = {
     env: "STRIPE_PRICE_MONITOR",
     name: "Continuous monitoring",
     priceLabel: "$29/mo",
+    amountUsd: 29,
     cadence: "monthly",
     blurb: "Scheduled rescans of a verified app and an alert when a new high-severity issue shows up.",
     mode: "subscription" as const,
@@ -37,5 +40,9 @@ export function isTierId(value: string): value is TierId {
 export const FREE_TIER = {
   name: "Free teaser",
   priceLabel: "$0",
+  amountUsd: 0,
   blurb: "Run a scan and see severity counts plus two sample issues. The rest of the report stays locked.",
 };
+
+/** Listed plan prices are pre-tax USD amounts. */
+export const TAX_NOTE = "Prices are in US dollars and exclude applicable taxes.";
