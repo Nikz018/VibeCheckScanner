@@ -7,7 +7,7 @@ export const TIERS = {
     priceLabel: "$49",
     amountUsd: 49,
     cadence: "one-time",
-    blurb: "Unlock the full report for one scan: every finding, evidence, and copy-paste fix.",
+    blurb: "Unlock the full report for one scan: every finding, evidence, copy-paste fixes, and signed-in checks with throwaway test accounts.",
     mode: "payment" as const,
   },
   rescan: {
@@ -18,7 +18,7 @@ export const TIERS = {
     priceLabel: "$99",
     amountUsd: 99,
     cadence: "one-time",
-    blurb: "Full report on this scan, plus one credit to rescan after you ship fixes.",
+    blurb: "Full report on this scan, including signed-in checks with throwaway test accounts, plus one credit to rescan after you ship fixes.",
     mode: "payment" as const,
   },
   monitor: {
@@ -46,5 +46,5 @@ export const FREE_TIER = {
   name: "Free teaser",
   priceLabel: "$0",
   amountUsd: 0,
-  blurb: "Run a scan and see severity counts plus two sample issues. The rest of the report stays locked.",
+  blurb: "Run a scan and see severity counts plus two sample issues. The rest of the report stays locked. Logged-in checks are available in the full report.",
 };

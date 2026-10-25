@@ -2,6 +2,7 @@ import { Worker } from "bullmq";
 import IORedis from "ioredis";
 import { prisma } from "@/lib/db";
 import { SCAN_QUEUE_NAME } from "@/lib/queue";
+import { purgeFinishedCredentials } from "@/lib/credential-store";
 import { executeScan } from "./execute";
 import { scheduleMonitors } from "./schedule";
 
@@ -32,11 +33,13 @@ worker.on("failed", (job, error) => {
 });
 
 const timer = setInterval(() => {
-  void scheduleMonitors().catch((error) => console.error("monitor schedule failed", error));
+  void scheduleMonitors().catch((error) => console.error("monitor schedule failed", error instanceof Error ? error.message : "error"));
+  void purgeFinishedCredentials().catch((error) => console.error("credential cleanup failed", error instanceof Error ? error.message : "error"));
 }, 10 * 60 * 1000);
 timer.unref?.();
 
-void scheduleMonitors().catch((error) => console.error("monitor schedule failed", error));
+void scheduleMonitors().catch((error) => console.error("monitor schedule failed", error instanceof Error ? error.message : "error"));
+void purgeFinishedCredentials().catch((error) => console.error("credential cleanup failed", error instanceof Error ? error.message : "error"));
 
 console.log("VibeCheck worker ready");
 

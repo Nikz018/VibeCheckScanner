@@ -791,6 +791,137 @@ Serve user files through a route that checks the session, or use signed URLs tha
 - Never put the service role or a private key next to the client config.
 - Treat the client key as public. Review the other findings in this report before you rely on it.`,
   },
+  {
+    id: "auth_idor_bola",
+    module: "authenticated",
+    family: "access_control",
+    title: "Signed-in user can read another account's record",
+    severity: "high",
+    headlineRank: null,
+    owaspTop10: "A01:2021 Broken Access Control",
+    owaspApiTop10: "API1:2023 Broken Object Level Authorization",
+    asvs: "V4 Access Control",
+    cwe: "CWE-639",
+    impact:
+      "A test account received another account's object by replaying the request or by swapping the id. Hiding the link is not a control.",
+    fix: `Load the row only when it belongs to the signed-in user.
+
+const row = await db.note.findFirst({
+  where: { id: params.id, userId: session.userId },
+});
+if (!row) return new Response("Not found", { status: 404 });
+
+Return the same 404 for a missing id and for someone else's id.`,
+  },
+  {
+    id: "auth_vertical_privilege",
+    module: "authenticated",
+    family: "access_control",
+    title: "A normal signed-in user can open an admin route",
+    severity: "critical",
+    headlineRank: null,
+    owaspTop10: "A01:2021 Broken Access Control",
+    owaspApiTop10: "API5:2023 Broken Function Level Authorization",
+    asvs: "V4 Access Control",
+    cwe: "CWE-285",
+    impact:
+      "An account that is not an admin still received admin data. A hidden URL is not an access check.",
+    fix: `Check the role on the server for every admin page and API.
+
+const session = await getSession(request);
+if (!session || session.role !== "admin") {
+  return new Response("Forbidden", { status: 403 });
+}
+
+Do this in the handler that reads the data, not only in the navigation.`,
+  },
+  {
+    id: "auth_paywall_bypass",
+    module: "authenticated",
+    family: "access_control",
+    title: "A free signed-in account can read a premium route",
+    severity: "high",
+    headlineRank: null,
+    owaspTop10: "A01:2021 Broken Access Control",
+    owaspApiTop10: "API6:2023 Unrestricted Access to Sensitive Business Flows",
+    asvs: "V4 Access Control",
+    cwe: "CWE-639",
+    impact:
+      "A test account that is not on a paid plan received premium content. The paywall in the interface is not enforced on the server.",
+    fix: `Check the purchase on the server before returning paid data.
+
+const entitled = await db.subscription.findFirst({
+  where: { userId: session.userId, status: "active" },
+});
+if (!entitled) return new Response("Payment required", { status: 402 });
+
+The browser may hide a button. The API still has to refuse the read.`,
+  },
+  {
+    id: "auth_sensitive_exposure",
+    module: "authenticated",
+    family: "info_disclosure",
+    title: "A signed-in response exposes other people's data or a secret",
+    severity: "high",
+    headlineRank: null,
+    owaspTop10: "A01:2021 Broken Access Control",
+    owaspApiTop10: "API3:2023 Broken Object Property Level Authorization",
+    asvs: "V8 Data Protection",
+    cwe: "CWE-200",
+    impact:
+      "A signed-in response included other people's email addresses or a private credential. The UI can hide a field that the API still returns.",
+    fix: `Return only the fields the signed-in user should see, and keep secrets on the server.
+
+const me = await db.user.findUnique({
+  where: { id: session.userId },
+  select: { id: true, email: true },
+});
+return Response.json(me);
+
+Do not select every column, and do not ship service keys in authenticated JavaScript.`,
+  },
+  {
+    id: "auth_session_weakness",
+    module: "authenticated",
+    family: "auth_session",
+    title: "Signed-in session cookie or token is weak",
+    severity: "medium",
+    headlineRank: null,
+    owaspTop10: "A07:2021 Identification and Authentication Failures",
+    owaspApiTop10: "API2:2023 Broken Authentication",
+    asvs: "V3 Session Management",
+    cwe: "CWE-613",
+    impact:
+      "The session cookie is missing browser protections, or the token does not expire, or it carries a sensitive claim. A stolen token stays useful for longer than it should.",
+    fix: `Set the cookie flags on the server and give the token an expiry. This scan does not sign the account out.
+
+Set-Cookie: session=...; HttpOnly; Secure; SameSite=Lax; Path=/
+
+Keep passwords and API keys out of the token. Reject alg none. Store a server-side session if you need to revoke it before exp.`,
+  },
+  {
+    id: "auth_backend_cross_user",
+    module: "authenticated",
+    family: "cloud_backend",
+    title: "A signed-in user token can read other users' backend rows",
+    severity: "critical",
+    headlineRank: null,
+    owaspTop10: "A01:2021 Broken Access Control",
+    owaspApiTop10: "API1:2023 Broken Object Level Authorization",
+    asvs: "V4 Access Control",
+    cwe: "CWE-284",
+    impact:
+      "A normal signed-in token could read rows that belong to other people. A public client key is safe only when rules limit each user to their own rows.",
+    fix: `Turn on row level security or security rules that match the signed-in user.
+
+create policy "read own row"
+on public.users
+for select
+to authenticated
+using (auth.uid() = id);
+
+For Firebase, allow read only when auth.uid matches the path. Do not grant the signed-in role a table-wide select.`,
+  },
 ];
 
 export const CHECKS_BY_ID: Record<string, CheckDefinition> = Object.fromEntries(
@@ -877,7 +1008,9 @@ export function renderChecklistMarkdown(): string {
   lines.push("- OWASP ASVS 4.0 chapter");
   lines.push("- CWE");
   lines.push("");
-  lines.push("Active scans run only after the account proves domain ownership (DNS TXT or `/.well-known/vibecheck-verify.txt`) and checks the consent box. Probes are read-only except for tiny unauthenticated POSTs used to see whether a webhook, login, or AI route rejects bad input. The worker never sends PUT, PATCH, or DELETE.");
+  lines.push("Active scans run only after the account proves domain ownership (DNS TXT or `/.well-known/vibecheck-verify.txt`) and checks the consent box. Probes are read-only except for tiny unauthenticated POSTs used to see whether a webhook, login, or AI route rejects bad input, and except the single login request when a paid scan is given throwaway test accounts. The worker never sends PUT, PATCH, or DELETE. Signed-in checks replay and compare with GET and HEAD only.");
+  lines.push("");
+  lines.push("Paid full reports can include those signed-in checks. The customer supplies up to two throwaway test accounts, or a session cookie or bearer token for each. The free teaser does not run them. Credentials are encrypted with CREDENTIALS_ENCRYPTION_KEY and deleted when the scan finishes or after 24 hours. Reports mask secrets, cookies, and tokens.");
   lines.push("");
   lines.push("## Families");
   lines.push("");
@@ -915,6 +1048,16 @@ export function renderChecklistMarkdown(): string {
   lines.push("## What a customer report shows");
   lines.push("");
   lines.push("Reports group findings by the eight families and include a coverage row for each family: ran, pass, findings, not run, or not completed. A paid finding shows a title, severity, evidence, impact, the exact location that was tested, the request and a short redacted response, steps to reproduce, and a copy-paste fix. The owner of an unlocked scan can download that report as a PDF or as a Markdown file to paste into an AI coding assistant. The free teaser keeps title and severity for two samples and does not include location or proof. Score, scan date, and the public badge are derived from severities. The badge and share page show the score out of 100 and the date only, and they switch to a rescan-needed state 30 days after the scan.");
+  lines.push("");
+  lines.push("## What this scan does not cover");
+  lines.push("");
+  lines.push("- Business-logic flaws, such as a workflow that does the wrong thing for a valid user.");
+  lines.push("- Write or delete abuse. Probes are read-only, so a bug that only appears when data is changed is not proven.");
+  lines.push("- Source code and dependencies, unless a repository is connected or a manifest is already public.");
+  lines.push("- Load testing and brute-force testing.");
+  lines.push("- Mobile apps and backends that are not part of this web origin.");
+  lines.push("");
+  lines.push("A manual pentest is a better fit when you need those covered in depth.");
   lines.push("");
   return lines.join("\n");
 }

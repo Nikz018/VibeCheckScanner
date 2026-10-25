@@ -60,6 +60,7 @@ export function renderFixMarkdown(report: CustomerReport, targetUrl: string): st
     lines.push("");
     lines.push(`- Severity: ${finding.severity}`);
     lines.push(`- Family: ${finding.familyLabel}`);
+    if (finding.confidence) lines.push(`- Confidence: ${finding.confidence}`);
     lines.push("");
     lines.push("### Location");
     lines.push("");
@@ -84,6 +85,18 @@ export function renderFixMarkdown(report: CustomerReport, targetUrl: string): st
     lines.push(fence(finding.fix));
     lines.push("");
   });
+  lines.push(`## ${report.limitationsTitle}`);
+  lines.push("");
+  for (const item of report.limitations) lines.push(`- ${item}`);
+  lines.push("");
+  lines.push(report.limitationsNote);
+  if (report.notices.length > 0) {
+    lines.push("");
+    lines.push("## Notices");
+    lines.push("");
+    for (const notice of report.notices) lines.push(`- ${notice}`);
+  }
+  lines.push("");
   return scrubTools(lines.join("\n").trim() + "\n");
 }
 
@@ -122,6 +135,7 @@ export function renderPrintHtml(report: CustomerReport, targetUrl: string): stri
         <ol>${steps || "<li>No steps were recorded.</li>"}</ol>
         <h3>Impact</h3>
         <p>${escapeHtml(finding.impact)}</p>
+        ${finding.confidence ? `<p><strong>Confidence.</strong> ${escapeHtml(finding.confidence)}</p>` : ""}
         <h3>Fix</h3>
         <pre>${escapeHtml(finding.fix)}</pre>
       </section>`;
@@ -180,8 +194,14 @@ export function renderPrintHtml(report: CustomerReport, targetUrl: string): stri
     <p class="meta-line"><strong>Scanned.</strong> ${escapeHtml(when)}</p>
     <ul class="counts">${counts}</ul>
     <p class="disclaimer">${escapeHtml(report.disclaimer || POINT_IN_TIME_DISCLAIMER)}</p>
+    ${report.notices.length ? `<h2>Notices</h2><ul>${report.notices.map((notice) => `<li>${escapeHtml(notice)}</li>`).join("")}</ul>` : ""}
   </article>
   ${blocks || `<section class="finding"><h2>No findings</h2><p>This scan did not record a finding.</p></section>`}
+  <section class="finding">
+    <h2>${escapeHtml(report.limitationsTitle)}</h2>
+    <ul>${report.limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+    <p>${escapeHtml(report.limitationsNote)}</p>
+  </section>
 </body>
 </html>`;
   return scrubTools(html);

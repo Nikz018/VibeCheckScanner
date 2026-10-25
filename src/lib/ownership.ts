@@ -96,7 +96,7 @@ export function assertConsent(consent: boolean): void {
   }
 }
 
-export const DEMO_PORTS = new Set([4010, 4011, 4012]);
+export const DEMO_PORTS = new Set([4010, 4011, 4012, 4013]);
 
 export function isLocalDemoUrl(raw: string): boolean {
   try {
