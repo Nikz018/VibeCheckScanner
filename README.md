@@ -11,7 +11,7 @@ This is not a certification, and it is not a promise that an app stays safe afte
 | Tier | Price | Unlocks |
 | --- | --- | --- |
 | Free teaser | $0 | Full scan runs and is stored. The page shows the score, severity counts, family coverage, and two sample issues. The rest of the evidence stays locked. |
-| Full report | $49 once | Every finding on that scan: where it was found, evidence, the request and response, and a copy-paste fix. |
+| Full report | $49 once | Every finding on that scan: where it was found, evidence, the request and response, and a copy-paste fix. Download a PDF or a Markdown file for an AI coding assistant. |
 | Report + rescan | $99 once | The full report, plus one credit to run another full-access scan after you fix things. |
 | Monitoring | $29/month | Full reports while the subscription is active, a scheduled rescan of a verified origin, and an alert when a new high-severity issue appears. |
 

@@ -40,6 +40,16 @@ export function ReportView({
               {report.stale ? " · rescan needed" : ""}
             </p>
             {targetLabel ? <p className="mt-2 text-sm">Origin: {targetLabel}</p> : null}
+            {report.access === "full" && scanId && !sample ? (
+              <div className="mt-4 flex flex-wrap gap-2">
+                <a className="btn btn-lime" href={`/api/scans/${scanId}/pdf`}>
+                  Download PDF
+                </a>
+                <a className="btn btn-ink" href={`/api/scans/${scanId}/markdown`}>
+                  Download for AI fix (.md)
+                </a>
+              </div>
+            ) : null}
           </div>
           <div className="grid grid-cols-5 gap-2 text-center text-xs">
             {Object.entries(report.severityCounts).map(([severity, count]) => (

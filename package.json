@@ -10,7 +10,7 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "demos": "node scripts/demos.js",
-    "test": "node --import tsx --test --test-reporter spec src/lib/catalog.test.ts src/lib/finding-detail.test.ts src/lib/sanitize.test.ts src/lib/report.test.ts src/lib/score.test.ts src/lib/badge.test.ts src/lib/http.test.ts src/lib/stripe-webhook.test.ts src/worker/pipeline.test.ts",
+    "test": "node --import tsx --test --test-reporter spec src/lib/catalog.test.ts src/lib/finding-detail.test.ts src/lib/download.test.ts src/lib/sanitize.test.ts src/lib/report.test.ts src/lib/score.test.ts src/lib/badge.test.ts src/lib/http.test.ts src/lib/stripe-webhook.test.ts src/worker/pipeline.test.ts",
     "checklist": "tsx scripts/render-checklist.ts",
     "postinstall": "prisma generate"
   },

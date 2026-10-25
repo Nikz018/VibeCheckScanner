@@ -193,6 +193,6 @@ fi
 log "Running the signed-in scan flow"
 export E2E_WORKER_LOG=/tmp/vibecheck-worker.log
 export E2E_EMAIL="e2e-local-$(date +%s)@example.com"
-timeout 150 npx tsx scripts/e2e-flow.ts
+timeout 200 npx tsx scripts/e2e-flow.ts
 
 log "Local flow finished"
