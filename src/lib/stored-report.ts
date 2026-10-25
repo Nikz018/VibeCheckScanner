@@ -1,4 +1,5 @@
 import { SEVERITIES, type Severity } from "./catalog";
+import { parseStoredDetail } from "./finding-detail";
 import { buildCustomerReport, type CheckRunState, type CustomerReport, type RawCheckResult } from "./report";
 
 export function reportFromStored(input: {
@@ -7,19 +8,25 @@ export function reportFromStored(input: {
   mode: string;
   reportAccess: string;
   finishedAt: Date | null;
-  findings: Array<{ checkId: string; evidence: string; severity: string; title: string; impact: string; fix: string }>;
+  findings: Array<{ checkId: string; evidence: string; severity: string; title: string; impact: string; fix: string; raw?: unknown }>;
   coverage: unknown;
   now?: Date;
 }): CustomerReport {
   const marked = readMarked(input.coverage);
-  const results: RawCheckResult[] = input.findings.map((finding) => ({
-    checkId: finding.checkId,
-    evidence: finding.evidence,
-    severity: asSeverity(finding.severity),
-    title: finding.title,
-    impact: finding.impact,
-    fix: finding.fix,
-  }));
+  const results: RawCheckResult[] = input.findings.map((finding) => {
+    const detail = parseStoredDetail(finding.raw);
+    return {
+      checkId: finding.checkId,
+      evidence: finding.evidence,
+      severity: asSeverity(finding.severity),
+      title: finding.title,
+      impact: finding.impact,
+      fix: finding.fix,
+      locations: detail.locations,
+      proof: detail.proof,
+      steps: detail.steps,
+    };
+  });
   return buildCustomerReport({
     scanId: input.scanId,
     status: input.status,

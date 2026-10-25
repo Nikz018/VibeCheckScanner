@@ -74,7 +74,7 @@ export function ReportView({
           <h2 className="font-display text-3xl">Sample issues</h2>
           <div className="grid gap-4">
             {report.samples.map((finding) => (
-              <FindingCard key={finding.checkId} finding={finding} />
+              <FindingCard key={finding.checkId} finding={finding} paid={false} />
             ))}
           </div>
           <p className="text-sm text-[#d9d3c5]">{report.hiddenCount} more findings are hidden on the free teaser.</p>
@@ -87,7 +87,7 @@ export function ReportView({
               <h2 className="font-display text-3xl">Priority issues</h2>
               <div className="grid gap-4">
                 {report.priority.map((finding) => (
-                  <FindingCard key={finding.checkId} finding={finding} />
+                  <FindingCard key={finding.checkId} finding={finding} paid />
                 ))}
               </div>
             </section>
@@ -100,7 +100,7 @@ export function ReportView({
               {group.findings
                 .filter((finding) => finding.headlineRank === null)
                 .map((finding) => (
-                  <FindingCard key={finding.checkId} finding={finding} />
+                  <FindingCard key={finding.checkId} finding={finding} paid />
                 ))}
               {group.findings.every((finding) => finding.headlineRank !== null) ? (
                 <p className="text-sm text-[#c9c2b2]">Headline findings for this family are in the priority list above.</p>
@@ -132,7 +132,8 @@ export function ReportView({
   );
 }
 
-function FindingCard({ finding }: { finding: CustomerReport["samples"][number] }) {
+function FindingCard({ finding, paid }: { finding: CustomerReport["samples"][number]; paid: boolean }) {
+  const showWhere = paid && reportHasWhere(finding);
   return (
     <article className="paper rounded-3xl p-5 text-ink">
       <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -141,17 +142,89 @@ function FindingCard({ finding }: { finding: CustomerReport["samples"][number] }
         {finding.headlineRank ? <span className="text-[#5c675f]">Headline {finding.headlineRank}</span> : null}
       </div>
       <h3 className="mt-3 font-display text-2xl">{finding.title}</h3>
-      <div className="mt-3 space-y-3 text-sm leading-6">
-        <p>
-          <span className="font-semibold">Evidence. </span>
-          {finding.evidence}
-        </p>
+      <div className="mt-3 space-y-4 text-sm leading-6">
+        {finding.evidence ? (
+          <p>
+            <span className="font-semibold">Evidence. </span>
+            {finding.evidence}
+          </p>
+        ) : null}
         <p>
           <span className="font-semibold">Impact. </span>
           {finding.impact}
         </p>
-        <pre className="overflow-auto whitespace-pre-wrap rounded-2xl bg-[#14201b] p-4 text-[#f4f0e6]">{finding.fix}</pre>
+        {showWhere && finding.locations ? (
+          <div>
+            <p className="font-semibold">Location.</p>
+            <ul className="mt-1 space-y-2">
+              {finding.locations.map((location) => (
+                <li key={`${location.method} ${location.url} ${location.line ?? 0}`} className="rounded-2xl bg-white/70 px-3 py-2">
+                  <p>
+                    <span className="font-semibold">{location.method}</span> {location.url}
+                  </p>
+                  {location.line ? (
+                    <p className="text-[#3d453f]">
+                      Line {location.line}
+                      {location.column ? `, column ${location.column}` : ""}
+                    </p>
+                  ) : null}
+                  {location.maskedSecret ? <p className="text-[#3d453f]">Secret {location.maskedSecret}</p> : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {showWhere && finding.proof ? (
+          <div>
+            <p className="font-semibold">Proof.</p>
+            <p className="mt-1">
+              Request: {finding.proof.method} {finding.proof.url}
+            </p>
+            {finding.proof.headers.length > 0 ? (
+              <ul className="mt-1 text-[#3d453f]">
+                {finding.proof.headers.map((header) => (
+                  <li key={header.name}>
+                    {header.name}: {header.value}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <p className="mb-1 mt-2 font-semibold">Response.</p>
+            <CodeBlock>{finding.proof.responseSnippet}</CodeBlock>
+          </div>
+        ) : null}
+        {showWhere && finding.steps && finding.steps.length > 0 ? (
+          <div>
+            <p className="font-semibold">Steps to reproduce.</p>
+            <ol className="mt-1 list-decimal space-y-1 pl-5">
+              {finding.steps.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+          </div>
+        ) : null}
+        {finding.fix ? (
+          <div>
+            <p className="font-semibold">Fix.</p>
+            <CodeBlock>{finding.fix}</CodeBlock>
+          </div>
+        ) : null}
       </div>
     </article>
+  );
+}
+
+function reportHasWhere(finding: CustomerReport["samples"][number]): boolean {
+  return Boolean(finding.locations?.length && finding.proof && finding.steps?.length);
+}
+
+function CodeBlock({ children }: { children: string }) {
+  return (
+    <pre
+      className="code-block"
+      style={{ backgroundColor: "#14201b", color: "#f4f0e6", WebkitTextFillColor: "#f4f0e6" }}
+    >
+      {children}
+    </pre>
   );
 }

@@ -1,4 +1,5 @@
 import { CHECK_CATALOG } from "./catalog";
+import type { FindingLocation, FindingProof } from "./finding-detail";
 import { buildCustomerReport, type CheckRunState, type CustomerReport, type RawCheckResult } from "./report";
 
 const EVIDENCE: Record<string, string> = {
@@ -23,8 +24,38 @@ const EVIDENCE: Record<string, string> = {
   vulnerable_dependency: "The public manifest lists lodash@4.17.15 (CVE-2021-23337: Prototype pollution in lodash before 4.17.21).",
 };
 
+function demoWhere(checkId: string): { locations: FindingLocation[]; proof: FindingProof; steps: string[] } {
+  const secret = checkId.includes("secret");
+  const method = checkId === "stripe_webhook_unsigned" || checkId.startsWith("llm_") ? "POST" : "GET";
+  const url = secret ? "https://sample.example/assets/app.js" : `https://sample.example/${checkId.replaceAll("_", "-")}`;
+  const location: FindingLocation = { method, url };
+  if (secret) {
+    location.line = 12;
+    location.column = 7;
+    location.maskedSecret = "sk_t…0000";
+  }
+  return {
+    locations: [location],
+    proof: {
+      method,
+      url,
+      headers: [
+        { name: "user-agent", value: "VibeCheckScanner/0.1" },
+        { name: "accept", value: "*/*" },
+      ],
+      status: 200,
+      responseSnippet: "HTTP 200\ncontent-type: application/json\n\n{\"sample\":true}",
+    },
+    steps: [`Send ${method} ${url} with no session cookie.`, "The response matches the evidence in this sample finding."],
+  };
+}
+
 export function buildDemoReport(now = new Date("2026-10-24T12:00:00.000Z")): CustomerReport {
-  const results: RawCheckResult[] = Object.entries(EVIDENCE).map(([checkId, evidence]) => ({ checkId, evidence }));
+  const results: RawCheckResult[] = Object.entries(EVIDENCE).map(([checkId, evidence]) => ({
+    checkId,
+    evidence,
+    ...demoWhere(checkId),
+  }));
   const marked = Object.fromEntries(CHECK_CATALOG.map((check) => [check.id, "ok"])) as Record<string, CheckRunState>;
   return buildCustomerReport({
     scanId: "demo",

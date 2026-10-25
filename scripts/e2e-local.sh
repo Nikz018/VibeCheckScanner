@@ -123,6 +123,11 @@ else
   DEMO_PID=$!
 fi
 
+log "Stopping leftover web and worker processes"
+pkill -f "src/worker/index.ts" >/dev/null 2>&1 || true
+pkill -f "next dev -H 127.0.0.1 -p 3000" >/dev/null 2>&1 || true
+sleep 1
+
 log "Freeing port 3000"
 free_port 3000
 sleep 1

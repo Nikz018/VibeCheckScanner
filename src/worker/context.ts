@@ -1,3 +1,9 @@
+import {
+  buildProof,
+  sanitizeDetail,
+  type FindingDetail,
+  type FindingLocation,
+} from "@/lib/finding-detail";
 import { originOf, safeFetch, type ProbeResponse } from "@/lib/http";
 import type { CheckRunState, RawCheckResult } from "@/lib/report";
 
@@ -67,19 +73,64 @@ export class ScanContext {
     }
   }
 
-  add(checkId: string, evidence: string): void {
+  add(checkId: string, evidence: string, detail: FindingDetail): void {
     this.mark(checkId);
+    const clean = sanitizeDetail(detail);
     const existing = this.results.find((result) => result.checkId === checkId);
     if (existing) {
       existing.evidence = `${existing.evidence} ${evidence}`;
+      existing.locations = mergeLocations(existing.locations ?? [], clean.locations);
       return;
     }
-    this.results.push({ checkId, evidence });
+    this.results.push({
+      checkId,
+      evidence,
+      locations: clean.locations,
+      proof: clean.proof,
+      steps: clean.steps,
+    });
+  }
+
+  detailFor(
+    response: ProbeResponse,
+    options: {
+      method?: string;
+      requestHeaders?: Record<string, string>;
+      locations?: FindingLocation[];
+      steps: string[];
+      snippetLines?: string[];
+    },
+  ): FindingDetail {
+    const method = (options.method ?? "GET").toUpperCase();
+    const locations = options.locations ?? [{ method, url: response.url }];
+    return {
+      locations,
+      proof: buildProof({
+        method,
+        url: response.url,
+        requestHeaders: options.requestHeaders,
+        response,
+        snippetLines: options.snippetLines,
+      }),
+      steps: options.steps,
+    };
   }
 
   scriptText(): string {
     return [this.html, ...this.scripts.map((script) => script.body)].join("\n");
   }
+}
+
+function mergeLocations(current: FindingLocation[], extra: FindingLocation[]): FindingLocation[] {
+  const seen = new Set(current.map((location) => `${location.method} ${location.url} ${location.line ?? ""}`));
+  const merged = [...current];
+  for (const location of extra) {
+    const key = `${location.method} ${location.url} ${location.line ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(location);
+  }
+  return merged.slice(0, 6);
 }
 
 export async function runModule(checkIds: string[], ctx: ScanContext, fn: () => Promise<void>): Promise<void> {

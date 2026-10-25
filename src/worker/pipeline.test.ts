@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import test from "node:test";
-import { buildCoverage, buildCustomerReport } from "../lib/report";
+import { buildCoverage, buildCustomerReport, type RawCheckResult } from "../lib/report";
 import { containsToolBrand } from "../lib/sanitize";
 import { newOwnershipToken, verifyOwnership } from "../lib/ownership";
 import { runScanPipeline } from "./run-scan";
@@ -28,6 +28,16 @@ async function waitFor(url: string): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error(`timed out waiting for ${url}`);
+}
+
+function assertFindingsLocated(results: RawCheckResult[]): void {
+  for (const result of results) {
+    assert.ok(result.locations && result.locations.length > 0, `${result.checkId} location`);
+    assert.ok(result.proof, `${result.checkId} proof`);
+    assert.ok(result.steps && result.steps.length >= 1 && result.steps.length <= 3, `${result.checkId} steps`);
+    assert.ok(result.proof.responseSnippet.length > 0 && result.proof.responseSnippet.length <= 300, `${result.checkId} snippet`);
+    assert.equal(result.locations.every((location) => location.method && location.url.startsWith("http")), true, result.checkId);
+  }
 }
 
 test("active scanning refuses to start without ownership confirmation", async () => {
@@ -85,8 +95,41 @@ test("demo targets produce multi-section reports with no tool brands", async () 
     assert.equal(openReport.coverage.length, 8);
     assert.ok((openReport.score ?? 0) < 100);
     assert.equal(containsToolBrand(JSON.stringify(openReport)), null);
+    for (const result of open.results) {
+      assert.ok(result.locations && result.locations.length > 0, `${result.checkId} location`);
+      assert.ok(result.proof, `${result.checkId} proof`);
+      assert.ok(result.steps && result.steps.length >= 1 && result.steps.length <= 3, `${result.checkId} steps`);
+      assert.ok(result.proof.responseSnippet.length > 0 && result.proof.responseSnippet.length <= 300, `${result.checkId} snippet`);
+      assert.equal(result.locations.every((location) => location.method && location.url.startsWith("http")), true, result.checkId);
+    }
+    const leaked = open.results.find((result) => result.checkId === "secret_in_client");
+    assert.ok(leaked?.locations?.some((location) => location.url.includes("/assets/app.js")));
+    assert.ok(leaked?.locations?.some((location) => (location.line ?? 0) > 0 && (location.column ?? 0) > 0));
+    assert.match(leaked?.locations?.find((location) => location.maskedSecret)?.maskedSecret ?? "", /^.{4}….+$/);
+    const firebase = open.results.find((result) => result.checkId === "firebase_rules_open");
+    assert.match(firebase?.locations?.[0].url ?? "", /\/rtdb\/\.json$/);
+    const paidBlob = JSON.stringify(openReport);
+    assert.equal(paidBlob.includes("sk_test_demo_not_real_000000000000000"), false);
+    assert.equal(paidBlob.includes("ada@example.com"), false);
+    assert.equal(/eyJ[A-Za-z0-9_-]{20,}/.test(paidBlob), false);
+    const teaser = buildCustomerReport({
+      scanId: "open-teaser",
+      status: "completed",
+      mode: "full",
+      access: "teaser",
+      finishedAt: new Date(),
+      results: open.results,
+      marked: open.marked,
+    });
+    const teaserBlob = JSON.stringify(teaser);
+    assert.equal(teaserBlob.includes("/assets/app.js"), false);
+    assert.equal(teaserBlob.includes("/rtdb/.json"), false);
+    assert.equal(teaserBlob.includes("/rest/v1/"), false);
+    assert.equal(teaserBlob.includes("sk_test_demo_not_real"), false);
+    assert.ok(teaser.samples.every((finding) => finding.locations === undefined && finding.proof === undefined));
 
     const paywall = await runScanPipeline({ targetUrl: "http://127.0.0.1:18011", mode: "full", ownershipConfirmed: true });
+    assertFindingsLocated(paywall.results);
     const paywallIds = new Set(paywall.results.map((result) => result.checkId));
     for (const id of [
       "admin_surface_open",
@@ -104,6 +147,11 @@ test("demo targets produce multi-section reports with no tool brands", async () 
     }
 
     const leaky = await runScanPipeline({ targetUrl: "http://127.0.0.1:18012", mode: "full", ownershipConfirmed: true });
+    assertFindingsLocated(leaky.results);
+    const dotenv = leaky.results.find((result) => result.checkId === "exposed_dotenv");
+    assert.match(dotenv?.locations?.[0].url ?? "", /\/\.env$/);
+    const header = leaky.results.find((result) => result.checkId === "missing_csp");
+    assert.match(header?.locations?.[0].url ?? "", /^http:\/\/127\.0\.0\.1:18012\/?$/);
     const leakyIds = new Set(leaky.results.map((result) => result.checkId));
     for (const id of [
       "missing_csp",
