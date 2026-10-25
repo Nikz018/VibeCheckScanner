@@ -21,6 +21,7 @@ export function ReportView({
   scanId,
   share,
   project,
+  collectBilling = false,
 }: {
   report: CustomerReport;
   targetLabel?: string;
@@ -28,6 +29,7 @@ export function ReportView({
   scanId?: string;
   share?: { enabled: boolean; token: string | null };
   project?: { id: string; monitorEnabled: boolean; monitoringAllowed: boolean };
+  collectBilling?: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -91,7 +93,7 @@ export function ReportView({
             ))}
           </div>
           <p className="text-sm text-[#d9d3c5]">{report.hiddenCount} more findings are hidden on the free teaser.</p>
-          {scanId ? <UpgradePanel scanId={scanId} /> : null}
+          {scanId ? <UpgradePanel scanId={scanId} collectBilling={collectBilling} /> : null}
         </section>
       ) : (
         <>

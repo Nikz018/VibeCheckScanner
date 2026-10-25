@@ -115,6 +115,8 @@ model Purchase {
   tier                  String
   stripeCheckoutSession String?  @unique
   stripePaymentIntent   String?
+  dodoCheckoutSession   String?  @unique
+  dodoPaymentId         String?
   status                String   @default("pending")
   createdAt             DateTime @default(now())
   user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -127,6 +129,8 @@ model Subscription {
   userId               String    @unique
   stripeSubscriptionId String?   @unique
   stripeCustomerId     String?
+  dodoSubscriptionId   String?   @unique
+  dodoCustomerId       String?
   status               String    @default("inactive")
   currentPeriodEnd     DateTime?
   createdAt            DateTime  @default(now())
@@ -148,6 +152,12 @@ model Alert {
 }
 
 model StripeEvent {
+  id        String   @id
+  type      String
+  createdAt DateTime @default(now())
+}
+
+model DodoEvent {
   id        String   @id
   type      String
   createdAt DateTime @default(now())
