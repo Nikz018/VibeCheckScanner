@@ -77,3 +77,26 @@ body {
   background: rgba(255, 255, 255, 0.04);
   color: #f4f0e6;
 }
+
+.code-block {
+  display: block;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-radius: 1rem;
+  background: #14201b;
+  color: #f4f0e6;
+  -webkit-text-fill-color: #f4f0e6;
+  padding: 1rem 1.1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+.paper .code-block,
+.paper pre.code-block {
+  background: #14201b;
+  color: #f4f0e6;
+  -webkit-text-fill-color: #f4f0e6;
+}

@@ -1,4 +1,6 @@
-import { findSecretKinds } from "../extract";
+import { locateSecretHits } from "../extract";
+import { reproduce } from "@/lib/finding-detail";
+import type { ProbeResponse } from "@/lib/http";
 import { runModule, type ScanContext } from "../context";
 
 export const EXPOSURE_CHECK_IDS = [
@@ -17,58 +19,127 @@ const ERROR_PATHS = ["/api/error", "/api/vibecheck-missing-route"];
 
 export async function runExposure(ctx: ScanContext): Promise<void> {
   await runModule([...EXPOSURE_CHECK_IDS], ctx, async () => {
-    const secretPaths: string[] = [];
-    const envHits: string[] = [];
+    const envHits: ProbeResponse[] = [];
+    const secretHits: Array<{ response: ProbeResponse; hits: ReturnType<typeof locateSecretHits> }> = [];
     for (const path of ENV_PATHS) {
       const response = await ctx.fetch(path, { maxBytes: 100_000 });
       if (!looksLikeEnv(response.status, response.headers["content-type"], response.body)) continue;
-      envHits.push(path);
-      if (findSecretKinds(response.body).length > 0) secretPaths.push(path);
+      envHits.push(response);
+      const hits = locateSecretHits([{ url: response.url, body: response.body }]);
+      if (hits.length > 0) secretHits.push({ response, hits });
     }
     ctx.mark("exposed_dotenv");
-    if (envHits.length > 0) ctx.add("exposed_dotenv", `These paths returned environment files: ${envHits.join(", ")}.`);
+    if (envHits.length > 0) {
+      const first = envHits[0];
+      ctx.add(
+        "exposed_dotenv",
+        "A public path returned an environment file.",
+        ctx.detailFor(first, {
+          locations: envHits.map((response) => ({ method: "GET", url: response.url })),
+          steps: reproduce("GET", first.url, "The body is KEY=value lines from an env file.", "Remove the file from the public host and rotate the values."),
+        }),
+      );
+    }
     ctx.mark("secret_in_public_path");
-    if (secretPaths.length > 0) {
-      ctx.add("secret_in_public_path", `Private credential material was present in ${secretPaths.join(", ")}. Values were redacted.`);
+    if (secretHits.length > 0) {
+      const first = secretHits[0];
+      const places = secretHits.flatMap((entry) => entry.hits);
+      ctx.add(
+        "secret_in_public_path",
+        "Private credential material was present in a public file. Values were redacted.",
+        ctx.detailFor(first.response, {
+          locations: places.slice(0, 6).map((hit) => ({
+            method: "GET",
+            url: hit.url,
+            line: hit.line,
+            column: hit.column,
+            maskedSecret: hit.masked,
+          })),
+          steps: [
+            `Open ${places[0].url} at line ${places[0].line}.`,
+            `A credential is present, shown here as ${places[0].masked}.`,
+            "Delete the file and rotate the credential.",
+          ],
+        }),
+      );
     }
 
     const git = await ctx.fetch("/.git/HEAD", { maxBytes: 2000 });
     ctx.mark("exposed_git");
     if (git.status === 200 && git.body.trim().startsWith("ref: refs/")) {
-      ctx.add("exposed_git", "GET /.git/HEAD returned a git ref. The repository metadata is public.");
+      ctx.add(
+        "exposed_git",
+        "A git metadata file returned a ref. The repository metadata is public.",
+        ctx.detailFor(git, {
+          steps: reproduce("GET", git.url, "The body starts with a git ref.", "Stop publishing the .git directory."),
+        }),
+      );
     }
 
-    const maps: string[] = [];
+    const maps: ProbeResponse[] = [];
     for (const script of ctx.scripts) {
       if (!script.url.startsWith("http")) continue;
       if (maps.length >= 6) break;
       const response = await ctx.fetch(`${script.url}.map`, { maxBytes: 200_000 });
-      if (response.status === 200 && /"mappings"|"sources"/.test(response.body)) maps.push(`${script.url}.map`);
+      if (response.status === 200 && /"mappings"|"sources"/.test(response.body)) maps.push(response);
     }
     ctx.mark("exposed_sourcemap");
-    if (maps.length > 0) ctx.add("exposed_sourcemap", `Source maps were public at ${maps.join(", ")}.`);
+    if (maps.length > 0) {
+      ctx.add(
+        "exposed_sourcemap",
+        "A JavaScript source map was publicly downloadable.",
+        ctx.detailFor(maps[0], {
+          locations: maps.map((response) => ({ method: "GET", url: response.url })),
+          steps: reproduce("GET", maps[0].url, "The body contains source-map mappings.", "Stop publishing maps on the production host."),
+        }),
+      );
+    }
 
-    const debugHits: string[] = [];
+    const debugHits: ProbeResponse[] = [];
     for (const path of DEBUG_PATHS) {
       const response = await ctx.fetch(path, { maxBytes: 50_000 });
-      if (response.status === 200 && looksDebug(response.body)) debugHits.push(path);
+      if (response.status === 200 && looksDebug(response.body)) debugHits.push(response);
     }
     ctx.mark("exposed_debug_route");
-    if (debugHits.length > 0) ctx.add("exposed_debug_route", `Debug output was reachable at ${debugHits.join(", ")}.`);
+    if (debugHits.length > 0) {
+      ctx.add(
+        "exposed_debug_route",
+        "Debug output was reachable without a session.",
+        ctx.detailFor(debugHits[0], {
+          locations: debugHits.map((response) => ({ method: "GET", url: response.url })),
+          steps: reproduce("GET", debugHits[0].url, "The body includes debug or environment details.", "Remove the route from production."),
+        }),
+      );
+    }
 
-    const noisy: string[] = [];
+    const noisy: ProbeResponse[] = [];
     for (const path of ERROR_PATHS) {
       const response = await ctx.fetch(path, { maxBytes: 50_000 });
-      if (looksLikeStack(response.body)) noisy.push(path);
+      if (looksLikeStack(response.body)) noisy.push(response);
     }
     ctx.mark("verbose_errors");
-    if (noisy.length > 0) ctx.add("verbose_errors", `A stack trace was returned by ${noisy.join(", ")}.`);
+    if (noisy.length > 0) {
+      ctx.add(
+        "verbose_errors",
+        "An error response included a stack trace.",
+        ctx.detailFor(noisy[0], {
+          locations: noisy.map((response) => ({ method: "GET", url: response.url })),
+          steps: reproduce("GET", noisy[0].url, "The body includes a stack trace.", "Return a short error and log the stack on the server."),
+        }),
+      );
+    }
 
     const manifest = await ctx.fetch("/package.json", { maxBytes: 200_000 });
     ctx.mark("exposed_package_manifest");
     if (manifest.status === 200 && looksLikeManifest(manifest.body)) {
       ctx.packageJson = manifest.body;
-      ctx.add("exposed_package_manifest", "GET /package.json returned a dependency manifest.");
+      ctx.add(
+        "exposed_package_manifest",
+        "A public path returned a dependency manifest.",
+        ctx.detailFor(manifest, {
+          steps: reproduce("GET", manifest.url, "The body is a package manifest.", "Publish the built assets only."),
+        }),
+      );
     }
   });
 }

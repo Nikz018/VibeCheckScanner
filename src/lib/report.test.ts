@@ -48,6 +48,79 @@ test("free teaser keeps two samples and drops the rest of the evidence", () => {
   assert.ok(report.coverage.find((row) => row.family === "secrets"));
 });
 
+test("paid findings keep location and proof, and the teaser drops them", () => {
+  const marked = Object.fromEntries(CHECK_CATALOG.map((check) => [check.id, "ok" as const]));
+  const secret = "sk_test_demo_not_real_000000000000000";
+  const bundle = "http://127.0.0.1:4010/assets/app.js";
+  const firebase = "http://127.0.0.1:4010/rtdb/.json";
+  const results = [
+    {
+      checkId: "secret_in_client",
+      evidence: "Public JavaScript included a Stripe secret key.",
+      locations: [{ method: "GET", url: bundle, line: 6, column: 36, maskedSecret: "sk_t…0000" }],
+      proof: {
+        method: "GET",
+        url: bundle,
+        headers: [
+          { name: "authorization", value: `Bearer ${secret}` },
+          { name: "accept", value: "*/*" },
+        ],
+        status: 200,
+        responseSnippet: `HTTP 200\n\nconst key = "${secret}"`,
+      },
+      steps: [`Open ${bundle} at line 6.`, `The credential is shown as sk_t…0000.`],
+    },
+    {
+      checkId: "firebase_rules_open",
+      evidence: "The database URL returned JSON without a user credential.",
+      locations: [{ method: "GET", url: firebase }],
+      proof: {
+        method: "GET",
+        url: firebase,
+        headers: [{ name: "accept", value: "*/*" }],
+        status: 200,
+        responseSnippet: 'HTTP 200\n\n{"users":{"1":{"email":"ada@example.com"}}}',
+      },
+      steps: [`Send GET ${firebase} with no session cookie.`, "The body is JSON."],
+    },
+  ];
+  const input = {
+    scanId: "where",
+    status: "completed",
+    mode: "full" as const,
+    finishedAt: new Date("2026-10-24T00:00:00.000Z"),
+    marked,
+    results,
+  };
+  const paid = buildCustomerReport({ ...input, access: "full" });
+  const leaked = paid.priority.find((finding) => finding.checkId === "secret_in_client");
+  const openDb = paid.priority.find((finding) => finding.checkId === "firebase_rules_open");
+  assert.ok(leaked?.locations?.[0].url === bundle);
+  assert.equal(leaked?.locations?.[0].line, 6);
+  assert.equal(leaked?.locations?.[0].maskedSecret, "sk_t…0000");
+  assert.equal(leaked?.proof?.headers.find((header) => header.name === "authorization")?.value, "[redacted]");
+  assert.equal(leaked?.proof?.responseSnippet.includes(secret), false);
+  assert.ok((leaked?.proof?.responseSnippet.length ?? 0) <= 300);
+  assert.equal(leaked?.steps?.length, 2);
+  assert.match(leaked?.fix ?? "", /rotate/i);
+  assert.match(openDb?.fix ?? "", /\.read/);
+  assert.equal(openDb?.proof?.responseSnippet.includes("ada@example.com"), false);
+  assert.equal(openDb?.locations?.[0].url, firebase);
+
+  const teaser = buildCustomerReport({ ...input, access: "teaser" });
+  const blob = JSON.stringify(teaser);
+  assert.equal(blob.includes(bundle), false);
+  assert.equal(blob.includes(firebase), false);
+  assert.equal(blob.includes(secret), false);
+  assert.equal(blob.includes("sk_t…0000"), false);
+  assert.equal(blob.includes("ada@example.com"), false);
+  assert.equal(blob.includes("Steps to reproduce"), false);
+  assert.equal("locations" in (teaser.samples[0] ?? {}), false);
+  assert.equal("proof" in (teaser.samples[0] ?? {}), false);
+  assert.ok(teaser.samples.every((finding) => finding.title && finding.severity));
+  assert.equal(containsToolBrand(JSON.stringify(paid)), null);
+});
+
 test("coverage marks families that were not executed", () => {
   const coverage = buildCoverage({ missing_csp: "ok", exposed_dotenv: "ok" }, ["exposed_dotenv"]);
   assert.equal(coverage.find((row) => row.family === "access_control")?.status, "not_run");

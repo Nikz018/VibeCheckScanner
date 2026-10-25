@@ -60,6 +60,10 @@ async function main(): Promise<void> {
   expect(teaser.text.includes("Firebase data is world-readable"), "teaser missing a sample finding");
   expect(!teaser.text.includes("autoindex off"), "teaser leaked a locked fix");
   expect(!teaser.text.includes("Private credential embedded in client code"), "teaser leaked a locked title");
+  expect(!teaser.text.includes("/rtdb/.json"), "teaser leaked a finding location");
+  expect(!teaser.text.includes("/assets/app.js"), "teaser leaked a bundle location");
+  expect(!teaser.text.includes("Steps to reproduce"), "teaser leaked repro steps");
+  expect(!teaser.text.includes("sk_test_demo_not_real"), "teaser leaked a secret");
 
   const user = await prisma.user.findUniqueOrThrow({ where: { email } });
   const payload = JSON.stringify({
@@ -92,6 +96,12 @@ async function main(): Promise<void> {
   expect(full.text.includes("autoindex off"), "full report did not unlock the hidden fix");
   expect(full.text.includes("Private credential embedded in client code"), "full report did not unlock the hidden title");
   expect(!full.text.includes("more findings are hidden"), "full report still shows the teaser lock");
+  expect(full.text.includes("Steps to reproduce"), "full report missing repro steps");
+  expect(full.text.includes("/rtdb/.json"), "full report missing the firebase location");
+  expect(full.text.includes("/assets/app.js"), "full report missing the bundle location");
+  expect(full.text.includes("Line "), "full report missing a source line");
+  expect(!full.text.includes("sk_test_demo_not_real_000000000000000"), "full report leaked a raw secret");
+  expect(!full.text.includes("ada@example.com"), "full report leaked an email");
 
   const shareOn = await request(`/api/scans/${scanId}/share`, { method: "POST", json: { enabled: true } });
   expect(shareOn.status === 200, `share on ${shareOn.status} ${shareOn.text}`);

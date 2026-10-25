@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { verifyOwnership } from "@/lib/ownership";
 import { buildCustomerReport } from "@/lib/report";
-import { clampText, sanitizeCustomerText } from "@/lib/sanitize";
+import { clampText, sanitizeCode, sanitizeCustomerText } from "@/lib/sanitize";
 import { computeScore, isPassingScore } from "@/lib/score";
 import { runScanPipeline } from "./run-scan";
 
@@ -68,10 +68,16 @@ export async function executeScan(scanId: string): Promise<void> {
           title: sanitizeCustomerText(check.title),
           evidence: clampText(result.evidence),
           impact: sanitizeCustomerText(check.impact),
-          fix: sanitizeCustomerText(check.fix),
+          fix: sanitizeCode(check.fix),
           headlineRank: check.headlineRank,
           sortOrder: check.headlineRank ?? 50 + ["critical", "high", "medium", "low", "info"].indexOf(check.severity),
-          raw: { module: check.module } satisfies Prisma.InputJsonObject,
+          raw: JSON.parse(
+            JSON.stringify({
+              locations: result.locations ?? [],
+              proof: result.proof ?? null,
+              steps: result.steps ?? [],
+            }),
+          ) as Prisma.InputJsonObject,
         },
       });
     }

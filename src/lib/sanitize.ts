@@ -48,6 +48,12 @@ export function sanitizeCustomerText(input: string): string {
     .trim();
 }
 
+/** Keeps line breaks and indentation so a copy-paste fix stays readable. */
+export function sanitizeCode(input: string): string {
+  const redacted = redactSecrets(input).replace(toolBrandPattern(), "automated check");
+  return redacted.replace(/\n{4,}/g, "\n\n\n").trim();
+}
+
 export function clampText(input: string, max = 700): string {
   const clean = sanitizeCustomerText(input).replace(/\s+/g, " ").trim();
   if (clean.length <= max) return clean;

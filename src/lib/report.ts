@@ -7,9 +7,10 @@ import {
   type Severity,
   getCheck,
 } from "./catalog";
-import { clampText, containsToolBrand, sanitizeCustomerText } from "./sanitize";
-import { computeScore, isPassingScore } from "./score";
 import { POINT_IN_TIME_DISCLAIMER, isScanStale } from "./badge";
+import { sanitizeDetail, type FindingDetail, type FindingLocation, type FindingProof } from "./finding-detail";
+import { clampText, containsToolBrand, sanitizeCode, sanitizeCustomerText } from "./sanitize";
+import { computeScore, isPassingScore } from "./score";
 
 export interface RawCheckResult {
   checkId: string;
@@ -18,6 +19,9 @@ export interface RawCheckResult {
   title?: string;
   impact?: string;
   fix?: string;
+  locations?: FindingLocation[];
+  proof?: FindingProof;
+  steps?: string[];
 }
 
 export type CheckRunState = "ok" | "error";
@@ -41,7 +45,9 @@ export interface CustomerFinding {
   impact: string;
   fix: string;
   headlineRank: number | null;
-  locked?: boolean;
+  locations?: FindingLocation[];
+  proof?: FindingProof;
+  steps?: string[];
 }
 
 export interface CustomerReport {
@@ -106,18 +112,56 @@ function materialize(result: RawCheckResult): CustomerFinding {
     title: sanitizeCustomerText(result.title ?? check.title),
     evidence: clampText(result.evidence),
     impact: sanitizeCustomerText(result.impact ?? check.impact),
-    fix: sanitizeCustomerText(result.fix ?? check.fix),
+    fix: sanitizeCode(result.fix ?? check.fix),
     headlineRank: check.headlineRank,
   };
+  if (result.locations && result.proof && result.steps) {
+    const detail: FindingDetail = sanitizeDetail({
+      locations: result.locations,
+      proof: result.proof,
+      steps: result.steps,
+    });
+    finding.locations = detail.locations;
+    finding.proof = detail.proof;
+    finding.steps = detail.steps;
+  }
   const blob = JSON.stringify(finding);
   const brand = containsToolBrand(blob);
   if (brand) {
-    finding.evidence = clampText(finding.evidence.replace(new RegExp(brand, "ig"), "automated check"));
+    const pattern = new RegExp(brand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig");
+    finding.evidence = clampText(finding.evidence.replace(pattern, "automated check"));
     finding.title = sanitizeCustomerText(finding.title);
     finding.impact = sanitizeCustomerText(finding.impact);
-    finding.fix = sanitizeCustomerText(finding.fix);
+    finding.fix = sanitizeCode(finding.fix);
+    if (finding.steps) finding.steps = finding.steps.map((step) => step.replace(pattern, "automated check"));
+    if (finding.proof) finding.proof.responseSnippet = finding.proof.responseSnippet.replace(pattern, "automated check");
   }
   return finding;
+}
+
+/** Paid fields stay off the free report object, not only out of the markup. */
+export function hidePaidDetail(finding: CustomerFinding): CustomerFinding {
+  const urls = new Set<string>();
+  for (const location of finding.locations ?? []) {
+    if (location.url.length > 6) urls.add(location.url);
+    if (location.maskedSecret) urls.add(location.maskedSecret);
+  }
+  if (finding.proof && finding.proof.url.length > 6) urls.add(finding.proof.url);
+  let evidence = finding.evidence;
+  for (const secret of urls) {
+    evidence = evidence.split(secret).join("the tested endpoint");
+  }
+  return {
+    checkId: finding.checkId,
+    family: finding.family,
+    familyLabel: finding.familyLabel,
+    severity: finding.severity,
+    title: finding.title,
+    evidence: clampText(evidence),
+    impact: finding.impact,
+    fix: finding.fix,
+    headlineRank: finding.headlineRank,
+  };
 }
 
 export function sortFindings(findings: CustomerFinding[]): CustomerFinding[] {
@@ -169,7 +213,7 @@ export function buildCustomerReport(input: {
       coverage,
       priority: [],
       families: [],
-      samples,
+      samples: samples.map(hidePaidDetail),
       hiddenCount: Math.max(0, findings.length - samples.length),
       totalFindings: findings.length,
       disclaimer: POINT_IN_TIME_DISCLAIMER,

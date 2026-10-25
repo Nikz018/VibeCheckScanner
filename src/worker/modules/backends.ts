@@ -1,3 +1,5 @@
+import { reproduce } from "@/lib/finding-detail";
+import type { ProbeResponse } from "@/lib/http";
 import { runModule, type ScanContext } from "../context";
 
 export const SUPABASE_CHECK_IDS = ["supabase_rls_disabled"] as const;
@@ -12,19 +14,38 @@ export async function runSupabase(ctx: ScanContext): Promise<void> {
     const tables = ["users", "profiles", "orders", "todos", "messages"];
     const open: string[] = [];
     let writesAdvertised = false;
+    let first: { table: string; response: ProbeResponse } | null = null;
     for (const table of tables) {
       const response = await ctx.fetch(`${ctx.config.supabaseUrl}/rest/v1/${table}?select=*&limit=2`, { headers });
       const rows = parseArray(response.body);
       if (response.status === 200 && rows && rows.length > 0) {
-        open.push(`${table} (${rows.length} row sample, fields ${Object.keys(rows[0]).slice(0, 6).join(", ")})`);
+        open.push(table);
+        if (!first) first = { table, response };
         const options = await ctx.fetch(`${ctx.config.supabaseUrl}/rest/v1/${table}`, { method: "OPTIONS", headers });
         const allow = options.headers.allow || options.headers["access-control-allow-methods"] || "";
         if (/\bPOST\b|\bPATCH\b|\bDELETE\b/i.test(allow)) writesAdvertised = true;
       }
     }
-    if (open.length > 0) {
+    if (open.length > 0 && first) {
       const writeNote = writesAdvertised ? " Write methods are advertised for at least one of these tables." : "";
-      ctx.add("supabase_rls_disabled", `The public client key could read ${open.join("; ")}.${writeNote}`);
+      ctx.add(
+        "supabase_rls_disabled",
+        `The public client key could read rows from ${open.length} table${open.length === 1 ? "" : "s"}.${writeNote}`,
+        ctx.detailFor(first.response, {
+          method: "GET",
+          requestHeaders: headers,
+          locations: open.map((table) => ({
+            method: "GET",
+            url: `${ctx.config.supabaseUrl}/rest/v1/${table}?select=*&limit=2`,
+          })),
+          steps: reproduce(
+            "GET",
+            first.response.url,
+            "The response is HTTP 200 and includes row data for the anon client key.",
+            "Turn on row level security so this role cannot select the table.",
+          ),
+        }),
+      );
     }
   });
 }
@@ -41,7 +62,19 @@ export async function runFirebase(ctx: ScanContext): Promise<void> {
     if (!parsed) return;
     const keys = Object.keys(parsed).slice(0, 6);
     if (keys.length === 0) return;
-    ctx.add("firebase_rules_open", `The database URL returned JSON without a user credential. Top-level keys: ${keys.join(", ")}.`);
+    ctx.add(
+      "firebase_rules_open",
+      "The database URL returned JSON without a user credential.",
+      ctx.detailFor(response, {
+        method: "GET",
+        steps: reproduce(
+          "GET",
+          response.url,
+          `The body is JSON with top-level keys: ${keys.join(", ")}.`,
+          "Deploy rules that deny unauthenticated reads.",
+        ),
+      }),
+    );
   });
 }
 
@@ -57,7 +90,15 @@ export async function runStorage(ctx: ScanContext): Promise<void> {
         const names = buckets
           .map((bucket) => (typeof bucket.name === "string" ? bucket.name : typeof bucket.id === "string" ? bucket.id : "bucket"))
           .slice(0, 5);
-        ctx.add("public_storage_bucket", `The storage API listed ${buckets.length} bucket(s): ${names.join(", ")}.`);
+        ctx.add(
+          "public_storage_bucket",
+          `The storage API listed ${buckets.length} bucket${buckets.length === 1 ? "" : "s"}.`,
+          ctx.detailFor(response, {
+            method: "GET",
+            requestHeaders: clientHeaders(ctx.config.supabaseAnonKey),
+            steps: reproduce("GET", response.url, `The response lists buckets: ${names.join(", ")}.`, "Make the bucket private."),
+          }),
+        );
       }
     }
 
@@ -65,7 +106,13 @@ export async function runStorage(ctx: ScanContext): Promise<void> {
     for (const path of ["/uploads/", "/files/", "/storage/"]) {
       const response = await ctx.fetch(path, { maxBytes: 50_000 });
       if (response.status === 200 && /index of|directory listing/i.test(response.body)) {
-        ctx.add("directory_listing", `${path} returned a directory listing.`);
+        ctx.add(
+          "directory_listing",
+          "A public path returned a directory listing.",
+          ctx.detailFor(response, {
+            steps: reproduce("GET", response.url, "The body is a file index.", "Turn directory indexes off."),
+          }),
+        );
         break;
       }
     }
