@@ -1,3 +1,5 @@
+import { formatScoreRatio, scoreBand } from "./score-gauge";
+
 export const DEFAULT_STALE_DAYS = 30;
 
 export const POINT_IN_TIME_DISCLAIMER =
@@ -29,9 +31,9 @@ export interface BadgeModel {
 }
 
 export function badgeLabel(model: BadgeModel): string {
-  if (model.stale) return "rescan needed";
-  if (model.passed) return "Passed VibeCheck";
-  return `VibeCheck score ${model.score}`;
+  const ratio = `VibeCheck ${formatScoreRatio(model.score)}`;
+  if (model.stale) return `rescan needed, ${ratio}`;
+  return ratio;
 }
 
 function escapeXml(value: string): string {
@@ -43,16 +45,16 @@ function escapeXml(value: string): string {
 }
 
 export function renderBadgeSvg(model: BadgeModel): string {
+  const ratio = `VibeCheck ${formatScoreRatio(model.score)}`;
+  const date = model.stale ? `rescan needed · Scanned ${formatScanDate(model.finishedAt)}` : `Scanned ${formatScanDate(model.finishedAt)}`;
+  const band = scoreBand(model.score);
   const label = escapeXml(badgeLabel(model));
-  const date = escapeXml(`Scanned ${formatScanDate(model.finishedAt)}`);
-  const accent = model.stale ? "#8a8478" : model.passed ? "#1f7a45" : "#14201b";
-  const chip = model.stale ? "#efe6c8" : "#dff25b";
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="280" height="68" viewBox="0 0 280 68" role="img" aria-label="${label}, ${date}">
-  <rect width="280" height="68" rx="10" fill="#14201b"/>
-  <rect x="10" y="14" width="44" height="40" rx="8" fill="${chip}"/>
-  <text x="32" y="39" text-anchor="middle" font-family="Georgia, serif" font-size="16" fill="${accent}">VC</text>
-  <text x="66" y="30" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="700" fill="#f4f0e6">${label}</text>
-  <text x="66" y="50" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12" fill="#c9c2b2">${date}</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="68" viewBox="0 0 360 68" role="img" aria-label="${label}, ${escapeXml(date)}">
+  <rect width="360" height="68" rx="10" fill="#14201b"/>
+  <rect x="10" y="14" width="44" height="40" rx="8" fill="${band.color}"/>
+  <text x="32" y="39" text-anchor="middle" font-family="Georgia, serif" font-size="16" fill="#14201b">VC</text>
+  <text x="66" y="30" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="700" fill="${band.color}">${escapeXml(ratio)}</text>
+  <text x="66" y="50" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12" fill="#c9c2b2">${escapeXml(date)}</text>
 </svg>`;
 }

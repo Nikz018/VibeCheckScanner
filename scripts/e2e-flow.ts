@@ -64,6 +64,17 @@ async function main(): Promise<void> {
   expect(!teaser.text.includes("/assets/app.js"), "teaser leaked a bundle location");
   expect(!teaser.text.includes("Steps to reproduce"), "teaser leaked repro steps");
   expect(!teaser.text.includes("sk_test_demo_not_real"), "teaser leaked a secret");
+  expect(teaser.text.includes("/100"), "teaser missing the score ratio");
+  expect(teaser.text.includes("Higher is safer"), "teaser missing the score explainer");
+  expect(!teaser.text.includes("Download PDF"), "teaser showed a download button");
+  const pdfLocked = await request(`/api/scans/${scanId}/pdf`);
+  const mdLocked = await request(`/api/scans/${scanId}/markdown`);
+  const printLocked = await request(`/api/scans/${scanId}/print`);
+  expect(pdfLocked.status === 403, `teaser pdf ${pdfLocked.status}`);
+  expect(mdLocked.status === 403, `teaser markdown ${mdLocked.status}`);
+  expect(printLocked.status === 403, `teaser print ${printLocked.status}`);
+  const signedOut = await fetch(`${base}/api/scans/${scanId}/markdown`);
+  expect(signedOut.status === 401, `signed-out markdown ${signedOut.status}`);
 
   const user = await prisma.user.findUniqueOrThrow({ where: { email } });
   const payload = JSON.stringify({
@@ -102,13 +113,46 @@ async function main(): Promise<void> {
   expect(full.text.includes("Line "), "full report missing a source line");
   expect(!full.text.includes("sk_test_demo_not_real_000000000000000"), "full report leaked a raw secret");
   expect(!full.text.includes("ada@example.com"), "full report leaked an email");
+  expect(full.text.includes("/100"), "full report missing the score ratio");
+  expect(full.text.includes("Higher is safer"), "full report missing the score explainer");
+  expect(full.text.includes("Download PDF"), "full report missing the PDF button");
+  expect(full.text.includes("Download for AI fix"), "full report missing the markdown button");
+
+  const markdown = await request(`/api/scans/${scanId}/markdown`);
+  expect(markdown.status === 200, `markdown ${markdown.status} ${markdown.text.slice(0, 180)}`);
+  expect(markdown.text.startsWith("Fix these security issues in my app."), "markdown missing the fix prompt");
+  expect(markdown.text.includes("/rtdb/.json"), "markdown missing the firebase location");
+  expect(markdown.text.includes("/assets/app.js"), "markdown missing the bundle location");
+  expect(!markdown.text.includes("sk_test_demo_not_real_000000000000000"), "markdown leaked a raw secret");
+  expect(!markdown.text.includes("ada@example.com"), "markdown leaked an email");
+  expect(!markdown.text.toLowerCase().includes("playwright") && !markdown.text.toLowerCase().includes("nuclei"), "markdown named a tool");
+  expect((markdown.headers.get("content-disposition") || "").includes("vibecheck-127.0.0.1-4010-"), "markdown filename");
+
+  const printHtml = await request(`/api/scans/${scanId}/print`);
+  expect(printHtml.status === 200, `print ${printHtml.status}`);
+  expect(printHtml.text.includes("data-report=\"vibecheck-print\""), "print template missing");
+  expect(printHtml.text.includes("/100"), "print missing the score ratio");
+  expect(printHtml.text.includes("Higher is safer"), "print missing the score explainer");
+  expect(printHtml.text.includes("data-score-gauge"), "print missing the score gauge");
+  expect(printHtml.text.includes("/rtdb/.json"), "print missing location");
+  expect(!printHtml.text.includes("sk_test_demo_not_real_000000000000000"), "print leaked a raw secret");
+  expect(!printHtml.text.toLowerCase().includes("playwright"), "print named a tool");
+
+  const pdf = await request(`/api/scans/${scanId}/pdf`);
+  expect(pdf.status === 200, `pdf ${pdf.status} ${pdf.text.slice(0, 120)}`);
+  expect(pdf.text.startsWith("%PDF"), "pdf body is not a PDF");
+  expect((pdf.headers.get("content-type") || "").includes("application/pdf"), "pdf content type");
+  expect((pdf.headers.get("content-disposition") || "").includes("vibecheck-127.0.0.1-4010-"), "pdf filename");
+  expect(!pdf.text.includes("sk_test_demo_not_real_000000000000000"), "pdf leaked a raw secret");
+  expect(!pdf.text.includes("HeadlessChrome") && !pdf.text.includes("Skia/PDF") && !pdf.text.toLowerCase().includes("playwright"), "pdf named a tool");
 
   const shareOn = await request(`/api/scans/${scanId}/share`, { method: "POST", json: { enabled: true } });
   expect(shareOn.status === 200, `share on ${shareOn.status} ${shareOn.text}`);
   const token = JSON.parse(shareOn.text).token as string;
   const share = await request(`/share/${token}`);
   expect(share.status === 200, `share page ${share.status}`);
-  expect(share.text.includes("VibeCheck"), "share page missing score label");
+  expect(share.text.includes("/100"), "share page missing the score ratio");
+  expect(share.text.includes("Higher is safer"), "share page missing the score explainer");
   expect(share.text.includes("Scanned"), "share page missing scan date");
   expect(!share.text.includes("Firebase data is world-readable"), "share page leaked a finding");
   expect(!share.text.includes("autoindex off"), "share page leaked a fix");
@@ -123,7 +167,7 @@ async function main(): Promise<void> {
   expect(shareAgain.status === 200, `share on again ${shareAgain.status}`);
   const badge = await request(`/api/badge/${token}`);
   expect(badge.status === 200, `badge ${badge.status}`);
-  expect(badge.text.includes("VibeCheck score") || badge.text.includes("Passed VibeCheck"), "badge missing score label");
+  expect(/VibeCheck \d+\/100/.test(badge.text), "badge missing the score ratio");
   expect(badge.text.includes("Scanned"), "badge missing scan date");
   expect(!badge.text.includes("Firebase"), "badge leaked a finding");
 
@@ -135,11 +179,11 @@ async function main(): Promise<void> {
     "missing";
   expect(headless !== "missing", "worker log has no headless render result");
 
-  console.log(JSON.stringify({ ok: true, scanId, shareToken: token, headless, scoreHint: full.text.includes("VibeCheck score") }, null, 2));
+  console.log(JSON.stringify({ ok: true, scanId, shareToken: token, headless, scoreHint: full.text.includes("/100") }, null, 2));
   await prisma.$disconnect();
 }
 
-async function request(path: string, init: { method?: string; json?: unknown } = {}): Promise<{ status: number; text: string }> {
+async function request(path: string, init: { method?: string; json?: unknown } = {}): Promise<{ status: number; text: string; headers: Headers }> {
   const response = await fetch(path.startsWith("http") ? path : `${base}${path}`, {
     method: init.method || "GET",
     redirect: "manual",
@@ -154,7 +198,7 @@ async function request(path: string, init: { method?: string; json?: unknown } =
     cookie = setCookies.map((entry) => entry.split(";")[0]).join("; ");
   }
   const text = await response.text();
-  return { status: response.status, text };
+  return { status: response.status, text, headers: response.headers };
 }
 
 function expect(condition: unknown, message: string): asserts condition {

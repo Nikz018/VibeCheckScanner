@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { ScoreGauge } from "@/components/ScoreGauge";
 import { POINT_IN_TIME_DISCLAIMER, badgeLabel, formatScanDate, isScanStale, renderBadgeSvg } from "@/lib/badge";
 import { prisma } from "@/lib/db";
 
@@ -17,7 +18,9 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
   return (
     <div className="mx-auto max-w-xl py-16 text-center">
       <p className="text-xs uppercase tracking-[0.2em] text-lime">VibeCheck</p>
-      <h1 className="mt-4 font-display text-6xl">{stale ? "rescan needed" : model.passed ? "Passed VibeCheck" : scan.score}</h1>
+      <div className="mt-6 flex justify-center">
+        <ScoreGauge score={scan.score} size="lg" tone="dark" />
+      </div>
       <p className="mt-3 text-[#d9d3c5]">Scanned {formatScanDate(scan.finishedAt)}</p>
       {stale ? <p className="mt-4 rounded-2xl bg-[#fff1c9] px-4 py-3 text-sm text-ink">rescan needed — this result is more than 30 days old.</p> : null}
       <img className="mx-auto mt-6" alt={badgeLabel(model)} src={`data:image/svg+xml;utf8,${encodeURIComponent(svg)}`} />

@@ -11,15 +11,15 @@ This is not a certification, and it is not a promise that an app stays safe afte
 | Tier | Price | Unlocks |
 | --- | --- | --- |
 | Free teaser | $0 | Full scan runs and is stored. The page shows the score, severity counts, family coverage, and two sample issues. The rest of the evidence stays locked. |
-| Full report | $49 once | Every finding on that scan: where it was found, evidence, the request and response, and a copy-paste fix. |
+| Full report | $49 once | Every finding on that scan: where it was found, evidence, the request and response, and a copy-paste fix. Download a PDF or a Markdown file for an AI coding assistant. |
 | Report + rescan | $99 once | The full report, plus one credit to run another full-access scan after you fix things. |
 | Monitoring | $29/month | Full reports while the subscription is active, a scheduled rescan of a verified origin, and an alert when a new high-severity issue appears. |
 
 The mini check is separate and free. It only runs header and public-file checks, and the coverage summary marks every other family as not run.
 
-A finished scan can opt into a public score page and an SVG badge. Those show the score and the scan date. They do not show findings. After 30 days they read **rescan needed**.
+A finished scan can opt into a public score page and an SVG badge. Those show the score out of 100 and the scan date. They do not show findings. After 30 days they read **rescan needed**.
 
-Score starts at 100. Critical findings subtract 25, high 12, medium 6, low 2. A score of 85 or higher with no critical or high findings is labeled Passed VibeCheck.
+Score starts at 100. Critical findings subtract 25, high 12, medium 6, low 2. Reports show the result as a score out of 100: 0–39 Critical risk, 40–69 Needs work, 70–89 Good, and 90–100 Strong.
 
 ## Local setup
 
