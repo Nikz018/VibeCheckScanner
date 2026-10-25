@@ -1,17 +1,25 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { IssueGrid, JsonLd, PricingCards, TaxLine } from "@/components/Marketing";
 import { FAMILIES, HEADLINE_THEMES } from "@/lib/catalog";
-import { FREE_TIER, TAX_NOTE, TIERS } from "@/lib/pricing";
+import { DEFINITION, DISCLAIMER, ISSUE_CHECKS_ANSWER, getPublicPage, priceAnswer } from "@/lib/seo/content";
+import { jsonLdForPage } from "@/lib/seo/jsonld";
+import { pageMetadata } from "@/lib/seo/metadata";
+
+export const metadata: Metadata = pageMetadata("home");
+
+const START_HERE = ["how-it-works", "faq", "guides", "guide-lovable", "guide-rls", "guide-keys"] as const;
 
 export default function HomePage() {
   return (
     <div className="space-y-20 pb-16">
+      <JsonLd data={jsonLdForPage("home")} />
       <section className="grid items-end gap-10 pt-8 md:grid-cols-[1.3fr_0.7fr]">
         <div>
           <p className="text-sm uppercase tracking-[0.22em] text-lime">Launch scan for vibe-coded apps</p>
           <h1 className="mt-4 font-display text-6xl leading-[0.95] md:text-7xl">Ship the vibe. Check the doors.</h1>
-          <p className="mt-6 max-w-xl text-lg text-[#ddd6c8]">
-            VibeCheck reads the app you generated with Lovable, Bolt, Supabase, Firebase, or a similar stack and returns a security report: what is exposed, why it matters, and a fix you can paste.
-          </p>
+          <p className="mt-6 max-w-xl text-lg text-[#ddd6c8]">{DEFINITION}</p>
+          <p className="mt-3 max-w-xl text-[#d9d3c5]">{DISCLAIMER}</p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/scans/new" className="btn btn-lime">
               Scan an app you own
@@ -32,9 +40,19 @@ export default function HomePage() {
         </aside>
       </section>
 
+      <section aria-labelledby="what-we-check">
+        <h2 id="what-we-check" className="font-display text-4xl">
+          What does VibeCheck check?
+        </h2>
+        <p className="mt-3 max-w-3xl text-[#d9d3c5]">{ISSUE_CHECKS_ANSWER}</p>
+        <IssueGrid />
+      </section>
+
       <section>
         <h2 className="font-display text-4xl">The ten issues we put first</h2>
-        <p className="mt-2 max-w-2xl text-[#d9d3c5]">These are the headline findings. The full scan still covers every family below. The free teaser shows severity counts and two of the highest-priority issues.</p>
+        <p className="mt-2 max-w-2xl text-[#d9d3c5]">
+          These are the headline findings. The full scan still covers every family below. The free teaser shows severity counts and two of the highest-priority issues.
+        </p>
         <ol className="mt-6 grid gap-3 md:grid-cols-2">
           {HEADLINE_THEMES.map((theme) => (
             <li key={theme.rank} className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -59,23 +77,15 @@ export default function HomePage() {
       </section>
 
       <section id="pricing">
-        <h2 className="font-display text-4xl">Pricing</h2>
-        <p className="mt-2 max-w-2xl text-[#d9d3c5]">Checkout uses the payment provider in the environment. Amounts below are the products to create in test mode.</p>
-        <div className="mt-6 grid gap-4 md:grid-cols-4">
-          <article className="rounded-3xl border border-white/10 p-5">
-            <h3 className="font-semibold">{FREE_TIER.name}</h3>
-            <p className="font-display text-4xl">{FREE_TIER.priceLabel}</p>
-            <p className="mt-3 text-sm text-[#c9c2b2]">{FREE_TIER.blurb}</p>
-          </article>
-          {Object.values(TIERS).map((tier) => (
-            <article key={tier.id} className="rounded-3xl bg-lime p-5 text-ink">
-              <h3 className="font-semibold">{tier.name}</h3>
-              <p className="font-display text-4xl">{tier.priceLabel}</p>
-              <p className="text-xs">{TAX_NOTE}</p>
-              <p className="mt-3 text-sm">{tier.blurb}</p>
-            </article>
-          ))}
+        <h2 className="font-display text-4xl">How much does VibeCheck cost?</h2>
+        <p className="mt-3 max-w-3xl text-[#d9d3c5]">{priceAnswer()}</p>
+        <div className="mt-6">
+          <PricingCards />
         </div>
+        <TaxLine />
+        <Link href="/pricing" className="mt-4 inline-block text-lime">
+          Pricing details
+        </Link>
       </section>
 
       <section className="grid gap-6 rounded-[28px] border border-white/10 p-6 md:grid-cols-[1.2fr_0.8fr]">
@@ -94,6 +104,22 @@ export default function HomePage() {
             Opt in to a public page and an SVG badge. Visitors see the score and the scan date. After 30 days the badge reads “rescan needed”. Finding details never leave your account.
           </p>
         </div>
+      </section>
+
+      <section>
+        <h2 className="font-display text-4xl">Where should I start?</h2>
+        <ul className="mt-4 space-y-2 text-[#ddd6c8]">
+          {START_HERE.map((id) => {
+            const page = getPublicPage(id);
+            return (
+              <li key={id}>
+                <Link className="text-lime" href={page.path}>
+                  {page.h1}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
       </section>
     </div>
   );

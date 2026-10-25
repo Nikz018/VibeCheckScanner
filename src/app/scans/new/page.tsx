@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { NewScanForm } from "@/components/NewScanForm";
 import { getCurrentUser } from "@/lib/auth";
 import { monitoringActive } from "@/lib/entitlements";
+import { privateMetadata } from "@/lib/seo/metadata";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = privateMetadata("New scan");
 
 export default async function NewScanPage() {
   const user = await getCurrentUser();
