@@ -1,4 +1,5 @@
 import { DEFAULT_STALE_DAYS } from "../badge";
+import { limitationsParagraph } from "../limitations";
 import { FREE_TIER, TAX_NOTE, TIERS } from "../pricing";
 import { SEVERITY_WEIGHTS } from "../score";
 
@@ -121,11 +122,15 @@ export const FAQ: FaqItem[] = [
   {
     question: "What is included in the free teaser?",
     answer:
-      "The free teaser runs the scan and shows the score, severity counts, family coverage, and two sample issues, while the rest of the evidence stays locked.",
+      "The free teaser runs the scan and shows the score, severity counts, family coverage, and two sample issues, while the rest of the evidence stays locked. Logged-in checks are available in the full report.",
   },
   {
     question: `What is the difference between the ${TIERS.report.priceLabel} report and the ${TIERS.rescan.priceLabel} plan?`,
-    answer: `The ${TIERS.report.priceLabel} plan unlocks the full report for one finished scan, and the ${TIERS.rescan.priceLabel} plan unlocks that report plus one credit to rescan after you ship fixes.`,
+    answer: `The ${TIERS.report.priceLabel} plan unlocks the full report for one finished scan, and the ${TIERS.rescan.priceLabel} plan unlocks that report plus one credit to rescan after you ship fixes. Both include signed-in checks when you provide throwaway test accounts.`,
+  },
+  {
+    question: "What this scan does not cover?",
+    answer: limitationsParagraph(),
   },
   {
     question: "What does monitoring include?",
@@ -176,7 +181,7 @@ export const HOW_TO_STEPS: CopyBlock[] = [
   {
     heading: "What does the scan actually request?",
     paragraphs: [
-      "VibeCheck requests pages and public files, and it may send a few tiny unauthenticated POST requests to see whether a login, webhook, or AI route rejects bad input. It does not send PUT, PATCH, or DELETE.",
+      "VibeCheck requests pages and public files, and it may send a few tiny unauthenticated POST requests to see whether a login, webhook, or AI route rejects bad input. It does not send PUT, PATCH, or DELETE. A paid full report can also sign in with up to two throwaway test accounts and then send only GET and HEAD, plus that login request.",
     ],
   },
   {
@@ -235,7 +240,7 @@ export const PRICING_SECTIONS: CopyBlock[] = [
     heading: `What does the ${TIERS.report.priceLabel} full report include?`,
     paragraphs: [
       `The ${TIERS.report.priceLabel} one-time plan unlocks every finding on that scan: where it was found, redacted evidence, the request and a short response, and a fix you can paste.`,
-      "You can download the unlocked report as a PDF or as a Markdown file. The price excludes applicable taxes. Paying does not run a new scan.",
+      "You can download the unlocked report as a PDF or as a Markdown file. Signed-in checks are included when you add up to two throwaway test accounts. The free teaser does not run them. The price excludes applicable taxes. Paying does not run a new scan.",
     ],
   },
   {

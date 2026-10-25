@@ -39,6 +39,7 @@ Demo targets (intentionally insecure, local only):
 - http://127.0.0.1:4010 open backend
 - http://127.0.0.1:4011 client paywall
 - http://127.0.0.1:4012 missing headers and public files
+- http://127.0.0.1:4013 signed-in IDOR, admin, and paywall bugs (local only)
 
 See [demo-targets/README.md](demo-targets/README.md). Do not deploy those processes.
 
@@ -105,7 +106,15 @@ Create a scan and copy the token (`vc_` plus 32 hex characters).
 https://your-origin/.well-known/vibecheck-verify.txt
 ```
 
-The worker checks the proof again when the job starts. If you remove it, the scan stops before any probe. Local demo apps keep the token in memory. The scan form can install it for ports 4010–4012 when `ALLOW_LOCAL_TARGETS=true`.
+The worker checks the proof again when the job starts. If you remove it, the scan stops before any probe. Local demo apps keep the token in memory. The scan form can install it for ports 4010–4013 when `ALLOW_LOCAL_TARGETS=true`.
+
+## Signed-in checks
+
+The $49 and $99 reports, and an active monitoring subscription, can scan behind a login. The free teaser does not. On the scan form, add up to two throwaway test accounts on the verified origin, or a session cookie or bearer token when the app uses 2FA or a social login. Use test accounts only.
+
+Set `CREDENTIALS_ENCRYPTION_KEY` to 32 bytes, as 64 hex characters or standard base64, before those credentials can be stored. The API refuses the scan if the key is missing. The worker decrypts the values only for that scan, deletes them when the scan finishes (success or failure), and a cleanup pass deletes anything older than 24 hours. Reports, downloads, and the public score page do not include the password, cookie, or token.
+
+Signed-in probes are GET and HEAD only, plus the login request itself. They do not submit other forms and they skip logout, delete, settings, and billing URLs. A failed login is a notice, not a scored finding, and the unauthenticated checks still run.
 
 The worker allows only GET, HEAD, OPTIONS, and small POSTs. It does not send PUT, PATCH, or DELETE. It refuses link-local and metadata addresses, and it refuses private addresses except the verified origin when local targets are explicitly enabled. Supabase and Firebase hosts that appear in the public bundle may be read with the public client key. Service-role material is reported and redacted, not reused for writes.
 

@@ -239,7 +239,7 @@ test("JSON-LD is valid schema.org for each public page", () => {
 
   const faq = findType(graphNodes(jsonLdForPage("faq")), "FAQPage");
   const questions = faq.mainEntity as Array<Record<string, unknown>>;
-  assert.ok(questions.length >= 8 && questions.length <= 12);
+  assert.ok(questions.length >= 8 && questions.length <= 13);
   assert.equal(questions.length, FAQ.length);
   for (const [index, question] of questions.entries()) {
     assert.equal(question["@type"], "Question");
@@ -265,7 +265,7 @@ test("JSON-LD is valid schema.org for each public page", () => {
 });
 
 test("answer-shaped copy and llms files describe the product without tool brands", () => {
-  assert.ok(FAQ.length >= 8 && FAQ.length <= 12);
+  assert.ok(FAQ.length >= 8 && FAQ.length <= 13);
   for (const item of FAQ) {
     assert.match(item.question, /\?$/);
     assert.ok(item.answer.length > 40, item.question);

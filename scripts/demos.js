@@ -5,6 +5,7 @@ const targets = [
   ["demo-targets/open-backend/server.js", "4010"],
   ["demo-targets/paywall/server.js", "4011"],
   ["demo-targets/leaky-basics/server.js", "4012"],
+  ["demo-targets/logged-in/server.js", "4013"],
 ];
 
 const children = targets.map(([script, port]) =>

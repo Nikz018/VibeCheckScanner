@@ -25,6 +25,7 @@ export function reportFromStored(input: {
       locations: detail.locations,
       proof: detail.proof,
       steps: detail.steps,
+      confidence: detail.confidence,
     };
   });
   return buildCustomerReport({
@@ -35,6 +36,7 @@ export function reportFromStored(input: {
     finishedAt: input.finishedAt,
     results,
     marked,
+    notices: readNotices(input.coverage),
     now: input.now,
   });
 }
@@ -45,9 +47,16 @@ function readMarked(coverage: unknown): Record<string, CheckRunState> {
   if (!marked || typeof marked !== "object") return {};
   const out: Record<string, CheckRunState> = {};
   for (const [key, value] of Object.entries(marked)) {
-    if (value === "ok" || value === "error") out[key] = value;
+    if (value === "ok" || value === "error" || value === "skipped") out[key] = value;
   }
   return out;
+}
+
+function readNotices(coverage: unknown): string[] {
+  if (!coverage || typeof coverage !== "object" || !("notices" in coverage)) return [];
+  const notices = (coverage as { notices?: unknown }).notices;
+  if (!Array.isArray(notices)) return [];
+  return notices.filter((notice): notice is string => typeof notice === "string" && notice.trim().length > 0);
 }
 
 function asSeverity(value: string): Severity {

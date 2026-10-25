@@ -156,7 +156,8 @@ for _ in $(seq 1 40); do
   if timeout 5 curl -sf -o /dev/null "http://127.0.0.1:3000/api/health" \
     && timeout 3 curl -sf -o /dev/null "http://127.0.0.1:4010/" \
     && timeout 3 curl -sf -o /dev/null "http://127.0.0.1:4011/" \
-    && timeout 3 curl -sf -o /dev/null "http://127.0.0.1:4012/"; then
+    && timeout 3 curl -sf -o /dev/null "http://127.0.0.1:4012/" \
+    && timeout 3 curl -sf -o /dev/null "http://127.0.0.1:4013/"; then
     app_ready=1
     break
   fi

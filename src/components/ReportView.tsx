@@ -70,13 +70,18 @@ export function ReportView({
         ) : null}
         <p className="mt-4 text-sm text-[#536058]">Score starts at 100. Critical −25, high −12, medium −6, low −2.</p>
         <p className="mt-2 text-sm text-[#536058]">{report.disclaimer}</p>
+        {report.notices.map((notice) => (
+          <p key={notice} className="mt-3 rounded-2xl bg-[#fff1c9] px-4 py-3 text-sm">
+            {notice}
+          </p>
+        ))}
       </section>
 
       <section className="grid gap-3 md:grid-cols-4">
         {report.coverage.map((row) => (
           <article key={row.family} className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <h2 className="text-sm font-semibold">{row.label}</h2>
-            <p className="mt-2 font-display text-2xl capitalize">{row.status === "not_run" ? "Not run" : row.status === "incomplete" ? "Partial" : row.status === "error" ? "Not completed" : row.status === "pass" ? "No issues" : `${row.findingCount} finding${row.findingCount === 1 ? "" : "s"}`}</p>
+            <p className="mt-2 font-display text-2xl capitalize">{coverageLabel(row)}</p>
             <p className="mt-1 text-xs text-[#c9c2b2]">
               {row.checksRun.length} checks ran{row.checksNotRun.length ? ` · ${row.checksNotRun.length} not included` : ""}
             </p>
@@ -92,7 +97,7 @@ export function ReportView({
               <FindingCard key={finding.checkId} finding={finding} paid={false} />
             ))}
           </div>
-          <p className="text-sm text-[#d9d3c5]">{report.hiddenCount} more findings are hidden on the free teaser.</p>
+          <p className="text-sm text-[#d9d3c5]">{report.hiddenCount} more findings are hidden on the free teaser. Logged-in checks are available in the full report.</p>
           {scanId ? <UpgradePanel scanId={scanId} collectBilling={collectBilling} /> : null}
         </section>
       ) : (
@@ -135,6 +140,16 @@ export function ReportView({
         </div>
       ) : null}
 
+      <section className="rounded-3xl border border-white/10 p-5">
+        <h2 className="font-display text-3xl">{report.limitationsTitle}</h2>
+        <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-[#d9d3c5]">
+          {report.limitations.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+        <p className="mt-3 text-sm text-[#d9d3c5]">{report.limitationsNote}</p>
+      </section>
+
       {scanId && share ? <SharePanel scanId={scanId} enabled={share.enabled} token={share.token} /> : null}
       {project ? (
         <div className="paper rounded-3xl p-5 text-ink">
@@ -155,6 +170,7 @@ function FindingCard({ finding, paid }: { finding: CustomerReport["samples"][num
         <span className={`rounded-full px-2 py-1 font-semibold uppercase ${SEVERITY_STYLE[finding.severity]}`}>{finding.severity}</span>
         <span className="text-[#5c675f]">{finding.familyLabel}</span>
         {finding.headlineRank ? <span className="text-[#5c675f]">Headline {finding.headlineRank}</span> : null}
+        {finding.confidence ? <span className="text-[#5c675f]">Confidence {finding.confidence}</span> : null}
       </div>
       <h3 className="mt-3 font-display text-2xl">{finding.title}</h3>
       <div className="mt-3 space-y-4 text-sm leading-6">
@@ -227,6 +243,15 @@ function FindingCard({ finding, paid }: { finding: CustomerReport["samples"][num
       </div>
     </article>
   );
+}
+
+function coverageLabel(row: CustomerReport["coverage"][number]): string {
+  if (row.status === "not_run") return "Not run";
+  if (row.status === "incomplete") return "Partial";
+  if (row.status === "error") return "Not completed";
+  if (row.status === "skipped") return "Not signed in";
+  if (row.status === "pass") return "No issues";
+  return `${row.findingCount} finding${row.findingCount === 1 ? "" : "s"}`;
 }
 
 function reportHasWhere(finding: CustomerReport["samples"][number]): boolean {

@@ -5,7 +5,8 @@ import {
   type FindingLocation,
 } from "@/lib/finding-detail";
 import { originOf, safeFetch, type ProbeResponse } from "@/lib/http";
-import type { CheckRunState, RawCheckResult } from "@/lib/report";
+import { scrubCredentialText, stripSensitiveQuery } from "@/lib/mask-secrets";
+import type { CheckRunState, Confidence, RawCheckResult } from "@/lib/report";
 
 export interface DiscoveredConfig {
   supabaseUrl: string | null;
@@ -38,6 +39,8 @@ export class ScanContext {
   };
   results: RawCheckResult[] = [];
   marked: Record<string, CheckRunState> = {};
+  notices: string[] = [];
+  private secretValues: string[] = [];
 
   constructor(targetUrl: string, mode: "full" | "mini") {
     this.targetUrl = targetUrl;
@@ -67,32 +70,56 @@ export class ScanContext {
     if (!this.marked[checkId]) this.marked[checkId] = "ok";
   }
 
+  setMark(checkId: string, state: CheckRunState): void {
+    this.marked[checkId] = state;
+  }
+
+  note(message: string): void {
+    const clean = this.scrub(message).trim();
+    if (!clean || this.notices.includes(clean)) return;
+    this.notices.push(clean);
+  }
+
+  rememberSecret(value: string | null | undefined): void {
+    const trimmed = value?.trim() ?? "";
+    if (trimmed.length < 6) return;
+    if (this.secretValues.includes(trimmed)) return;
+    this.secretValues.push(trimmed);
+  }
+
+  scrub(text: string): string {
+    return scrubCredentialText(text, this.secretValues);
+  }
+
   failUnchecked(checkIds: string[]): void {
     for (const checkId of checkIds) {
       if (!this.marked[checkId]) this.marked[checkId] = "error";
     }
   }
 
-  add(checkId: string, evidence: string, detail: FindingDetail): void {
+  add(checkId: string, evidence: string, detail: FindingDetail, confidence?: Confidence): void {
     this.mark(checkId);
-    const clean = sanitizeDetail(detail);
+    const clean = sanitizeDetail(this.applySecrets(detail));
+    const cleanEvidence = this.scrub(evidence);
     const existing = this.results.find((result) => result.checkId === checkId);
     if (existing) {
-      existing.evidence = `${existing.evidence} ${evidence}`;
+      existing.evidence = this.scrub(`${existing.evidence} ${cleanEvidence}`);
       existing.locations = mergeLocations(existing.locations ?? [], clean.locations);
+      existing.confidence = higherConfidence(existing.confidence, confidence);
       return;
     }
     this.results.push({
       checkId,
-      evidence,
+      evidence: cleanEvidence,
       locations: clean.locations,
       proof: clean.proof,
       steps: clean.steps,
+      ...(confidence ? { confidence } : {}),
     });
   }
 
   detailFor(
-    response: ProbeResponse,
+    responseInput: ProbeResponse,
     options: {
       method?: string;
       requestHeaders?: Record<string, string>;
@@ -102,23 +129,57 @@ export class ScanContext {
     },
   ): FindingDetail {
     const method = (options.method ?? "GET").toUpperCase();
-    const locations = options.locations ?? [{ method, url: response.url }];
+    const response = {
+      ...responseInput,
+      url: stripSensitiveQuery(this.scrub(responseInput.url)),
+      body: this.scrub(responseInput.body),
+    };
+    const locations = (options.locations ?? [{ method, url: response.url }]).map((location) => ({
+      ...location,
+      url: stripSensitiveQuery(this.scrub(location.url)),
+    }));
+    const headers = Object.fromEntries(
+      Object.entries(options.requestHeaders ?? {}).map(([name, value]) => [name, this.scrub(value)]),
+    );
     return {
       locations,
       proof: buildProof({
         method,
         url: response.url,
-        requestHeaders: options.requestHeaders,
+        requestHeaders: headers,
         response,
-        snippetLines: options.snippetLines,
+        snippetLines: (options.snippetLines ?? []).map((line) => this.scrub(line)),
       }),
-      steps: options.steps,
+      steps: options.steps.map((step) => this.scrub(step)),
+    };
+  }
+
+  private applySecrets(detail: FindingDetail): FindingDetail {
+    return {
+      locations: detail.locations.map((location) => ({
+        ...location,
+        url: stripSensitiveQuery(this.scrub(location.url)),
+      })),
+      proof: {
+        ...detail.proof,
+        url: stripSensitiveQuery(this.scrub(detail.proof.url)),
+        responseSnippet: this.scrub(detail.proof.responseSnippet),
+        headers: detail.proof.headers.map((header) => ({ name: header.name, value: this.scrub(header.value) })),
+      },
+      steps: detail.steps.map((step) => this.scrub(step)),
     };
   }
 
   scriptText(): string {
     return [this.html, ...this.scripts.map((script) => script.body)].join("\n");
   }
+}
+
+function higherConfidence(current: Confidence | undefined, next: Confidence | undefined): Confidence | undefined {
+  const rank: Record<Confidence, number> = { low: 1, medium: 2, high: 3 };
+  if (!next) return current;
+  if (!current) return next;
+  return rank[next] > rank[current] ? next : current;
 }
 
 function mergeLocations(current: FindingLocation[], extra: FindingLocation[]): FindingLocation[] {

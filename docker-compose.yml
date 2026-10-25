@@ -60,6 +60,7 @@ services:
       EMAIL_FROM: ${EMAIL_FROM:-scans@localhost}
       MONITOR_INTERVAL_HOURS: ${MONITOR_INTERVAL_HOURS:-24}
       BADGE_STALE_DAYS: ${BADGE_STALE_DAYS:-30}
+      CREDENTIALS_ENCRYPTION_KEY: ${CREDENTIALS_ENCRYPTION_KEY:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -92,6 +93,7 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       EMAIL_FROM: ${EMAIL_FROM:-scans@localhost}
+      CREDENTIALS_ENCRYPTION_KEY: ${CREDENTIALS_ENCRYPTION_KEY:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -114,6 +116,11 @@ services:
     build: ./demo-targets/leaky-basics
     ports:
       - "4012:4012"
+
+  demo-logged-in:
+    build: ./demo-targets/logged-in
+    ports:
+      - "4013:4013"
 
 volumes:
   pgdata:

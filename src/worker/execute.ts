@@ -1,7 +1,9 @@
 import { Prisma } from "@prisma/client";
 import { getCheck } from "@/lib/catalog";
+import { deleteScanCredentials, loadScanCredentials } from "@/lib/credential-store";
 import { prisma } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
+import type { AuthScanPayload } from "@/lib/auth-input";
 import { verifyOwnership } from "@/lib/ownership";
 import { buildCustomerReport } from "@/lib/report";
 import { clampText, sanitizeCode, sanitizeCustomerText } from "@/lib/sanitize";
@@ -14,6 +16,16 @@ export async function executeScan(scanId: string): Promise<void> {
     include: { project: true, user: true },
   });
   if (!scan || scan.status === "completed") return;
+  try {
+    await runQueuedScan(scan);
+  } finally {
+    await deleteScanCredentials(scan.id).catch((error) => {
+      console.error("credential delete failed", error instanceof Error ? error.message : "error");
+    });
+  }
+}
+
+async function runQueuedScan(scan: Prisma.ScanGetPayload<{ include: { project: true; user: true } }>): Promise<void> {
   if (!scan.consentAt) {
     await fail(scan.id, "Consent was not recorded for this scan.");
     return;
@@ -37,10 +49,23 @@ export async function executeScan(scanId: string): Promise<void> {
   }
 
   try {
+    let auth: AuthScanPayload | null = null;
+    let authError: string | null = null;
+    if (scan.mode !== "mini" && scan.reportAccess === "full") {
+      try {
+        auth = await loadScanCredentials(scan.id);
+      } catch (error) {
+        console.error("credential read failed", error instanceof Error ? error.message : "error");
+        authError = "Logged-in checks skipped: stored test-account credentials could not be read. Unauthenticated checks still ran.";
+      }
+    }
     const output = await runScanPipeline({
       targetUrl: scan.targetUrl,
       mode: scan.mode === "mini" ? "mini" : "full",
       ownershipConfirmed: true,
+      auth,
+      authError,
+      reportAccess: scan.reportAccess === "full" ? "full" : "teaser",
     });
     const finishedAt = new Date();
     const severities = output.results.map((result) => ({ severity: getCheck(result.checkId).severity }));
@@ -54,6 +79,7 @@ export async function executeScan(scanId: string): Promise<void> {
       finishedAt,
       results: output.results,
       marked: output.marked,
+      notices: output.notices,
     });
 
     await prisma.finding.deleteMany({ where: { scanId: scan.id } });
@@ -76,6 +102,7 @@ export async function executeScan(scanId: string): Promise<void> {
               locations: result.locations ?? [],
               proof: result.proof ?? null,
               steps: result.steps ?? [],
+              confidence: result.confidence ?? null,
             }),
           ) as Prisma.InputJsonObject,
         },
@@ -90,7 +117,7 @@ export async function executeScan(scanId: string): Promise<void> {
         score: finalScore,
         passed,
         severityCounts: report.severityCounts as unknown as Prisma.InputJsonObject,
-        coverage: { marked: output.marked } as unknown as Prisma.InputJsonObject,
+        coverage: { marked: output.marked, notices: output.notices } as unknown as Prisma.InputJsonObject,
         error: null,
       },
     });
@@ -106,7 +133,7 @@ export async function executeScan(scanId: string): Promise<void> {
       );
     }
   } catch (error) {
-    console.error(error);
+    console.error("scan failed", error instanceof Error ? error.message : "error");
     await fail(scan.id, "The scan could not finish. Confirm the site is reachable and try again.");
   }
 }

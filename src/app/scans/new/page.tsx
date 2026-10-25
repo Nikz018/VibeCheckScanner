@@ -16,7 +16,7 @@ export default async function NewScanPage() {
       <h1 className="font-display text-5xl">New scan</h1>
       <p className="text-[#d9d3c5]">Enter the origin, publish the proof, and consent. Active probes start only after both checks pass.</p>
       {monitoringActive(user.subscription?.status) ? <p className="text-sm text-lime">Your monitoring subscription unlocks full reports.</p> : null}
-      <NewScanForm reportCredits={user.reportCredits} rescanCredits={user.rescanCredits} />
+      <NewScanForm reportCredits={user.reportCredits} rescanCredits={user.rescanCredits} monitoring={monitoringActive(user.subscription?.status)} />
     </div>
   );
 }

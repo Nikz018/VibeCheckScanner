@@ -9,7 +9,9 @@ Standards referenced below:
 - OWASP ASVS 4.0 chapter
 - CWE
 
-Active scans run only after the account proves domain ownership (DNS TXT or `/.well-known/vibecheck-verify.txt`) and checks the consent box. Probes are read-only except for tiny unauthenticated POSTs used to see whether a webhook, login, or AI route rejects bad input. The worker never sends PUT, PATCH, or DELETE.
+Active scans run only after the account proves domain ownership (DNS TXT or `/.well-known/vibecheck-verify.txt`) and checks the consent box. Probes are read-only except for tiny unauthenticated POSTs used to see whether a webhook, login, or AI route rejects bad input, and except the single login request when a paid scan is given throwaway test accounts. The worker never sends PUT, PATCH, or DELETE. Signed-in checks replay and compare with GET and HEAD only.
+
+Paid full reports can include those signed-in checks. The customer supplies up to two throwaway test accounts, or a session cookie or bearer token for each. The free teaser does not run them. Credentials are encrypted with CREDENTIALS_ENCRYPTION_KEY and deleted when the scan finishes or after 24 hours. Reports mask secrets, cookies, and tokens.
 
 ## Families
 
@@ -60,6 +62,7 @@ Supabase, Firebase, and buckets left open to the public client.
 | `firebase_rules_open` | `firebase` | critical | 1 | A01:2021 Broken Access Control | API1:2023 Broken Object Level Authorization | V4 Access Control | CWE-732 |
 | `public_storage_bucket` | `storage` | high | 5 | A01:2021 Broken Access Control | API8:2023 Security Misconfiguration | V4 Access Control | CWE-284 |
 | `directory_listing` | `storage` | medium | — | A01:2021 Broken Access Control | API8:2023 Security Misconfiguration | V4 Access Control | CWE-548 |
+| `auth_backend_cross_user` | `authenticated` | critical | — | A01:2021 Broken Access Control | API1:2023 Broken Object Level Authorization | V4 Access Control | CWE-284 |
 
 ### Access control (`access_control`)
 
@@ -72,6 +75,9 @@ Admin surfaces, object ids, and features enforced only in the browser.
 | `client_side_paywall` | `access` | high | 6 | A01:2021 Broken Access Control | API6:2023 Unrestricted Access to Sensitive Business Flows | V4 Access Control | CWE-602 |
 | `llm_endpoint_open` | `llm` | high | 7 | A01:2021 Broken Access Control | API4:2023 Unrestricted Resource Consumption | V4 Access Control | CWE-284 |
 | `llm_missing_rate_limit` | `llm` | medium | 7 | A04:2021 Insecure Design | API4:2023 Unrestricted Resource Consumption | V4 Access Control | CWE-770 |
+| `auth_idor_bola` | `authenticated` | high | — | A01:2021 Broken Access Control | API1:2023 Broken Object Level Authorization | V4 Access Control | CWE-639 |
+| `auth_vertical_privilege` | `authenticated` | critical | — | A01:2021 Broken Access Control | API5:2023 Broken Function Level Authorization | V4 Access Control | CWE-285 |
+| `auth_paywall_bypass` | `authenticated` | high | — | A01:2021 Broken Access Control | API6:2023 Unrestricted Access to Sensitive Business Flows | V4 Access Control | CWE-639 |
 
 ### Injection & XSS (`injection_xss`)
 
@@ -93,6 +99,7 @@ Signup, login, callbacks, and webhook authenticity.
 | `signup_privileged_role` | `authcfg` | high | 9 | A07:2021 Identification and Authentication Failures | API2:2023 Broken Authentication | V2 Authentication | CWE-269 |
 | `login_missing_rate_limit` | `authcfg` | medium | 9 | A07:2021 Identification and Authentication Failures | API4:2023 Unrestricted Resource Consumption | V2 Authentication | CWE-307 |
 | `open_redirect` | `authcfg` | medium | 9 | A01:2021 Broken Access Control | API8:2023 Security Misconfiguration | V3 Session Management | CWE-601 |
+| `auth_session_weakness` | `authenticated` | medium | — | A07:2021 Identification and Authentication Failures | API2:2023 Broken Authentication | V3 Session Management | CWE-613 |
 
 ### Transport & headers (`transport_headers`)
 
@@ -122,6 +129,7 @@ Env files, git metadata, source maps, debug routes, and stack traces.
 | `verbose_errors` | `exposure` | medium | 10 | A05:2021 Security Misconfiguration | API8:2023 Security Misconfiguration | V7 Error Handling and Logging | CWE-209 |
 | `exposed_package_manifest` | `exposure` | low | — | A05:2021 Security Misconfiguration | API9:2023 Improper Inventory Management | V14 Configuration | CWE-538 |
 | `client_backend_config` | `secrets` | info | — | A05:2021 Security Misconfiguration | API9:2023 Improper Inventory Management | V14 Configuration | CWE-200 |
+| `auth_sensitive_exposure` | `authenticated` | high | — | A01:2021 Broken Access Control | API3:2023 Broken Object Property Level Authorization | V8 Data Protection | CWE-200 |
 
 ### Dependencies (`dependencies`)
 
@@ -134,3 +142,13 @@ Publicly exposed manifests that pin a library to a known-vulnerable version.
 ## What a customer report shows
 
 Reports group findings by the eight families and include a coverage row for each family: ran, pass, findings, not run, or not completed. A paid finding shows a title, severity, evidence, impact, the exact location that was tested, the request and a short redacted response, steps to reproduce, and a copy-paste fix. The owner of an unlocked scan can download that report as a PDF or as a Markdown file to paste into an AI coding assistant. The free teaser keeps title and severity for two samples and does not include location or proof. Score, scan date, and the public badge are derived from severities. The badge and share page show the score out of 100 and the date only, and they switch to a rescan-needed state 30 days after the scan.
+
+## What this scan does not cover
+
+- Business-logic flaws, such as a workflow that does the wrong thing for a valid user.
+- Write or delete abuse. Probes are read-only, so a bug that only appears when data is changed is not proven.
+- Source code and dependencies, unless a repository is connected or a manifest is already public.
+- Load testing and brute-force testing.
+- Mobile apps and backends that are not part of this web origin.
+
+A manual pentest is a better fit when you need those covered in depth.

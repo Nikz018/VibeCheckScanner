@@ -9,8 +9,11 @@ import {
 } from "./catalog";
 import { POINT_IN_TIME_DISCLAIMER, isScanStale } from "./badge";
 import { sanitizeDetail, type FindingDetail, type FindingLocation, type FindingProof } from "./finding-detail";
+import { SCAN_LIMITATIONS, SCAN_LIMITATIONS_NOTE, SCAN_LIMITATIONS_TITLE } from "./limitations";
 import { clampText, containsToolBrand, sanitizeCode, sanitizeCustomerText } from "./sanitize";
 import { computeScore, isPassingScore } from "./score";
+
+export type Confidence = "high" | "medium" | "low";
 
 export interface RawCheckResult {
   checkId: string;
@@ -19,17 +22,18 @@ export interface RawCheckResult {
   title?: string;
   impact?: string;
   fix?: string;
+  confidence?: Confidence;
   locations?: FindingLocation[];
   proof?: FindingProof;
   steps?: string[];
 }
 
-export type CheckRunState = "ok" | "error";
+export type CheckRunState = "ok" | "error" | "skipped";
 
 export interface CoverageRow {
   family: FamilyId;
   label: string;
-  status: "pass" | "findings" | "not_run" | "incomplete" | "error";
+  status: "pass" | "findings" | "not_run" | "incomplete" | "error" | "skipped";
   findingCount: number;
   checksRun: string[];
   checksNotRun: string[];
@@ -45,6 +49,7 @@ export interface CustomerFinding {
   impact: string;
   fix: string;
   headlineRank: number | null;
+  confidence?: Confidence;
   locations?: FindingLocation[];
   proof?: FindingProof;
   steps?: string[];
@@ -67,6 +72,10 @@ export interface CustomerReport {
   hiddenCount: number;
   totalFindings: number;
   disclaimer: string;
+  notices: string[];
+  limitationsTitle: string;
+  limitations: string[];
+  limitationsNote: string;
 }
 
 const SEVERITY_RANK: Record<Severity, number> = {
@@ -85,11 +94,14 @@ export function buildCoverage(marked: Record<string, CheckRunState>, findingIds:
     const checksNotRun = checks.filter((check) => !marked[check.id]).map((check) => check.id);
     const findingCount = checks.filter((check) => found.has(check.id)).length;
     const errored = checksRun.some((id) => marked[id] === "error" && !found.has(id));
+    const skippedCount = checksRun.filter((id) => marked[id] === "skipped").length;
     let status: CoverageRow["status"];
     if (checksRun.length === 0) status = "not_run";
     else if (findingCount > 0) status = "findings";
     else if (errored && checksRun.every((id) => marked[id] === "error")) status = "error";
     else if (checksNotRun.length > 0) status = "incomplete";
+    else if (skippedCount > 0 && skippedCount === checksRun.length) status = "skipped";
+    else if (skippedCount > 0) status = "incomplete";
     else status = "pass";
     return {
       family: family.id,
@@ -115,6 +127,7 @@ function materialize(result: RawCheckResult): CustomerFinding {
     fix: sanitizeCode(result.fix ?? check.fix),
     headlineRank: check.headlineRank,
   };
+  if (result.confidence) finding.confidence = result.confidence;
   if (result.locations && result.proof && result.steps) {
     const detail: FindingDetail = sanitizeDetail({
       locations: result.locations,
@@ -161,6 +174,7 @@ export function hidePaidDetail(finding: CustomerFinding): CustomerFinding {
     impact: finding.impact,
     fix: finding.fix,
     headlineRank: finding.headlineRank,
+    ...(finding.confidence ? { confidence: finding.confidence } : {}),
   };
 }
 
@@ -184,6 +198,7 @@ export function buildCustomerReport(input: {
   finishedAt: Date | null;
   results: RawCheckResult[];
   marked: Record<string, CheckRunState>;
+  notices?: string[];
   now?: Date;
 }): CustomerReport {
   const findings = sortFindings(input.results.map(materialize));
@@ -198,6 +213,13 @@ export function buildCustomerReport(input: {
   );
   const priority = findings.filter((finding) => finding.headlineRank !== null);
   const samples = findings.slice(0, 2);
+  const notices = [...new Set((input.notices ?? []).filter((notice) => notice.trim().length > 0))];
+  const shared = {
+    notices,
+    limitationsTitle: SCAN_LIMITATIONS_TITLE,
+    limitations: [...SCAN_LIMITATIONS],
+    limitationsNote: SCAN_LIMITATIONS_NOTE,
+  };
 
   if (input.access === "teaser") {
     return {
@@ -217,6 +239,7 @@ export function buildCustomerReport(input: {
       hiddenCount: Math.max(0, findings.length - samples.length),
       totalFindings: findings.length,
       disclaimer: POINT_IN_TIME_DISCLAIMER,
+      ...shared,
     };
   }
 
@@ -243,6 +266,7 @@ export function buildCustomerReport(input: {
     hiddenCount: 0,
     totalFindings: findings.length,
     disclaimer: POINT_IN_TIME_DISCLAIMER,
+    ...shared,
   };
 }
 

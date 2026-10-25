@@ -160,14 +160,15 @@ export function sanitizeDetail(detail: FindingDetail): FindingDetail {
   };
 }
 
-export function parseStoredDetail(raw: unknown): Partial<FindingDetail> {
+export function parseStoredDetail(raw: unknown): Partial<FindingDetail> & { confidence?: "high" | "medium" | "low" } {
   if (!raw || typeof raw !== "object") return {};
   const value = raw as Record<string, unknown>;
   const locations = Array.isArray(value.locations) ? value.locations.filter(isLocation) : [];
   const proof = isProof(value.proof) ? value.proof : undefined;
   const steps = Array.isArray(value.steps) ? value.steps.filter((step): step is string => typeof step === "string") : [];
-  if (locations.length === 0 || !proof) return {};
-  return { locations, proof, steps };
+  const confidence = value.confidence === "high" || value.confidence === "medium" || value.confidence === "low" ? value.confidence : undefined;
+  if (locations.length === 0 || !proof) return confidence ? { confidence } : {};
+  return { locations, proof, steps, ...(confidence ? { confidence } : {}) };
 }
 
 function isLocation(value: unknown): value is FindingLocation {

@@ -9,6 +9,7 @@ These three apps are **local fixtures** for recording a VibeCheck demo and for t
 | `open-backend` | 4010 | Public client key, service-role key in JavaScript, readable table, open Firebase-style data, listable bucket, directory listing |
 | `paywall` | 4011 | Client-side premium flag, admin role in signup code, unauthenticated admin data, sequential user ids, unsigned payment webhook, open AI route, login with no throttle, open redirect |
 | `leaky-basics` | 4012 | Missing browser headers, wildcard CORS with credentials, insecure cookie, public `.env`, `.git`, source map, debug route, stack trace, reflected markup, `innerHTML`, public manifest with known-vulnerable versions |
+| `logged-in` | 4013 | Throwaway login, cross-account notes, admin route for a normal user, premium route for a free plan, weak session cookie and token, signed-in table read |
 
 Each app accepts `POST /_demo/install-proof` with `{ "token": "vc_..." }` and serves that token at `/.well-known/vibecheck-verify.txt`. The token lives in process memory and disappears when the process stops. The product UI can install it for you when `ALLOW_LOCAL_TARGETS=true`.
 
@@ -23,3 +24,4 @@ Then prove ownership and scan:
 - http://127.0.0.1:4010
 - http://127.0.0.1:4011
 - http://127.0.0.1:4012
+- http://127.0.0.1:4013
