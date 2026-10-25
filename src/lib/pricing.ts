@@ -2,6 +2,7 @@ export const TIERS = {
   report: {
     id: "report",
     env: "STRIPE_PRICE_REPORT",
+    dodoEnv: "DODO_PRODUCT_REPORT",
     name: "Full report",
     priceLabel: "$49",
     cadence: "one-time",
@@ -11,6 +12,7 @@ export const TIERS = {
   rescan: {
     id: "rescan",
     env: "STRIPE_PRICE_RESCAN",
+    dodoEnv: "DODO_PRODUCT_RESCAN",
     name: "Report + rescan",
     priceLabel: "$99",
     cadence: "one-time",
@@ -20,6 +22,7 @@ export const TIERS = {
   monitor: {
     id: "monitor",
     env: "STRIPE_PRICE_MONITOR",
+    dodoEnv: "DODO_PRODUCT_MONITOR",
     name: "Continuous monitoring",
     priceLabel: "$29/mo",
     cadence: "monthly",
@@ -33,6 +36,8 @@ export type TierId = keyof typeof TIERS;
 export function isTierId(value: string): value is TierId {
   return value in TIERS;
 }
+
+export const TAX_NOTE = "plus applicable taxes";
 
 export const FREE_TIER = {
   name: "Free teaser",

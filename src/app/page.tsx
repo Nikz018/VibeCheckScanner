@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { FAMILIES, HEADLINE_THEMES } from "@/lib/catalog";
-import { FREE_TIER, TIERS } from "@/lib/pricing";
+import { FREE_TIER, TAX_NOTE, TIERS } from "@/lib/pricing";
 
 export default function HomePage() {
   return (
@@ -60,7 +60,7 @@ export default function HomePage() {
 
       <section id="pricing">
         <h2 className="font-display text-4xl">Pricing</h2>
-        <p className="mt-2 max-w-2xl text-[#d9d3c5]">Stripe Checkout uses price IDs from the environment. Amounts below are the products to create in test mode.</p>
+        <p className="mt-2 max-w-2xl text-[#d9d3c5]">Checkout uses the payment provider in the environment. Amounts below are the products to create in test mode.</p>
         <div className="mt-6 grid gap-4 md:grid-cols-4">
           <article className="rounded-3xl border border-white/10 p-5">
             <h3 className="font-semibold">{FREE_TIER.name}</h3>
@@ -71,6 +71,7 @@ export default function HomePage() {
             <article key={tier.id} className="rounded-3xl bg-lime p-5 text-ink">
               <h3 className="font-semibold">{tier.name}</h3>
               <p className="font-display text-4xl">{tier.priceLabel}</p>
+              <p className="text-xs">{TAX_NOTE}</p>
               <p className="mt-3 text-sm">{tier.blurb}</p>
             </article>
           ))}

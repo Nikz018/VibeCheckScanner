@@ -11,9 +11,9 @@ This is not a certification, and it is not a promise that an app stays safe afte
 | Tier | Price | Unlocks |
 | --- | --- | --- |
 | Free teaser | $0 | Full scan runs and is stored. The page shows the score, severity counts, family coverage, and two sample issues. The rest of the evidence stays locked. |
-| Full report | $49 once | Every finding on that scan: where it was found, evidence, the request and response, and a copy-paste fix. Download a PDF or a Markdown file for an AI coding assistant. |
-| Report + rescan | $99 once | The full report, plus one credit to run another full-access scan after you fix things. |
-| Monitoring | $29/month | Full reports while the subscription is active, a scheduled rescan of a verified origin, and an alert when a new high-severity issue appears. |
+| Full report | $49 once, plus applicable taxes | Every finding on that scan: where it was found, evidence, the request and response, and a copy-paste fix. Download a PDF or a Markdown file for an AI coding assistant. |
+| Report + rescan | $99 once, plus applicable taxes | The full report, plus one credit to run another full-access scan after you fix things. |
+| Monitoring | $29/month, plus applicable taxes | Full reports while the subscription is active, a scheduled rescan of a verified origin, and an alert when a new high-severity issue appears. |
 
 The mini check is separate and free. It only runs header and public-file checks, and the coverage summary marks every other family as not run.
 
@@ -68,7 +68,7 @@ Leave `LOCALHOST_REWRITE_HOST` empty when the app runs on the host. Inside Compo
 
 Set `PLAYWRIGHT_CHANNEL=chrome` to launch the system Chrome instead of Playwright's downloaded browser. `BROWSER_TIMEOUT_MS` (default 20000) kills that browser if it exceeds the budget. The scan still finishes from the pages it already fetched, and the report does not mention the browser.
 
-`npm test` does not need Postgres or Redis except for `src/lib/stripe-webhook.test.ts`, which skips unless `DATABASE_URL` is set. The rest checks the catalog, the report sanitizer, scoring, badge freshness, and a scan of the three demo targets.
+`npm test` does not need Postgres or Redis except for `src/lib/stripe-webhook.test.ts` and `src/lib/payments/dodo-webhook.test.ts`, which skip the database cases unless `DATABASE_URL` is set. The rest checks the catalog, the report sanitizer, scoring, badge freshness, the Dodo checkout payload, and a scan of the three demo targets.
 
 ### Cursor cloud environment
 
@@ -86,7 +86,7 @@ Start Script:
 bash scripts/dev-start.sh
 ```
 
-`dev-install.sh` runs `npm ci` and `npx prisma generate`. `dev-start.sh` copies `.env.example` to `.env` only when `.env` is missing, starts PostgreSQL and Redis when they are down, pushes the Prisma schema, and opens tmux sessions `vibecheck-demos`, `vibecheck-web`, and `vibecheck-worker`. It waits until http://127.0.0.1:3000/api/health returns 200, prints `VibeCheck dev environment is up`, and exits 0. These scripts do not contain production secrets. Put Stripe keys in the environment secret store or in the gitignored `.env` after the copy.
+`dev-install.sh` runs `npm ci` and `npx prisma generate`. `dev-start.sh` copies `.env.example` to `.env` only when `.env` is missing, starts PostgreSQL and Redis when they are down, pushes the Prisma schema, and opens tmux sessions `vibecheck-demos`, `vibecheck-web`, and `vibecheck-worker`. It waits until http://127.0.0.1:3000/api/health returns 200, prints `VibeCheck dev environment is up`, and exits 0. These scripts do not contain production secrets. Put Dodo or Stripe keys in the environment secret store or in the gitignored `.env` after the copy.
 
 ## Ownership proof
 
@@ -127,6 +127,39 @@ The checklist in [docs/SECURITY_CHECKLIST.md](docs/SECURITY_CHECKLIST.md) is gen
 Headline ranks 1–10 sort first in the report and choose the free teaser samples. They do not replace the rest of the catalog. A full scan attempts every family. A mini check does not, and it must not show those families as passed.
 
 The headless render is optional. Set `PLAYWRIGHT_ENABLED=false` to use HTTP fetching only. Static bundles are still downloaded and reviewed. If the browser cannot launch, or if it runs longer than `BROWSER_TIMEOUT_MS`, the worker kills that browser process and the scan continues with the fetched files. The report does not mention the browser.
+
+## Payments
+
+`PAYMENT_PROVIDER` chooses who charges the card. Leave it unset, or set it to `dodo`, and checkout uses Dodo Payments. Set it to `stripe` to keep using Stripe. The plans stay $49, $99, and $29/month. The free teaser, unlock rules, and PDF or Markdown downloads do not change. A checkout uses the selected provider. The other provider's webhook still accepts events, so a payment that was already started can still unlock.
+
+## Dodo Payments
+
+Dodo is the default. Create a Dodo Payments account, switch the dashboard to test mode, and add three products. Do not commit secret keys. Live checkout can wait until the keys exist. The code is already set up for `DODO_ENV=test_mode`.
+
+1. Open [Dodo Payments](https://app.dodopayments.com) and switch the dashboard to **Test mode**.
+2. The test-mode product IDs are already filled in below. They are tax-exclusive: Dodo adds tax at checkout. A different Dodo account needs its own three products, then those IDs replace the defaults.
+   - Full report: **$49** once. `pdt_0NqUPK77rA0fd1CknGv8C`
+   - Report + rescan: **$99** once. `pdt_0NqUQCBmdARxCAyoaIRVZ`
+   - Continuous monitoring: **$29** every month. `pdt_0NqUQeUgIBSIizoXIrkrJ`
+3. Go to **Developer → API Keys**, create a key in test mode, and copy it. That value is `DODO_PAYMENTS_API_KEY`.
+4. Go to **Developer → Webhooks** and add an endpoint. Copy that endpoint's signing secret. That value is `DODO_WEBHOOK_SECRET`.
+   - On your laptop the app is `http://localhost:3000/api/dodo/webhook`. Dodo cannot reach localhost, so use a tunnel, or add the public URL after you deploy.
+   - On the deployed app the URL is `https://<your-web-host>/api/dodo/webhook`.
+5. Put the values in `.env`:
+
+| Env | What to paste |
+| --- | --- |
+| `PAYMENT_PROVIDER` | `dodo` |
+| `DODO_ENV` | `test_mode` until you charge real cards, then `live_mode` |
+| `DODO_PAYMENTS_API_KEY` | The test API key |
+| `DODO_WEBHOOK_SECRET` | The webhook signing secret |
+| `DODO_PRODUCT_REPORT` | `pdt_0NqUPK77rA0fd1CknGv8C` ($49 once, tax-exclusive) |
+| `DODO_PRODUCT_RESCAN` | `pdt_0NqUQCBmdARxCAyoaIRVZ` ($99 once, tax-exclusive) |
+| `DODO_PRODUCT_MONITOR` | `pdt_0NqUQeUgIBSIizoXIrkrJ` ($29/month, tax-exclusive) |
+
+The prices on the site are before tax. Dodo products are tax-exclusive, so tax is added on the checkout page. The upgrade form asks for a billing country and address, then sends the customer to that page. The webhook is `POST /api/dodo/webhook`. It checks the [Standard Webhooks](https://www.standardwebhooks.com/) signature. A missing or bad signature gets HTTP 400 and changes nothing. `payment.succeeded` unlocks the report (and adds the rescan credit on the $99 product). `payment.failed` does not unlock anything. `subscription.active` and `subscription.renewed` turn monitoring on. `subscription.cancelled` and `subscription.failed` turn it off. The same event id is applied once.
+
+You do not need a Dodo account to run the tests. They mock checkout and sign a local webhook fixture. A real test-mode payment still needs the API key and the webhook secret. The three product IDs above are already the defaults in `.env.example`.
 
 ## Stripe
 
@@ -182,13 +215,13 @@ Magic links are stored as hashes. The session cookie is HTTP-only. This avoids a
 
 **One VM.** `docker compose up --build` runs Postgres, Redis, web, worker, and the demo targets. The web and worker processes retry the schema push until Postgres accepts connections. Remove the demo services before any public deploy, and turn off local targets.
 
-Stripe webhooks should target `https://<your-web-host>/api/stripe/webhook`.
+Dodo webhooks should target `https://<your-web-host>/api/dodo/webhook`. Stripe webhooks should target `https://<your-web-host>/api/stripe/webhook`. New checkouts follow `PAYMENT_PROVIDER`.
 
 ## Project layout
 
 ```text
 src/app            Next.js App Router UI and HTTP routes
-src/lib            Catalog, sanitizer, score, badge, ownership, Stripe
+src/lib            Catalog, sanitizer, score, badge, ownership, Stripe, Dodo Payments
 src/worker         Queue worker and scan modules
 demo-targets       Intentionally insecure local fixtures
 docs               Security checklist
@@ -202,7 +235,7 @@ Raw module ids stay in the database `raw` column. The report renderer strips too
 npm run dev          # web
 npm run worker       # queue consumer
 npm run demos        # three local demo origins
-npm test             # catalog, sanitizer, score, badge, demo-target scans, webhook fixture when DATABASE_URL is set
+npm test             # catalog, sanitizer, score, badge, demo-target scans, Dodo checkout, webhook fixtures when DATABASE_URL is set
 npm run checklist    # regenerate docs/SECURITY_CHECKLIST.md
 npm run db:push
 bash scripts/e2e-local.sh   # Postgres, Redis, web, worker, and the signed-in scan flow

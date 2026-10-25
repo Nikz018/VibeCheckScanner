@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { CancelSubscription } from "@/components/CancelSubscription";
 import { ScoreGauge } from "@/components/ScoreGauge";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -47,6 +48,7 @@ export default async function DashboardPage() {
         <article className="rounded-2xl border border-white/10 p-4">
           <p className="text-xs uppercase tracking-wide text-[#b7b1a4]">Monitoring</p>
           <p className="font-display text-4xl">{subscribed ? "On" : "Off"}</p>
+          {subscribed && (user.subscription?.dodoSubscriptionId || user.subscription?.stripeSubscriptionId) ? <CancelSubscription /> : null}
         </article>
       </section>
       {alerts.length > 0 ? (
