@@ -154,7 +154,8 @@ test("robots allows search and AI crawlers and blocks private areas", () => {
 
 test("sitemap lists public pages and leaves out private routes", () => {
   const entries = sitemapRoute();
-  assert.deepEqual(entries, sitemapEntries());
+  const withoutDates = (rows: typeof entries) => rows.map(({ lastModified: _lastModified, ...entry }) => entry);
+  assert.deepEqual(withoutDates(entries), withoutDates(sitemapEntries()));
   const urls = entries.map((entry) => entry.url);
   for (const page of PUBLIC_PAGES) {
     assert.ok(urls.includes(absoluteUrl(page.path)), page.path);

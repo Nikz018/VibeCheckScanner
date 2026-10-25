@@ -10,13 +10,14 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "demos": "node scripts/demos.js",
-    "test": "node --import tsx --test --test-reporter spec src/lib/catalog.test.ts src/lib/finding-detail.test.ts src/lib/download.test.ts src/lib/sanitize.test.ts src/lib/report.test.ts src/lib/score.test.ts src/lib/badge.test.ts src/lib/http.test.ts src/lib/stripe-webhook.test.ts src/lib/seo.test.ts src/worker/pipeline.test.ts",
+    "test": "node --import tsx --test --test-reporter spec src/lib/catalog.test.ts src/lib/finding-detail.test.ts src/lib/download.test.ts src/lib/sanitize.test.ts src/lib/report.test.ts src/lib/score.test.ts src/lib/badge.test.ts src/lib/http.test.ts src/lib/stripe-webhook.test.ts src/lib/payments/dodo.test.ts src/lib/payments/dodo-webhook.test.ts src/lib/seo.test.ts src/worker/pipeline.test.ts",
     "checklist": "tsx scripts/render-checklist.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^6.16.0",
     "bullmq": "^5.58.0",
+    "dodopayments": "^2.57.0",
     "ioredis": "^5.7.0",
     "next": "^15.5.0",
     "nodemailer": "^7.0.5",
@@ -34,6 +35,7 @@
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.6",
     "prisma": "^6.16.0",
+    "standardwebhooks": "^1.1.1",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"

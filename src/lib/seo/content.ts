@@ -150,7 +150,7 @@ export const FAQ: FaqItem[] = [
   },
   {
     question: "Are taxes included in the price?",
-    answer: `No. ${TAX_NOTE}`,
+    answer: `No. The listed prices are ${TAX_NOTE}.`,
   },
 ];
 
@@ -188,7 +188,7 @@ export const HOW_TO_STEPS: CopyBlock[] = [
   {
     heading: "How do I unlock the full report?",
     paragraphs: [
-      `The ${TIERS.report.priceLabel} plan unlocks every finding on that scan, with location, redacted evidence, and a copy-paste fix. The ${TIERS.rescan.priceLabel} plan adds one credit to rescan after you ship fixes. ${monitoringPriceWords()} monitoring schedules rescans and alerts you when a new high-severity issue appears. ${TAX_NOTE}`,
+      `The ${TIERS.report.priceLabel} plan unlocks every finding on that scan, with location, redacted evidence, and a copy-paste fix. The ${TIERS.rescan.priceLabel} plan adds one credit to rescan after you ship fixes. ${monitoringPriceWords()} monitoring schedules rescans and alerts you when a new high-severity issue appears. Listed prices are ${TAX_NOTE}.`,
     ],
   },
 ];

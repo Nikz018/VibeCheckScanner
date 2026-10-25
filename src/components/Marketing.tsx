@@ -108,6 +108,7 @@ export function PricingCards({ titles = "heading" }: { titles?: "heading" | "tex
         <article key={tier.id} className="rounded-3xl bg-lime p-5 text-ink">
           <Title className="font-semibold">{tier.name}</Title>
           <p className="font-display text-4xl">{tier.priceLabel}</p>
+          <p className="text-xs">{TAX_NOTE}</p>
           <p className="mt-3 text-sm">{tier.blurb}</p>
         </article>
       ))}

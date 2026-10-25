@@ -5,6 +5,7 @@ import { ReportView } from "@/components/ReportView";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { monitoringActive } from "@/lib/entitlements";
+import { collectsBillingAddress } from "@/lib/payments";
 import { privateMetadata } from "@/lib/seo/metadata";
 import { reportFromStored } from "@/lib/stored-report";
 
@@ -48,6 +49,7 @@ export default async function ScanPage({ params }: { params: Promise<{ id: strin
           monitorEnabled: scan.project.monitorEnabled,
           monitoringAllowed: monitoringActive(user.subscription?.status),
         }}
+        collectBilling={collectsBillingAddress()}
       />
     </div>
   );
