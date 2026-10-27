@@ -182,6 +182,8 @@ echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 
 On a 2 GB `t4g.small` or `t3.small`, use `fallocate -l 4G` instead of `2G`.
 
+`deploy.sh` reads `SwapTotal` before the first build. Linux reports a 4G file as about 4095 MB and a 2G file as about 2047 MB, so the check accepts 3900 MB or more as the 4 GB file and 1900 MB or more as the 2 GB file. A machine under 3000 MB of RAM still needs the 4 GB file. A machine under 6000 MB of RAM needs at least the 2 GB file.
+
 Install Docker (this works on Arm and x86 Ubuntu):
 
 ```bash

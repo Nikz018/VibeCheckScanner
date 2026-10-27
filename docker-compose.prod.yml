@@ -77,6 +77,7 @@ services:
       context: .
       dockerfile: Dockerfile.worker
     image: vibecheck-worker:prod
+    pull_policy: build
     command: ["sh", "scripts/prisma-deploy.sh"]
     restart: "no"
     logging: *logging
@@ -100,6 +101,7 @@ services:
         NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?Set NEXT_PUBLIC_SITE_URL in .env}
         NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-}
     image: vibecheck-web:prod
+    pull_policy: build
     command: ["sh", "scripts/prod-web-entrypoint.sh"]
     restart: unless-stopped
     logging: *logging
@@ -128,6 +130,8 @@ services:
 
   worker:
     image: vibecheck-worker:prod
+    # Built by migrate. never skips the Docker Hub pull of this local name.
+    pull_policy: never
     command: ["sh", "scripts/prod-worker-entrypoint.sh"]
     restart: unless-stopped
     logging: *logging
