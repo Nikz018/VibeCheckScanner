@@ -57,12 +57,12 @@ export function UpgradePanel({
   }
 
   return (
-    <div id={id} className="rounded-3xl border border-[#ead98a] bg-[#fff7d4] p-5 text-ink">
+    <div id={id} className="upgrade-panel p-5">
       <h3 className="font-display text-2xl">{heading}</h3>
-      {lede ? <p className="mt-1 text-sm text-[#5c5644]">{lede}</p> : null}
+      {lede ? <p className="mt-1 text-sm text-[#d5deee]">{lede}</p> : null}
       {collectBilling ? (
         <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <p className="text-sm text-[#5c5644] md:col-span-2">Checkout needs a billing country and address.</p>
+          <p className="text-sm text-[#d5deee] md:col-span-2">Checkout needs a billing country and address.</p>
           <label className="text-sm">
             Billing country
             <input className="field mt-1" value={country} onChange={(event) => setCountry(event.target.value)} placeholder="US" maxLength={2} autoComplete="country" />
@@ -91,7 +91,7 @@ export function UpgradePanel({
       ) : null}
       <div className={`mt-4 grid gap-3 ${tiers.length > 2 ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
         {tiers.map((tier) => (
-          <article key={tier.id} className="rounded-2xl bg-white p-4 text-left shadow-sm">
+          <article key={tier.id} className="rounded-2xl bg-white p-4 text-left text-ink shadow-sm">
             <div className="text-xs uppercase tracking-wide text-[#6d6758]">{tier.cadence}</div>
             <div className="mt-1 font-display text-3xl">{tier.priceLabel}</div>
             <p className="text-xs text-[#6d6758]">{TAX_NOTE}</p>
@@ -104,7 +104,7 @@ export function UpgradePanel({
         ))}
       </div>
       {error ? (
-        <p className="mt-3 text-sm text-[#8a2d18]" role="alert">
+        <p className="mt-3 text-sm text-[#ffb4a8]" role="alert">
           {error}
         </p>
       ) : null}

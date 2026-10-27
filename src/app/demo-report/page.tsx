@@ -12,6 +12,7 @@ export const metadata: Metadata = pageMetadata("demo-report");
 export default function DemoReportPage() {
   const page = getPublicPage("demo-report");
   const report = buildDemoReport();
+  const freePreview = buildDemoReport(new Date("2026-10-24T12:00:00.000Z"), "teaser");
   const fresh = { score: 96, finishedAt: new Date("2026-10-20T00:00:00.000Z"), passed: true, stale: false };
   const stale = { score: 96, finishedAt: new Date("2026-08-01T00:00:00.000Z"), passed: true, stale: isScanStale(new Date("2026-08-01T00:00:00.000Z"), new Date("2026-10-24T00:00:00.000Z"), 30) };
   return (
@@ -24,6 +25,14 @@ export default function DemoReportPage() {
         <BadgePreview model={fresh} caption={badgeLabel(fresh)} />
         <BadgePreview model={stale} caption={badgeLabel({ ...stale, stale: true })} />
       </div>
+      <section id="free-preview" className="space-y-4">
+        <h2 className="font-display text-4xl">Free preview of this sample</h2>
+        <p className="max-w-2xl text-[#c5d2e6]">
+          Invented data, same gate as a free scan. One finding is included. The counts are the real totals for this sample. The other findings are not in this preview.
+        </p>
+        <ReportView report={freePreview} targetLabel="Sample application" sample />
+      </section>
+      <h2 className="font-display text-4xl">Full sample report</h2>
       <ReportView report={report} targetLabel="Sample application" sample />
     </div>
   );

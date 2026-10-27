@@ -5,7 +5,9 @@ import { CancelSubscription } from "@/components/CancelSubscription";
 import { ScoreGauge } from "@/components/ScoreGauge";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { SEVERITIES } from "@/lib/catalog";
 import { monitoringActive } from "@/lib/entitlements";
+import { formatSeverityBreakdown, readSeverityCounts } from "@/lib/report";
 import { paidScanDashboardAction } from "@/lib/payments/paid-scan-status";
 import { UPGRADE_ACTIONS } from "@/lib/pricing";
 import { privateMetadata } from "@/lib/seo/metadata";
@@ -37,7 +39,7 @@ export default async function DashboardPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-5xl">Dashboard</h1>
-          <p className="mt-2 text-sm text-[#d9d3c5]">{user.email}</p>
+          <p className="mt-2 text-sm text-[#c5d2e6]">{user.email}</p>
         </div>
         <div className="flex gap-3">
           <Link href="/scans/new" className="btn btn-lime">
@@ -51,16 +53,16 @@ export default async function DashboardPage() {
         </div>
       </div>
       <section className="grid gap-3 md:grid-cols-3">
-        <article className="rounded-2xl border border-white/10 p-4">
-          <p className="text-xs uppercase tracking-wide text-[#b7b1a4]">Full-report credits</p>
+        <article className="lift rounded-2xl border border-white/10 bg-white/5 p-4">
+          <p className="text-xs uppercase tracking-wide text-[#c5d2e6]">Full-report credits</p>
           <p className="font-display text-4xl">{user.reportCredits}</p>
         </article>
-        <article className="rounded-2xl border border-white/10 p-4">
-          <p className="text-xs uppercase tracking-wide text-[#b7b1a4]">Rescan credits</p>
+        <article className="lift rounded-2xl border border-white/10 bg-white/5 p-4">
+          <p className="text-xs uppercase tracking-wide text-[#c5d2e6]">Rescan credits</p>
           <p className="font-display text-4xl">{user.rescanCredits}</p>
         </article>
-        <article className="rounded-2xl border border-white/10 p-4">
-          <p className="text-xs uppercase tracking-wide text-[#b7b1a4]">Monitoring</p>
+        <article className="lift rounded-2xl border border-white/10 bg-white/5 p-4">
+          <p className="text-xs uppercase tracking-wide text-[#c5d2e6]">Monitoring</p>
           <p className="font-display text-4xl">{subscribed ? "On" : "Off"}</p>
           {subscribed && (user.subscription?.dodoSubscriptionId || user.subscription?.stripeSubscriptionId) ? <CancelSubscription /> : null}
         </article>
@@ -70,7 +72,7 @@ export default async function DashboardPage() {
           <h2 className="font-display text-3xl">Alerts</h2>
           <ul className="mt-3 space-y-2 text-sm">
             {alerts.map((alert) => (
-              <li key={alert.id} className="rounded-2xl border border-white/10 p-3">
+              <li key={alert.id} className="rounded-2xl border border-white/10 bg-white/5 p-3">
                 {alert.message}{" "}
                 <Link className="underline" href={`/scans/${alert.scanId}`}>
                   Open scan
@@ -82,23 +84,33 @@ export default async function DashboardPage() {
       ) : null}
       <section>
         <h2 className="font-display text-3xl">Recent scans</h2>
-        <ul className="mt-3 divide-y divide-white/10">
-          {scans.length === 0 ? <li className="py-4 text-sm text-[#c9c2b2]">No scans yet.</li> : null}
+        <ul className="mt-3 space-y-3">
+          {scans.length === 0 ? <li className="py-4 text-sm text-[#c5d2e6]">No scans yet.</li> : null}
           {scans.map((scan) => {
             const action = scan.mode === "mini" ? paidScanDashboardAction(scan.id, purchaseByPreview.get(scan.id) ?? null, UPGRADE_ACTIONS.report) : null;
+            const counts = readSeverityCounts(scan.severityCounts);
+            const total = counts ? SEVERITIES.reduce((sum, severity) => sum + counts[severity], 0) : null;
+            const breakdown = counts ? formatSeverityBreakdown(counts) : "";
             return (
-              <li key={scan.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+              <li key={scan.id} className="lift flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm">
                 <div className="flex items-center gap-3">
-                  <ScoreGauge score={scan.score} size="sm" tone="dark" />
+                  <ScoreGauge score={scan.score} size="sm" tone="dark" showExplainer={false} />
                   <div>
                     <Link href={`/scans/${scan.id}`} className="font-semibold underline">
                       {scan.project.url}
                     </Link>
-                    <p className="text-[#b7b1a4]">
+                    <p className="text-[#c5d2e6]">
                       {scan.mode === "mini" ? "free preview" : scan.mode} · {scan.status}
                       {scan.mode === "mini" ? "" : ` · ${scan.reportAccess}`}
                       {scan.scheduled ? " · scheduled" : ""}
                     </p>
+                    {scan.status === "completed" && total === 0 ? <p className="text-[#c5d2e6]">No findings</p> : null}
+                    {scan.status === "completed" && total !== null && total > 0 ? (
+                      <p className="text-[#c5d2e6]">
+                        {total} finding{total === 1 ? "" : "s"}
+                        {breakdown ? ` · ${breakdown}` : ""}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
@@ -107,7 +119,7 @@ export default async function DashboardPage() {
                       {action.label}
                     </Link>
                   ) : null}
-                  <span className="text-[#b7b1a4]">{scan.createdAt.toISOString().slice(0, 10)}</span>
+                  <span className="text-[#c5d2e6]">{scan.createdAt.toISOString().slice(0, 10)}</span>
                 </div>
               </li>
             );
@@ -118,7 +130,7 @@ export default async function DashboardPage() {
         <h2 className="font-display text-3xl">Origins</h2>
         <ul className="mt-3 space-y-2 text-sm">
           {projects.map((project) => (
-            <li key={project.id} className="rounded-2xl border border-white/10 p-3">
+            <li key={project.id} className="rounded-2xl border border-white/10 bg-white/5 p-3">
               {project.url} · {project.ownershipVerifiedAt ? "ownership verified" : "ownership not verified"}
               {project.monitorEnabled ? " · monitoring armed" : ""}
             </li>

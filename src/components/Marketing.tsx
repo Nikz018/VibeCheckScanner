@@ -87,7 +87,7 @@ export function IssueGrid() {
   return (
     <ul className="mt-6 grid list-none gap-3 p-0 md:grid-cols-2">
       {ISSUE_CHECKS.map((item) => (
-        <li key={item.title} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+        <li key={item.title} className="lift rounded-2xl border border-white/10 bg-white/5 p-4">
           <h3 className="font-semibold">{item.title}</h3>
           <p className="mt-2 text-sm text-[#c9c2b2]">{item.answer}</p>
         </li>
@@ -100,13 +100,13 @@ export function PricingCards({ titles = "heading" }: { titles?: "heading" | "tex
   const Title = titles === "heading" ? "h3" : "p";
   return (
     <div className="grid gap-4 md:grid-cols-4">
-      <article className="rounded-3xl border border-white/10 p-5">
+      <article className="lift rounded-3xl border border-white/10 bg-white/5 p-5">
         <Title className="font-semibold">{FREE_TIER.name}</Title>
         <p className="font-display text-4xl">{FREE_TIER.priceLabel}</p>
-        <p className="mt-3 text-sm text-[#c9c2b2]">{FREE_TIER.blurb}</p>
+        <p className="mt-3 text-sm text-[#c5d2e6]">{FREE_TIER.blurb}</p>
       </article>
       {Object.values(TIERS).map((tier) => (
-        <article key={tier.id} className="rounded-3xl bg-lime p-5 text-ink">
+        <article key={tier.id} className="lift rounded-3xl border border-lime/40 bg-[#121c30] p-5">
           <Title className="font-semibold">{tier.name}</Title>
           <p className="font-display text-4xl">{tier.priceLabel}</p>
           <p className="text-xs">{TAX_NOTE}</p>
