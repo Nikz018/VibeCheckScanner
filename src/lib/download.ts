@@ -1,6 +1,6 @@
 import { POINT_IN_TIME_DISCLAIMER, formatScanDate } from "./badge";
 import { SEVERITIES } from "./catalog";
-import type { CustomerFinding, CustomerReport } from "./report";
+import { formatSeverityBreakdown, visibleCustomerFindings, type CustomerFinding, type CustomerReport } from "./report";
 import { containsToolBrand } from "./sanitize";
 import { SCORE_EXPLAINER, formatScoreRatio, renderScoreGaugeSvg, scoreBand } from "./score-gauge";
 import { toolBrandPattern } from "./tool-denylist";
@@ -17,15 +17,7 @@ export function downloadAccess(input: {
 }
 
 export function orderedFindings(report: CustomerReport): CustomerFinding[] {
-  const seen = new Set<string>();
-  const ordered: CustomerFinding[] = [];
-  const groups = [...report.priority, ...report.families.flatMap((group) => group.findings)];
-  for (const finding of groups) {
-    if (seen.has(finding.checkId)) continue;
-    seen.add(finding.checkId);
-    ordered.push(finding);
-  }
-  return ordered;
+  return visibleCustomerFindings(report);
 }
 
 export function downloadBasename(targetUrl: string, finishedAt: Date | null): string {
@@ -47,6 +39,8 @@ export function renderFixMarkdown(report: CustomerReport, targetUrl: string): st
     "Fix these security issues in my app.",
     "",
     `VibeCheck scanned \`${host}\` on ${when}. VibeCheck score: ${scoreLine(report)}. ${report.disclaimer}`,
+    "",
+    `Findings: ${report.totalFindings}. ${formatSeverityBreakdown(report.severityCounts) || "No findings."}`,
     "",
     "Apply each fix in the application. Keep secrets on the server. The values below are already redacted.",
     "",

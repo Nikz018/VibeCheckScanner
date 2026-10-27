@@ -122,7 +122,7 @@ export const FAQ: FaqItem[] = [
   {
     question: "What is included in the free teaser?",
     answer:
-      "The free teaser runs the scan and shows the score, severity counts, family coverage, and two sample issues, while the rest of the evidence stays locked. Logged-in checks are available in the full report.",
+      "The free teaser runs the scan and shows the score, the real severity counts, family coverage, and the lowest-severity finding in full. Every other finding stays off the page. Logged-in checks are available in the full report.",
   },
   {
     question: `What is the difference between the ${TIERS.report.priceLabel} report and the ${TIERS.rescan.priceLabel} plan?`,
@@ -187,7 +187,7 @@ export const HOW_TO_STEPS: CopyBlock[] = [
   {
     heading: "What do I see when the scan finishes?",
     paragraphs: [
-      "A finished scan shows a score out of 100, family-by-family coverage, severity counts, and two sample issues. The rest of the evidence stays locked on the free teaser.",
+      "A finished scan shows a score out of 100, family-by-family coverage, the real severity counts, and, on the free teaser, the lowest-severity finding. Every other finding stays off that page.",
     ],
   },
   {
@@ -232,8 +232,8 @@ export const PRICING_SECTIONS: CopyBlock[] = [
   {
     heading: "What does the free teaser include?",
     paragraphs: [
-      "The free teaser runs the full scan, stores it on your account, and shows the score, severity counts, which families ran, and two sample issues.",
-      "Location, request and response excerpts, and the copy-paste fix stay locked until you buy a report.",
+      "The free teaser runs the full scan, stores it on your account, and shows the score, the real severity counts, which families ran, and the lowest-severity finding in full.",
+      "Every other finding, including its location and fix, stays off the page until you buy a report.",
     ],
   },
   {
@@ -378,7 +378,7 @@ export const GUIDES: Record<"guide-lovable" | "guide-rls" | "guide-keys", GuideD
         heading: "How does VibeCheck report an open table?",
         paragraphs: [
           "On an origin you own, VibeCheck tries the public client key that the bundle already contains and reports a table that returns rows without a signed-in user.",
-          "The paid report includes the location, a short redacted response, and a copy-paste fix. The free teaser can show that the issue exists without that evidence.",
+          "The paid report includes every finding, with location, a short redacted response, and a copy-paste fix. The free teaser shows one finding, the lowest severity, and only the counts for the rest.",
         ],
       },
     ],
@@ -418,7 +418,7 @@ export const GUIDES: Record<"guide-lovable" | "guide-rls" | "guide-keys", GuideD
         heading: "How does VibeCheck report a leaked key?",
         paragraphs: [
           "VibeCheck reports the file or URL where the credential appeared and redacts the secret in the report.",
-          "The free teaser can show that an issue exists. The paid report includes the redacted evidence and the fix steps.",
+          "The free teaser shows the lowest-severity finding in full and the counts for everything else. The paid report includes every finding, with redacted evidence and the fix steps.",
         ],
       },
     ],

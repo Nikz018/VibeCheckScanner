@@ -61,5 +61,5 @@ export const FREE_TIER = {
   name: "Free teaser",
   priceLabel: "$0",
   amountUsd: 0,
-  blurb: "Run a scan and see severity counts plus two sample issues. The rest of the report stays locked. Logged-in checks are available in the full report.",
+  blurb: "Run a scan and see the real severity counts plus the lowest-severity finding in full. Every other finding stays off the page. Logged-in checks are available in the full report.",
 };

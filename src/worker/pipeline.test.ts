@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import test from "node:test";
+import { getCheck, type Severity } from "../lib/catalog";
 import { buildCoverage, buildCustomerReport, type RawCheckResult } from "../lib/report";
 import { containsToolBrand } from "../lib/sanitize";
 import { newOwnershipToken, verifyOwnership } from "../lib/ownership";
@@ -122,11 +123,27 @@ test("demo targets produce multi-section reports with no tool brands", async () 
       marked: open.marked,
     });
     const teaserBlob = JSON.stringify(teaser);
-    assert.equal(teaserBlob.includes("/assets/app.js"), false);
-    assert.equal(teaserBlob.includes("/rtdb/.json"), false);
-    assert.equal(teaserBlob.includes("/rest/v1/"), false);
-    assert.equal(teaserBlob.includes("sk_test_demo_not_real"), false);
-    assert.ok(teaser.samples.every((finding) => finding.locations === undefined && finding.proof === undefined));
+    const severityRank: Record<Severity, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+    let lowest: Severity = "critical";
+    for (const result of open.results) {
+      const severity = result.severity ?? getCheck(result.checkId).severity;
+      if (severityRank[severity] > severityRank[lowest]) lowest = severity;
+    }
+    assert.equal(teaser.access, "teaser");
+    assert.equal(teaser.samples.length, 1);
+    assert.equal(teaser.samples[0]?.severity, lowest);
+    assert.equal(teaser.families.length, 0);
+    assert.equal(teaser.priority.length, 0);
+    assert.equal(teaser.hiddenCount, open.results.length - 1);
+    assert.equal(teaser.totalFindings, open.results.length);
+    const shownBlob = JSON.stringify(teaser.samples[0]);
+    for (const needle of ["/assets/app.js", "/rtdb/.json", "/rest/v1/", "sk_test_demo_not_real"]) {
+      if (!shownBlob.includes(needle)) assert.equal(teaserBlob.includes(needle), false, needle);
+    }
+    for (const result of open.results) {
+      if (result.checkId === teaser.samples[0]?.checkId) continue;
+      assert.equal(teaserBlob.includes(result.evidence), false, result.checkId);
+    }
 
     const paywall = await runScanPipeline({ targetUrl: "http://127.0.0.1:18011", mode: "full", ownershipConfirmed: true });
     assertFindingsLocated(paywall.results);

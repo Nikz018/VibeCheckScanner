@@ -51,7 +51,7 @@ function demoWhere(checkId: string): { locations: FindingLocation[]; proof: Find
   };
 }
 
-export function buildDemoReport(now = new Date("2026-10-24T12:00:00.000Z")): CustomerReport {
+export function buildDemoReport(now = new Date("2026-10-24T12:00:00.000Z"), access: "teaser" | "full" = "full"): CustomerReport {
   const results: RawCheckResult[] = Object.entries(EVIDENCE).map(([checkId, evidence]) => ({
     checkId,
     evidence,
@@ -62,7 +62,7 @@ export function buildDemoReport(now = new Date("2026-10-24T12:00:00.000Z")): Cus
     scanId: "demo",
     status: "completed",
     mode: "full",
-    access: "full",
+    access,
     finishedAt: now,
     results,
     marked,
