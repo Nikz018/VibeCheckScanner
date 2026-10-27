@@ -10,7 +10,7 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "demos": "node scripts/demos.js",
-    "test": "node --import tsx --test --test-reporter spec src/lib/catalog.test.ts src/lib/finding-detail.test.ts src/lib/download.test.ts src/lib/sanitize.test.ts src/lib/report.test.ts src/lib/score.test.ts src/lib/badge.test.ts src/lib/http.test.ts src/lib/stripe-webhook.test.ts src/lib/payments/dodo.test.ts src/lib/payments/dodo-webhook.test.ts src/lib/seo.test.ts src/lib/credentials.test.ts src/lib/auth-input.test.ts src/lib/mask-secrets.test.ts src/lib/credential-store.test.ts src/lib/self-host.test.ts src/worker/readonly.test.ts src/worker/modules/auth-compare.test.ts src/worker/pipeline.test.ts src/worker/authenticated-scan.test.ts src/worker/concurrency.test.ts",
+    "test": "SCAN_TARGET_CONCURRENCY=8 SCAN_TARGET_MIN_INTERVAL_MS=0 node --import tsx --test --test-reporter spec src/lib/catalog.test.ts src/lib/finding-detail.test.ts src/lib/download.test.ts src/lib/sanitize.test.ts src/lib/report.test.ts src/lib/score.test.ts src/lib/badge.test.ts src/lib/http.test.ts src/lib/stripe-webhook.test.ts src/lib/payments/dodo.test.ts src/lib/payments/dodo-webhook.test.ts src/lib/seo.test.ts src/lib/credentials.test.ts src/lib/auth-input.test.ts src/lib/mask-secrets.test.ts src/lib/credential-store.test.ts src/lib/self-host.test.ts src/lib/abuse-safety.test.ts src/worker/readonly.test.ts src/worker/modules/auth-compare.test.ts src/worker/pipeline.test.ts src/worker/authenticated-scan.test.ts src/worker/concurrency.test.ts",
     "checklist": "tsx scripts/render-checklist.ts",
     "postinstall": "prisma generate"
   },

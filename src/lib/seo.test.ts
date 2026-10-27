@@ -355,6 +355,7 @@ test("pages, layout, and image routes are wired to the SEO helpers", () => {
     "src/app/privacy/page.tsx": "privacy",
     "src/app/refund/page.tsx": "refund",
     "src/app/contact/page.tsx": "contact",
+    "src/app/scanner-info/page.tsx": "scanner-info",
   };
   for (const [file, id] of Object.entries(expected)) {
     assert.match(read(file), new RegExp(`pageMetadata\\(\\s*"${id}"\\s*\\)`), file);

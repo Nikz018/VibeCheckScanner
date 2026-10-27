@@ -1,4 +1,5 @@
 import type { ProbeResponse } from "./http";
+import { scannerUserAgent } from "./scanner-identity";
 import { redactSecrets, sanitizeCustomerText } from "./sanitize";
 import { toolBrandPattern } from "./tool-denylist";
 
@@ -112,11 +113,11 @@ export function buildProof(input: {
   snippetLines?: string[];
 }): FindingProof {
   const headers = new Map<string, string>();
-  headers.set("user-agent", "VibeCheckScanner/0.1");
   headers.set("accept", input.requestHeaders?.accept || "*/*");
   for (const [name, value] of Object.entries(input.requestHeaders ?? {})) {
     headers.set(name.toLowerCase(), value);
   }
+  headers.set("user-agent", scannerUserAgent());
   return {
     method: input.method.toUpperCase(),
     url: input.url,

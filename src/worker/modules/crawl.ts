@@ -1,4 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
+import { scannerUserAgent } from "@/lib/scanner-identity";
+import { withTargetPace } from "@/lib/target-pace";
 import { extractAssets, extractConfig, extractInlineScripts } from "../extract";
 import type { ScanContext } from "../context";
 
@@ -88,9 +90,9 @@ async function renderWithBrowser(url: string, budgetMs: number): Promise<{ html:
     });
     const remaining = budgetMs - (Date.now() - started);
     if (remaining < 1000) throw new Error("headless render budget exhausted before navigation");
-    const page = await browser.newPage({ userAgent: "VibeCheckScanner/0.1" });
+    const page = await browser.newPage({ userAgent: scannerUserAgent() });
     page.setDefaultNavigationTimeout(remaining);
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: remaining });
+    await withTargetPace(url, () => page.goto(url, { waitUntil: "domcontentloaded", timeout: remaining }));
     const html = await page.content();
     return { html };
   } catch (error) {

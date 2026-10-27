@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { enqueueScan } from "@/lib/queue";
+import { recordScanAuthorization } from "@/lib/scan-authorization";
 
 export async function scheduleMonitors(): Promise<void> {
   const hours = Number(process.env.MONITOR_INTERVAL_HOURS || 24);
@@ -11,6 +12,7 @@ export async function scheduleMonitors(): Promise<void> {
       user: { subscription: { status: { in: ["active", "trialing"] } } },
     },
     include: {
+      user: { select: { email: true } },
       scans: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
@@ -31,6 +33,16 @@ export async function scheduleMonitors(): Promise<void> {
         consentText: "Scheduled rescan authorized when monitoring was enabled for this verified origin.",
         scheduled: true,
       },
+    });
+    await recordScanAuthorization({
+      userId: project.userId,
+      userEmail: project.user.email,
+      projectId: project.id,
+      scanId: scan.id,
+      targetUrl: project.url,
+      kind: "consent",
+      method: "monitor_schedule",
+      note: "Scheduled rescan authorized when monitoring was enabled for this verified origin.",
     });
     await enqueueScan(scan.id);
   }

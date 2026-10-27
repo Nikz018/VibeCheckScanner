@@ -101,6 +101,9 @@ test("env example documents web, worker, and compose variables", () => {
     "PLAYWRIGHT_BROWSERS_PATH=",
     "BROWSER_TIMEOUT_MS=",
     "WORKER_CONCURRENCY=",
+    "ABUSE_CONTACT_EMAIL=",
+    "SCAN_TARGET_CONCURRENCY=",
+    "SCAN_TARGET_MIN_INTERVAL_MS=",
     "MONITOR_INTERVAL_HOURS=",
     "BADGE_STALE_DAYS=",
     "BACKUP_RETENTION_DAYS=",
@@ -136,6 +139,10 @@ test("deploy, backup, and the AWS guide are present", () => {
     "DigitalOcean",
     "Oracle",
     "iptables",
+    "Responding to an AWS abuse report",
+    "ABUSE_CONTACT_EMAIL",
+    "export-abuse-records.ts",
+    "/scanner-info",
   ]) {
     assert.ok(guide.includes(phrase), phrase);
   }

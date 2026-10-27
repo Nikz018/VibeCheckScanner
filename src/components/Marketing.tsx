@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { abuseContactEmail } from "@/lib/scanner-identity";
 import {
   CONTACT_EMAIL_PLACEHOLDER,
   FAQ,
@@ -165,11 +166,27 @@ export function GuideArticle({ pageId }: { pageId: keyof typeof GUIDES }) {
 }
 
 export function ContactEmail() {
+  const abuse = abuseContactEmail();
   return (
-    <p>
-      <a className="text-lime" href={`mailto:${CONTACT_EMAIL_PLACEHOLDER}`}>
-        {CONTACT_EMAIL_PLACEHOLDER}
-      </a>
-    </p>
+    <div className="space-y-3">
+      <p>
+        Product email:{" "}
+        <a className="text-lime" href={`mailto:${CONTACT_EMAIL_PLACEHOLDER}`}>
+          {CONTACT_EMAIL_PLACEHOLDER}
+        </a>
+      </p>
+      <p>
+        {abuse ? (
+          <>
+            Abuse reports:{" "}
+            <a className="text-lime" href={`mailto:${abuse}`}>
+              {abuse}
+            </a>
+          </>
+        ) : (
+          <>This server has not published an abuse email yet. Use the product email and put abuse report in the subject.</>
+        )}
+      </p>
+    </div>
   );
 }

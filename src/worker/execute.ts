@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import type { AuthScanPayload } from "@/lib/auth-input";
 import { verifyOwnership } from "@/lib/ownership";
+import { recordScanAuthorization } from "@/lib/scan-authorization";
 import { buildCustomerReport } from "@/lib/report";
 import { clampText, sanitizeCode, sanitizeCustomerText } from "@/lib/sanitize";
 import { computeScore, isPassingScore } from "@/lib/score";
@@ -41,12 +42,25 @@ async function runQueuedScan(scan: Prisma.ScanGetPayload<{ include: { project: t
     await fail(scan.id, "Ownership proof was missing when the scan started. Publish the token again and rerun.");
     return;
   }
+  if (!proof.method) {
+    await fail(scan.id, "Ownership proof was missing when the scan started. Publish the token again and rerun.");
+    return;
+  }
   if (!scan.project.ownershipVerifiedAt || scan.project.ownershipMethod !== proof.method) {
     await prisma.project.update({
       where: { id: scan.projectId },
       data: { ownershipVerifiedAt: new Date(), ownershipMethod: proof.method },
     });
   }
+  await recordScanAuthorization({
+    userId: scan.userId,
+    userEmail: scan.user.email,
+    projectId: scan.projectId,
+    scanId: scan.id,
+    targetUrl: scan.targetUrl,
+    kind: "ownership",
+    method: proof.method,
+  });
 
   try {
     let auth: AuthScanPayload | null = null;

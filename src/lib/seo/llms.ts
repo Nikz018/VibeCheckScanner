@@ -61,7 +61,8 @@ export function llmsTxt(): string {
     pageLink("terms", "Draft terms. Not final."),
     pageLink("privacy", "Draft privacy notes. Not final."),
     pageLink("refund", "Draft refund policy. Not final."),
-    pageLink("contact", "Placeholder contact email."),
+    pageLink("scanner-info", "How a scan identifies itself, and how to report abuse."),
+    pageLink("contact", "Placeholder contact email and the abuse mailbox."),
     `- [llms-full.txt](${absoluteUrl("/llms-full.txt")}): longer product, pricing, FAQ, and guide text for language models.`,
     "",
   ];

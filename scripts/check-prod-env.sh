@@ -148,4 +148,9 @@ else
   echo "Dodo webhook URL: https://${site}/api/dodo/webhook" >&2
 fi
 
+abuse="$(read_env ABUSE_CONTACT_EMAIL)"
+if [[ ! "$abuse" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]]; then
+  echo "Warning: ABUSE_CONTACT_EMAIL is empty or not an email. /scanner-info and /contact will not show an abuse address until you set one." >&2
+fi
+
 echo "Production env checks passed for https://${site}."

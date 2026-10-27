@@ -242,6 +242,9 @@ Set these. Descriptions for every variable are in `.env.example`.
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` | Your mail provider. See below. |
 | `DODO_PAYMENTS_API_KEY`, `DODO_WEBHOOK_SECRET` | From the Dodo dashboard, after the site has HTTPS. |
 | `WORKER_CONCURRENCY` | `1` |
+| `ABUSE_CONTACT_EMAIL` | A mailbox you read. It is shown on `/scanner-info` and `/contact`. |
+| `SCAN_TARGET_CONCURRENCY` | `2` |
+| `SCAN_TARGET_MIN_INTERVAL_MS` | `250` |
 
 Leave Stripe blank unless `PAYMENT_PROVIDER=stripe`. Leave `PLAYWRIGHT_CHANNEL` empty. Leave `PLAYWRIGHT_BROWSERS_PATH` unset. The images set that path themselves.
 
@@ -388,6 +391,34 @@ bash scripts/deploy.sh
 That is `git pull` plus `docker compose -f docker-compose.prod.yml up -d --build`. Database migrations run before the site accepts traffic.
 
 If you change `NEXT_PUBLIC_SITE_URL` or `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, you must run that script. Those two values are built into the web image. Other `.env` values are read at startup, and the same script recreates the containers.
+
+## Responding to an AWS abuse report
+
+The [AWS Acceptable Use Policy](https://aws.amazon.com/aup/) forbids using the account to violate the security of someone else's system. An abuse report means AWS received a complaint that this server scanned a site. Reply. Do not ignore it.
+
+A scan does not start until that origin has an ownership proof and a consent record. Requests send a User-Agent that names VibeCheck and links to `https://YOUR_HOST/scanner-info`. In production the worker keeps at most 2 checks in flight to one host and waits 250 ms between starts. Set `SCAN_TARGET_CONCURRENCY` and `SCAN_TARGET_MIN_INTERVAL_MS` to change that. Waiting does not skip a check, so the report is the same scan, run more slowly.
+
+Set `ABUSE_CONTACT_EMAIL` in `.env` to a mailbox you read, then run `bash scripts/deploy.sh`. The address is shown on `/scanner-info` and `/contact`.
+
+When a report arrives:
+
+1. Read the host and the time in the report.
+2. On the VM, export the records for that host. The JSON lists who consented, when, the target, and the method (DNS TXT, the well-known file, the consent checkbox, or a scheduled rescan). It does not print the ownership token or test-account passwords.
+
+```bash
+docker compose -f docker-compose.prod.yml exec -T web npx tsx scripts/export-abuse-records.ts --host example.com
+```
+
+Replace `example.com` with the host in the report.
+
+3. If the export shows a matching consent and ownership proof around that time, reply to AWS with that summary and the link to `/scanner-info`. Say the scan was limited to that verified origin and was read-only.
+4. If the export has no row for that host, stop the worker until you understand the traffic, and tell AWS you found no authorization for that host.
+
+```bash
+docker compose -f docker-compose.prod.yml stop worker
+```
+
+5. Keep the export. Deleting a project in the app does not delete these rows.
 
 ## Before January 18, 2027
 

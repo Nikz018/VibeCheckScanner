@@ -1,5 +1,7 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { scannerUserAgent } from "./scanner-identity";
+import { withTargetPace } from "./target-pace";
 
 export class ProbeBlockedError extends Error {
   constructor(message: string) {
@@ -156,18 +158,20 @@ export async function safeFetch(input: {
   const maxHops = input.follow === false ? 1 : 3;
 
   for (let hop = 0; hop < maxHops; hop += 1) {
-    const response = await fetch(current, {
-      method: currentMethod,
-      redirect: "manual",
-      headers: {
-        "user-agent": "VibeCheckScanner/0.1",
-        accept: "*/*",
-        ...(input.headers ?? {}),
-      },
-      body: currentMethod === "POST" ? input.body : undefined,
-      signal: AbortSignal.timeout(input.timeoutMs ?? 8000),
-      cache: "no-store",
-    });
+    const response = await withTargetPace(current.toString(), () =>
+      fetch(current, {
+        method: currentMethod,
+        redirect: "manual",
+        headers: {
+          accept: "*/*",
+          ...(input.headers ?? {}),
+          "user-agent": scannerUserAgent(),
+        },
+        body: currentMethod === "POST" ? input.body : undefined,
+        signal: AbortSignal.timeout(input.timeoutMs ?? 8000),
+        cache: "no-store",
+      }),
+    );
 
     const location = response.headers.get("location");
     if (location && [301, 302, 303, 307, 308].includes(response.status) && hop < maxHops - 1 && input.follow !== false) {
