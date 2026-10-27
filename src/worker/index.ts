@@ -1,14 +1,26 @@
+import { writeFileSync } from "node:fs";
 import { Worker } from "bullmq";
 import IORedis from "ioredis";
 import { prisma } from "@/lib/db";
 import { SCAN_QUEUE_NAME } from "@/lib/queue";
 import { purgeFinishedCredentials } from "@/lib/credential-store";
+import { workerConcurrency } from "./concurrency";
 import { executeScan } from "./execute";
 import { scheduleMonitors } from "./schedule";
+
+function markWorkerAlive(): void {
+  try {
+    writeFileSync("/tmp/vibecheck-worker-alive", String(Date.now()));
+  } catch {
+    // The health file is optional. Scans still run when it cannot be written.
+  }
+}
 
 const connection = new IORedis(process.env.REDIS_URL || "redis://localhost:6379", {
   maxRetriesPerRequest: null,
 });
+
+const concurrency = workerConcurrency();
 
 const worker = new Worker(
   SCAN_QUEUE_NAME,
@@ -17,7 +29,7 @@ const worker = new Worker(
     if (!scanId) return;
     await executeScan(scanId);
   },
-  { connection, concurrency: 1 },
+  { connection, concurrency },
 );
 
 worker.on("failed", (job, error) => {
@@ -33,6 +45,7 @@ worker.on("failed", (job, error) => {
 });
 
 const timer = setInterval(() => {
+  markWorkerAlive();
   void scheduleMonitors().catch((error) => console.error("monitor schedule failed", error instanceof Error ? error.message : "error"));
   void purgeFinishedCredentials().catch((error) => console.error("credential cleanup failed", error instanceof Error ? error.message : "error"));
 }, 10 * 60 * 1000);
@@ -41,7 +54,8 @@ timer.unref?.();
 void scheduleMonitors().catch((error) => console.error("monitor schedule failed", error instanceof Error ? error.message : "error"));
 void purgeFinishedCredentials().catch((error) => console.error("credential cleanup failed", error instanceof Error ? error.message : "error"));
 
-console.log("VibeCheck worker ready");
+markWorkerAlive();
+console.log(`VibeCheck worker ready (concurrency ${concurrency})`);
 
 async function shutdown() {
   clearInterval(timer);

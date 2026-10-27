@@ -1,5 +1,7 @@
 import { safeFetch, type ProbeResponse } from "@/lib/http";
 import type { AuthAccount } from "@/lib/auth-input";
+import { scannerUserAgent } from "@/lib/scanner-identity";
+import { withTargetPace } from "@/lib/target-pace";
 import { assertLoginPost, assertReadOnlyMethod, isActionUrl } from "../readonly";
 import type { ScanContext } from "../context";
 
@@ -148,7 +150,7 @@ async function loginWithBrowser(ctx: ScanContext, account: AuthAccount): Promise
       ...(channel ? { channel: channel as "chrome" } : {}),
       args: ["--no-sandbox", "--disable-dev-shm-usage"],
     });
-    const context = await browser.newContext({ userAgent: "VibeCheckScanner/0.1" });
+    const context = await browser.newContext({ userAgent: scannerUserAgent() });
     const page = await context.newPage();
     let posts = 0;
     await page.route("**/*", async (route) => {
@@ -182,7 +184,7 @@ async function loginWithBrowser(ctx: ScanContext, account: AuthAccount): Promise
     });
     const remaining = Math.max(1000, budget - (Date.now() - started));
     page.setDefaultTimeout(remaining);
-    await page.goto(account.loginUrl, { waitUntil: "domcontentloaded", timeout: remaining });
+    await withTargetPace(account.loginUrl, () => page.goto(account.loginUrl, { waitUntil: "domcontentloaded", timeout: remaining }));
     const email = page.locator('input[type="email"], input[name="email" i], input[name="username" i], input[autocomplete="username" i]').first();
     const password = page.locator('input[type="password"]').first();
     if ((await email.count()) === 0 || (await password.count()) === 0) return null;

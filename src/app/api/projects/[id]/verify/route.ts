@@ -9,6 +9,7 @@ import { resolveReportAccess } from "@/lib/entitlements";
 import { LOGIN_AVAILABLE_NOTICE } from "@/lib/limitations";
 import { enqueueScan } from "@/lib/queue";
 import { CONSENT_TEXT, assertConsent, verifyOwnership } from "@/lib/ownership";
+import { recordScanAuthorization } from "@/lib/scan-authorization";
 
 const bodySchema = z.object({
   consent: z.boolean(),
@@ -32,10 +33,18 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   }
 
   const proof = await verifyOwnership(project.url, project.ownershipToken);
-  if (!proof.ok) return NextResponse.json({ error: proof.reason || "Ownership proof was not found." }, { status: 400 });
+  if (!proof.ok || !proof.method) return NextResponse.json({ error: proof.reason || "Ownership proof was not found." }, { status: 400 });
   await prisma.project.update({
     where: { id: project.id },
     data: { ownershipVerifiedAt: new Date(), ownershipMethod: proof.method },
+  });
+  await recordScanAuthorization({
+    userId: user.id,
+    userEmail: user.email,
+    projectId: project.id,
+    targetUrl: project.url,
+    kind: "ownership",
+    method: proof.method,
   });
 
   const active = await prisma.scan.count({ where: { userId: user.id, status: { in: ["queued", "running"] } } });
@@ -73,6 +82,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       consentAt: new Date(),
       consentText: CONSENT_TEXT,
     },
+  });
+  await recordScanAuthorization({
+    userId: user.id,
+    userEmail: user.email,
+    projectId: project.id,
+    scanId: scan.id,
+    targetUrl: project.url,
+    kind: "consent",
+    method: "checkbox",
+    note: CONSENT_TEXT,
   });
   if (auth) {
     try {

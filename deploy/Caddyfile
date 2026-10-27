@@ -1,0 +1,10 @@
+# Public HTTPS in front of the Next.js app. Caddy requests a certificate for
+# SITE_ADDRESS. Ports 80 and 443 on the VM must reach this container.
+{
+	email {$ACME_EMAIL}
+}
+
+{$SITE_ADDRESS} {
+	encode gzip
+	reverse_proxy web:3000
+}

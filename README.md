@@ -222,7 +222,7 @@ Magic links are stored as hashes. The session cookie is HTTP-only. This avoids a
 
 **Worker on Railway or Fly.** Use `Dockerfile.worker`. Same `DATABASE_URL` and `REDIS_URL`. Set `PLAYWRIGHT_ENABLED=true` if you want the rendered-page pass. Set `ALLOW_LOCAL_TARGETS=false`. Set `APP_URL` to the public web origin so alert links and magic links are correct.
 
-**One VM.** `docker compose up --build` runs Postgres, Redis, web, worker, and the demo targets. The web and worker processes retry the schema push until Postgres accepts connections. Remove the demo services before any public deploy, and turn off local targets.
+**One VM.** Local `docker compose up --build` runs Postgres, Redis, web, worker, and the demo targets. Do not publish that file. A public server uses `docker-compose.prod.yml`, which has no demo targets. The step-by-step is [docs/DEPLOY_SELF_HOSTED.md](docs/DEPLOY_SELF_HOSTED.md): AWS Free plan first, then any other Linux VM with the same files.
 
 Dodo webhooks should target `https://<your-web-host>/api/dodo/webhook`. Stripe webhooks should target `https://<your-web-host>/api/stripe/webhook`. New checkouts follow `PAYMENT_PROVIDER`.
 

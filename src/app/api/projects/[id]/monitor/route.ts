@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { monitoringActive } from "@/lib/entitlements";
+import { recordScanAuthorization } from "@/lib/scan-authorization";
 
 const bodySchema = z.object({ enabled: z.boolean() });
 
@@ -21,5 +22,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
   }
   await prisma.project.update({ where: { id: project.id }, data: { monitorEnabled: parsed.data.enabled } });
+  if (parsed.data.enabled) {
+    await recordScanAuthorization({
+      userId: user.id,
+      userEmail: user.email,
+      projectId: project.id,
+      targetUrl: project.url,
+      kind: "consent",
+      method: "monitor_enable",
+      note: "Monitoring enabled for this verified origin.",
+    });
+  }
   return NextResponse.json({ enabled: parsed.data.enabled });
 }

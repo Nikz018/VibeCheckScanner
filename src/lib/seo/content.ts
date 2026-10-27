@@ -277,7 +277,8 @@ export type PublicPageId =
   | "terms"
   | "privacy"
   | "refund"
-  | "contact";
+  | "contact"
+  | "scanner-info";
 
 export const GUIDES: Record<"guide-lovable" | "guide-rls" | "guide-keys", GuideDoc> = {
   "guide-lovable": {
@@ -595,6 +596,13 @@ export const LEGAL_SECTIONS: Record<"terms" | "privacy" | "refund" | "contact", 
       ],
     },
     {
+      heading: "Where do I report unwanted scan traffic?",
+      paragraphs: [
+        "Use the abuse address on this page and on the scanner info page. Include the time in UTC, the URL that was requested, and the source address if you have it.",
+        "That address is the mailbox the operator set for abuse reports. If the page does not show one, use the product email and put abuse report in the subject.",
+      ],
+    },
+    {
       heading: "What should I include in the message?",
       paragraphs: [
         "Include the email on the VibeCheck account, the origin you scanned, and the scan id from the dashboard when you have one.",
@@ -770,6 +778,18 @@ export const PUBLIC_PAGES: PublicPage[] = [
     review: true,
   },
   {
+    id: "scanner-info",
+    path: "/scanner-info",
+    title: "Scanner info",
+    description:
+      "How VibeCheck identifies its scans, why they require ownership proof and consent, and how to report abuse.",
+    h1: "What is the VibeCheck scanner?",
+    lede: "VibeCheck scans only an origin whose owner published a proof and consented. The checks are read-only, and each request names VibeCheck.",
+    crumb: "Scanner info",
+    changeFrequency: "monthly",
+    priority: 0.4,
+  },
+  {
     id: "contact",
     path: "/contact",
     title: "Contact",
@@ -830,6 +850,7 @@ export const FOOTER_GROUPS = [
       { href: "/terms", label: "Terms" },
       { href: "/privacy", label: "Privacy" },
       { href: "/refund", label: "Refunds" },
+      { href: "/scanner-info", label: "Scanner info" },
       { href: "/contact", label: "Contact" },
       { href: "/llms.txt", label: "llms.txt" },
       { href: "/llms-full.txt", label: "llms-full.txt" },
@@ -844,5 +865,30 @@ export function allCopyBlocks(): CopyBlock[] {
     ...HOW_TO_EXTRAS,
     ...Object.values(GUIDES).flatMap((guide) => guide.sections),
     ...Object.values(LEGAL_SECTIONS).flat(),
+    ...SCANNER_INFO_SECTIONS,
   ];
 }
+
+export const SCANNER_INFO_SECTIONS: CopyBlock[] = [
+  {
+    heading: "When does VibeCheck scan a site?",
+    paragraphs: [
+      "A scan starts only after that account publishes an ownership proof for the origin and checks the consent box. The proof is a token in DNS TXT or at /.well-known/vibecheck-verify.txt.",
+      "The app stores who consented, when, the target origin, and the proof method. The operator can export that record when answering an abuse report.",
+    ],
+  },
+  {
+    heading: "What does a scan send?",
+    paragraphs: [
+      "Requests use GET, HEAD, OPTIONS, and small POST bodies. The worker does not send PUT, PATCH, or DELETE. Each request carries a User-Agent that names VibeCheck and links to this page.",
+      "Checks wait for a free slot on that host instead of firing all at once. Waiting does not skip a check. The render of one page can still load that page's own images and scripts together.",
+    ],
+  },
+  {
+    heading: "How do I report abuse?",
+    paragraphs: [
+      "Email the abuse address shown on this page. Include the time in UTC, the URL that was requested, and the source IP address if you have it.",
+      "The operator looks up that host and can reply with the account, the time, the target, and whether ownership was shown by DNS TXT or the well-known file.",
+    ],
+  },
+];

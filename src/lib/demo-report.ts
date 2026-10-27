@@ -1,4 +1,5 @@
 import { CHECK_CATALOG } from "./catalog";
+import { scannerUserAgent } from "./scanner-identity";
 import type { FindingLocation, FindingProof } from "./finding-detail";
 import { buildCustomerReport, type CheckRunState, type CustomerReport, type RawCheckResult } from "./report";
 
@@ -40,7 +41,7 @@ function demoWhere(checkId: string): { locations: FindingLocation[]; proof: Find
       method,
       url,
       headers: [
-        { name: "user-agent", value: "VibeCheckScanner/0.1" },
+        { name: "user-agent", value: scannerUserAgent() },
         { name: "accept", value: "*/*" },
       ],
       status: 200,

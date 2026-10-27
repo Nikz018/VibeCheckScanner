@@ -1,0 +1,191 @@
+# Production stack for one small Linux VM (ARM64 or AMD64).
+# Same file on AWS, Oracle, Hostinger, DigitalOcean, or Hetzner.
+# Demo targets are not included.
+
+name: vibecheck-prod
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-backend-env: &backend-env
+  NODE_ENV: production
+  DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  REDIS_URL: redis://redis:6379
+  APP_URL: ${APP_URL:?Set APP_URL in .env}
+  ALLOW_LOCAL_TARGETS: "false"
+  LOCALHOST_REWRITE_HOST: ""
+  PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - max_connections=30
+      - -c
+      - work_mem=4MB
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    logging: *logging
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - ${REDIS_MAXMEMORY:-64mb}
+      - --maxmemory-policy
+      - noeviction
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    image: vibecheck-worker:prod
+    command: ["sh", "scripts/prisma-deploy.sh"]
+    restart: "no"
+    logging: *logging
+    env_file:
+      - .env
+    environment:
+      <<: *backend-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?Set NEXT_PUBLIC_SITE_URL in .env}
+        NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-}
+    image: vibecheck-web:prod
+    command: ["sh", "scripts/prod-web-entrypoint.sh"]
+    restart: unless-stopped
+    logging: *logging
+    init: true
+    shm_size: "128mb"
+    env_file:
+      - .env
+    environment:
+      <<: *backend-env
+      DEV_EXPOSE_MAGIC_LINK: "false"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 896M
+
+  worker:
+    image: vibecheck-worker:prod
+    command: ["sh", "scripts/prod-worker-entrypoint.sh"]
+    restart: unless-stopped
+    logging: *logging
+    init: true
+    shm_size: "128mb"
+    stop_grace_period: 30s
+    env_file:
+      - .env
+    environment:
+      <<: *backend-env
+      PLAYWRIGHT_ENABLED: "true"
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "const fs=require('fs'); const t=Number(fs.readFileSync('/tmp/vibecheck-worker-alive','utf8')); if(!Number.isFinite(t)||Date.now()-t>20*60*1000) process.exit(1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 1408M
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    logging: *logging
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?Set SITE_ADDRESS in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+volumes:
+  pgdata:
+  redisdata:
+  caddy_data:
+  caddy_config:

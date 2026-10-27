@@ -102,6 +102,25 @@ model ScanCredential {
   @@index([expiresAt])
 }
 
+// Append-only. No foreign keys: deleting a project must not erase an abuse-response record.
+model ScanAuthorization {
+  id         String   @id @default(cuid())
+  userId     String
+  userEmail  String
+  projectId  String?
+  scanId     String?
+  targetUrl  String
+  host       String
+  kind       String
+  method     String
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([host])
+  @@index([userId])
+  @@index([createdAt])
+}
+
 model Finding {
   id           String @id @default(cuid())
   scanId       String

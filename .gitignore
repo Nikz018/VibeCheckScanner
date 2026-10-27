@@ -2,6 +2,8 @@ node_modules
 .next
 .env
 .env.local
+backups
+*.dump
 *.log
 dist
 coverage
