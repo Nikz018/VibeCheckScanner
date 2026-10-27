@@ -179,6 +179,8 @@ export function hidePaidDetail(finding: CustomerFinding): CustomerFinding {
 }
 
 export const FREE_PREVIEW_LABEL = "Free preview";
+export const FULL_REPORT_PURCHASE_LEDE = "After purchase, the full report runs every check on this origin.";
+export const RESCAN_PURCHASE_NOTE = "The same full scan, plus one credit to run another full scan after you ship fixes.";
 
 export interface FreePreviewFacts {
   findingsShown: number;
@@ -213,8 +215,12 @@ function countNoun(count: number, noun: string): string {
 /** Sentences use only counts present on the report. Missing checks are not turned into findings. */
 export function freePreviewLines(facts: FreePreviewFacts): string[] {
   const lines = [`This free preview shows ${countNoun(facts.findingsShown, "finding")} from ${countNoun(facts.checksRun, "check")}.`];
+  const totalChecks = facts.checksRun + facts.checksNotRun;
+  if (totalChecks > 0) {
+    lines.push(`After purchase, the full report runs all ${countNoun(totalChecks, "check")} on this origin.`);
+  }
   if (facts.checksNotRun > 0) {
-    lines.push(`The full report includes ${countNoun(facts.checksNotRun, "check")} that did not run on this preview.`);
+    lines.push(`That includes ${countNoun(facts.checksNotRun, "check")} that did not run on this preview.`);
   }
   if (facts.hiddenFindings > 0) {
     const verb = facts.hiddenFindings === 1 ? "is" : "are";

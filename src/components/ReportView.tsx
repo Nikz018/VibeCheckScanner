@@ -1,7 +1,8 @@
 import type { CustomerReport } from "@/lib/report";
-import { FREE_PREVIEW_LABEL, freePreviewFacts, freePreviewLines } from "@/lib/report";
+import { FREE_PREVIEW_LABEL, FULL_REPORT_PURCHASE_LEDE, RESCAN_PURCHASE_NOTE, freePreviewFacts, freePreviewLines } from "@/lib/report";
 import type { Severity } from "@/lib/catalog";
 import { TAX_NOTE, TIERS } from "@/lib/pricing";
+import { PaidScanFollowup, type PaidScanFollowupState } from "./PaidScanFollowup";
 import { UpgradePanel } from "./UpgradePanel";
 import { SharePanel } from "./SharePanel";
 import { MonitorToggle } from "./MonitorToggle";
@@ -23,6 +24,8 @@ export function ReportView({
   share,
   project,
   collectBilling = false,
+  paidFollowup = null,
+  checkoutPending = false,
 }: {
   report: CustomerReport;
   targetLabel?: string;
@@ -31,6 +34,8 @@ export function ReportView({
   share?: { enabled: boolean; token: string | null };
   project?: { id: string; monitorEnabled: boolean; monitoringAllowed: boolean };
   collectBilling?: boolean;
+  paidFollowup?: PaidScanFollowupState | null;
+  checkoutPending?: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -142,22 +147,28 @@ export function ReportView({
                 <p key={line}>{line}</p>
               ))}
             </div>
-            <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-[#d9d3c5]">
-              <li>
-                {TIERS.report.priceLabel} {TIERS.report.name}. {TIERS.report.blurb} {TAX_NOTE}.
-              </li>
-              <li>
-                {TIERS.rescan.priceLabel} {TIERS.rescan.name}. {TIERS.rescan.blurb} {TAX_NOTE}.
-              </li>
-            </ul>
+            {paidFollowup || checkoutPending ? null : (
+              <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-[#d9d3c5]">
+                <li>
+                  {TIERS.report.priceLabel} {TIERS.report.name}. {FULL_REPORT_PURCHASE_LEDE} {TAX_NOTE}.
+                </li>
+                <li>
+                  {TIERS.rescan.priceLabel} {TIERS.rescan.name}. {RESCAN_PURCHASE_NOTE} {TAX_NOTE}.
+                </li>
+              </ul>
+            )}
           </div>
-          {scanId ? (
+          {paidFollowup ? (
+            <PaidScanFollowup followup={paidFollowup} />
+          ) : checkoutPending ? (
+            <PaidScanFollowup followup={null} pending />
+          ) : scanId ? (
             <UpgradePanel
               scanId={scanId}
               collectBilling={collectBilling}
               tierIds={["report", "rescan"]}
               heading="What the full report adds"
-              lede="Checkout stays on this scan."
+              lede={FULL_REPORT_PURCHASE_LEDE}
             />
           ) : null}
         </section>

@@ -141,6 +141,7 @@ test("free preview counts only checks and findings that are on the report", () =
   assert.ok(facts.familiesNotRun.includes("Access control"));
   const lines = freePreviewLines(facts);
   assert.equal(lines.some((line) => /more finding/i.test(line)), false);
+  assert.match(lines.join("\n"), new RegExp(`After purchase, the full report runs all ${CHECK_CATALOG.length} checks on this origin`));
   assert.match(lines.join("\n"), new RegExp(`${CHECK_CATALOG.length - 2} checks that did not run`));
   assert.equal(containsToolBrand(lines.join("\n")), null);
 

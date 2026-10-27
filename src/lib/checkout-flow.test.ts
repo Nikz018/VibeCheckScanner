@@ -57,8 +57,10 @@ test("pricing page and dashboard expose the live checkout actions", () => {
   assert.match(pricing, /PricingCheckout/);
   assert.match(pricing, /getCurrentUser/);
   assert.match(read("src/components/PricingCheckout.tsx"), /signInPath\(pricingCheckoutPath/);
-  assert.match(dashboard, /#upgrade/);
+  assert.match(dashboard, /paidScanDashboardAction/);
   assert.match(dashboard, /scan\.mode === "mini"/);
+  assert.match(read("src/lib/payments/paid-scan-status.ts"), /#upgrade/);
+  assert.match(report, /FULL_REPORT_PURCHASE_LEDE/);
   assert.equal(UPGRADE_ACTIONS.report, "Upgrade to full report");
   assert.match(report, /FREE_PREVIEW_LABEL/);
   assert.match(report, /freePreviewLines/);

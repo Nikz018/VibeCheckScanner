@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import type { AuthScanPayload } from "@/lib/auth-input";
 import { verifyOwnership } from "@/lib/ownership";
+import { paidReportAlertMessage, paidReportNotice } from "@/lib/payments/paid-scan-status";
 import { recordScanAuthorization } from "@/lib/scan-authorization";
 import { buildCustomerReport } from "@/lib/report";
 import { clampText, sanitizeCode, sanitizeCustomerText } from "@/lib/sanitize";
@@ -146,6 +147,7 @@ async function runQueuedScan(scan: Prisma.ScanGetPayload<{ include: { project: t
         output.results.map((result) => result.checkId),
       );
     }
+    await notifyPaidReport(scan.id, scan.userId, scan.user.email, scan.targetUrl);
   } catch (error) {
     console.error("scan failed", error instanceof Error ? error.message : "error");
     await fail(scan.id, "The scan could not finish. Confirm the site is reachable and try again.");
@@ -180,6 +182,20 @@ async function maybeAlert(
   await prisma.alert.create({ data: { userId, scanId, message } });
   const link = `${process.env.APP_URL || "http://localhost:3000"}/scans/${scanId}`;
   await sendEmail(email, "VibeCheck found new high-severity issues", `${message}\n\n${link}`);
+}
+
+async function notifyPaidReport(scanId: string, userId: string, email: string, targetUrl: string): Promise<void> {
+  try {
+    const purchase = await prisma.purchase.findFirst({ where: { fullScanId: scanId, status: "paid" } });
+    if (!purchase) return;
+    const host = new URL(targetUrl).host;
+    const link = `${process.env.APP_URL || "http://localhost:3000"}/scans/${scanId}`;
+    const notice = paidReportNotice(host, link);
+    await prisma.alert.create({ data: { userId, scanId, message: paidReportAlertMessage(host) } });
+    await sendEmail(email, notice.subject, notice.text);
+  } catch (error) {
+    console.error("full report notice failed", error instanceof Error ? error.message : "error");
+  }
 }
 
 async function fail(scanId: string, error: string): Promise<void> {
