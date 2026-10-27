@@ -168,7 +168,7 @@ Dodo is the default. Create a Dodo Payments account, switch the dashboard to tes
 
 The prices on the site are before tax. Dodo products are tax-exclusive, so tax is added on the checkout page. The upgrade form asks for a billing country and address, then sends the customer to that page. The webhook is `POST /api/dodo/webhook`. It checks the [Standard Webhooks](https://www.standardwebhooks.com/) signature. A missing or bad signature gets HTTP 400 and changes nothing. `payment.succeeded` unlocks the report (and adds the rescan credit on the $99 product). `payment.failed` does not unlock anything. `subscription.active` and `subscription.renewed` turn monitoring on. `subscription.cancelled` and `subscription.failed` turn it off. The same event id is applied once.
 
-You do not need a Dodo account to run the tests. They mock checkout and sign a local webhook fixture. A real test-mode payment still needs the API key and the webhook secret. The three product IDs above are already the defaults in `.env.example`.
+You do not need a Dodo account to run the tests. They mock checkout and sign a local webhook fixture. A real test-mode payment still needs the API key and the webhook secret. The three product IDs above are the defaults in `.env.example` and in the server when those variables are empty. Until `DODO_PAYMENTS_API_KEY` is set, pricing and upgrade buttons say that checkout is being set up.
 
 ## Stripe
 

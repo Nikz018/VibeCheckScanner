@@ -6,6 +6,7 @@ import { ScoreGauge } from "@/components/ScoreGauge";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { monitoringActive } from "@/lib/entitlements";
+import { UPGRADE_ACTIONS } from "@/lib/pricing";
 import { privateMetadata } from "@/lib/seo/metadata";
 
 export const dynamic = "force-dynamic";
@@ -82,12 +83,20 @@ export default async function DashboardPage() {
                     {scan.project.url}
                   </Link>
                   <p className="text-[#b7b1a4]">
-                    {scan.mode} · {scan.status} · {scan.reportAccess}
+                    {scan.mode === "mini" ? "free preview" : scan.mode} · {scan.status}
+                    {scan.mode === "mini" ? "" : ` · ${scan.reportAccess}`}
                     {scan.scheduled ? " · scheduled" : ""}
                   </p>
                 </div>
               </div>
-              <span className="text-[#b7b1a4]">{scan.createdAt.toISOString().slice(0, 10)}</span>
+              <div className="flex flex-wrap items-center gap-3">
+                {scan.mode === "mini" ? (
+                  <Link href={`/scans/${scan.id}#upgrade`} className="btn btn-lime px-3 py-1.5 text-sm">
+                    {UPGRADE_ACTIONS.report}
+                  </Link>
+                ) : null}
+                <span className="text-[#b7b1a4]">{scan.createdAt.toISOString().slice(0, 10)}</span>
+              </div>
             </li>
           ))}
         </ul>

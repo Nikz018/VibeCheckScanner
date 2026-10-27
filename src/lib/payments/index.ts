@@ -6,7 +6,7 @@ import { isTierId, type TierId } from "../pricing";
 import { dodoPaymentProvider, parseBilling } from "./dodo";
 import { PaymentNotConfiguredError, PaymentRequestError } from "./errors";
 import { stripePaymentProvider } from "./stripe-provider";
-import type { PaymentProvider, PaymentProviderId } from "./types";
+import type { BillingAddress, PaymentProvider, PaymentProviderId } from "./types";
 
 export function paymentProviderId(): PaymentProviderId | null {
   const value = (process.env.PAYMENT_PROVIDER || "dodo").trim().toLowerCase();
@@ -23,6 +23,12 @@ export function paymentProvider(): PaymentProvider {
 
 export function collectsBillingAddress(): boolean {
   return paymentProviderId() === "dodo";
+}
+
+export function prepareCheckout(provider: PaymentProvider, billing: unknown): BillingAddress | undefined {
+  if (!provider.checkoutConfigured()) throw new PaymentNotConfiguredError(provider.checkoutDisabledMessage());
+  if (provider.id === "dodo") return parseBilling(billing);
+  return undefined;
 }
 
 export async function checkoutResponse(request: Request, provider: PaymentProvider): Promise<NextResponse> {
@@ -56,7 +62,7 @@ export async function checkoutResponse(request: Request, provider: PaymentProvid
   const successPath = scanId ? `/scans/${scanId}?checkout=success` : "/dashboard?checkout=success";
   const cancelPath = scanId ? `/scans/${scanId}?checkout=cancel` : "/dashboard?checkout=cancel";
   try {
-    const billing = provider.id === "dodo" ? parseBilling(parsed.data.billing) : undefined;
+    const billing = prepareCheckout(provider, parsed.data.billing);
     const session = await provider.createCheckout({
       userId: user.id,
       email: user.email,

@@ -11,6 +11,7 @@ export function stripePaymentProvider(): PaymentProvider {
     id: "stripe",
     webhookConfigured,
     webhookDisabledMessage: () => "Stripe webhook is not configured.",
+    checkoutConfigured: () => Boolean(getStripe()),
     checkoutDisabledMessage: () => CHECKOUT_DISABLED,
     createCheckout,
     cancelSubscription,

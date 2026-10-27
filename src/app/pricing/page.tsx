@@ -1,15 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PricingCards, PublicArticle, QaSection, TaxLine } from "@/components/Marketing";
+import { PricingCheckout } from "@/components/PricingCheckout";
+import { PublicArticle, QaSection, TaxLine } from "@/components/Marketing";
+import { getCurrentUser } from "@/lib/auth";
+import { tierFromCheckoutParam } from "@/lib/checkout-path";
+import { collectsBillingAddress } from "@/lib/payments";
 import { PRICING_SECTIONS } from "@/lib/seo/content";
 import { pageMetadata } from "@/lib/seo/metadata";
 
+export const dynamic = "force-dynamic";
 export const metadata: Metadata = pageMetadata("pricing");
 
-export default function PricingPage() {
+export default async function PricingPage({ searchParams }: { searchParams: Promise<{ checkout?: string }> }) {
+  const params = await searchParams;
+  const user = await getCurrentUser();
   return (
     <PublicArticle pageId="pricing" width="wide">
-      <PricingCards titles="text" />
+      <PricingCheckout signedIn={Boolean(user)} collectBilling={collectsBillingAddress()} initialTier={tierFromCheckoutParam(params.checkout)} />
       <TaxLine />
       {PRICING_SECTIONS.map((section) => (
         <QaSection key={section.heading} {...section} />

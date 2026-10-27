@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { CheckoutSessionCreateParams } from "dodopayments/resources/checkout-sessions";
-import { dodoEnvironment, dodoPaymentProvider, normalizeDodoEvent, parseBilling } from "./dodo";
+import { CHECKOUT_SETUP_MESSAGE, DEFAULT_DODO_PRODUCT_IDS } from "../pricing";
+import { dodoEnvironment, dodoPaymentProvider, dodoProductId, normalizeDodoEvent, parseBilling } from "./dodo";
 import { InvalidSignatureError, MissingSignatureError, PaymentNotConfiguredError, PaymentRequestError } from "./errors";
-import { paymentProviderId, subscriptionCancelTarget } from "./index";
+import { paymentProviderId, prepareCheckout, subscriptionCancelTarget } from "./index";
 import { Webhook } from "standardwebhooks";
 
 const webhookSecret = `whsec_${Buffer.from("vibecheck-dodo-webhook-fixture-key").toString("base64")}`;
@@ -91,28 +92,36 @@ test("checkout session sends the product, metadata, and billing address", async 
   else process.env.DODO_PRODUCT_REPORT = previous;
 });
 
-test("checkout refuses a missing product id or billing address", async () => {
+test("unset product env uses the live default, and checkout still requires a billing address", async () => {
   const previous = process.env.DODO_PRODUCT_MONITOR;
   delete process.env.DODO_PRODUCT_MONITOR;
+  assert.equal(dodoProductId("monitor"), DEFAULT_DODO_PRODUCT_IDS.monitor);
+  let productId = "";
   const provider = dodoPaymentProvider({
-    checkoutSessions: { create: async () => ({ session_id: "cks", checkout_url: "https://example.com" }) },
+    checkoutSessions: {
+      create: async (input) => {
+        productId = input.product_cart[0]?.product_id ?? "";
+        return { session_id: "cks", checkout_url: "https://example.com/checkout" };
+      },
+    },
     subscriptions: { update: async () => ({}) },
     webhooks: { unwrap: () => ({}) },
   });
-  await assert.rejects(
-    () =>
-      provider.createCheckout({
-        userId: "user_1",
-        email: "ada@example.com",
-        tier: "monitor",
-        scanId: "",
-        successUrl: "https://app.example/ok",
-        cancelUrl: "https://app.example/cancel",
-        billing: { country: "US", street: "1 Main", city: "Austin", state: "TX", zipcode: "78701" },
-      }),
-    PaymentNotConfiguredError,
-  );
+  const session = await provider.createCheckout({
+    userId: "user_1",
+    email: "ada@example.com",
+    tier: "monitor",
+    scanId: "",
+    successUrl: "https://app.example/ok",
+    cancelUrl: "https://app.example/cancel",
+    billing: { country: "US", street: "1 Main", city: "Austin", state: "TX", zipcode: "78701" },
+  });
+  assert.equal(session.url, "https://example.com/checkout");
+  assert.equal(productId, "pdt_0NqUQeUgIBSIizoXIrkrJ");
+  process.env.DODO_PRODUCT_MONITOR = "  ";
+  assert.equal(dodoProductId("monitor"), DEFAULT_DODO_PRODUCT_IDS.monitor);
   process.env.DODO_PRODUCT_MONITOR = "pdt_monitor";
+  assert.equal(dodoProductId("monitor"), "pdt_monitor");
   await assert.rejects(
     () =>
       provider.createCheckout({
@@ -127,6 +136,59 @@ test("checkout refuses a missing product id or billing address", async () => {
   );
   if (previous === undefined) delete process.env.DODO_PRODUCT_MONITOR;
   else process.env.DODO_PRODUCT_MONITOR = previous;
+});
+
+test("missing API key is reported before billing validation", () => {
+  const previous = process.env.DODO_PAYMENTS_API_KEY;
+  delete process.env.DODO_PAYMENTS_API_KEY;
+  try {
+    const provider = dodoPaymentProvider();
+    assert.equal(provider.checkoutConfigured(), false);
+    assert.throws(
+      () => prepareCheckout(provider, undefined),
+      (error: unknown) => {
+        assert.ok(error instanceof PaymentNotConfiguredError);
+        assert.equal((error as Error).message, CHECKOUT_SETUP_MESSAGE);
+        return true;
+      },
+    );
+    process.env.DODO_PAYMENTS_API_KEY = "dodo_test_not_a_real_key";
+    const ready = dodoPaymentProvider();
+    assert.equal(ready.checkoutConfigured(), true);
+    assert.throws(() => prepareCheckout(ready, undefined), PaymentRequestError);
+  } finally {
+    if (previous === undefined) delete process.env.DODO_PAYMENTS_API_KEY;
+    else process.env.DODO_PAYMENTS_API_KEY = previous;
+  }
+});
+
+test("checkout without an API key tells the visitor to try again soon", async () => {
+  const previous = process.env.DODO_PAYMENTS_API_KEY;
+  delete process.env.DODO_PAYMENTS_API_KEY;
+  try {
+    const provider = dodoPaymentProvider();
+    await assert.rejects(
+      () =>
+        provider.createCheckout({
+          userId: "user_1",
+          email: "ada@example.com",
+          tier: "report",
+          scanId: "scan_1",
+          successUrl: "https://app.example/ok",
+          cancelUrl: "https://app.example/cancel",
+          billing: { country: "US", street: "1 Main", city: "Austin", state: "TX", zipcode: "78701" },
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof PaymentNotConfiguredError);
+        assert.equal((error as Error).message, CHECKOUT_SETUP_MESSAGE);
+        assert.equal((error as Error).message.includes("DODO_"), false);
+        return true;
+      },
+    );
+  } finally {
+    if (previous === undefined) delete process.env.DODO_PAYMENTS_API_KEY;
+    else process.env.DODO_PAYMENTS_API_KEY = previous;
+  }
 });
 
 test("cancel marks the Dodo subscription cancelled", async () => {

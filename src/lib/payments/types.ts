@@ -63,6 +63,7 @@ export interface PaymentProvider {
   readonly id: PaymentProviderId;
   webhookConfigured(): boolean;
   webhookDisabledMessage(): string;
+  checkoutConfigured(): boolean;
   checkoutDisabledMessage(): string;
   createCheckout(input: CheckoutDraft): Promise<CheckoutSession>;
   cancelSubscription(subscriptionId: string): Promise<void>;

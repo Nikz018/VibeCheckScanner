@@ -178,6 +178,54 @@ export function hidePaidDetail(finding: CustomerFinding): CustomerFinding {
   };
 }
 
+export const FREE_PREVIEW_LABEL = "Free preview";
+
+export interface FreePreviewFacts {
+  findingsShown: number;
+  checksRun: number;
+  checksNotRun: number;
+  hiddenFindings: number;
+  familiesNotRun: string[];
+}
+
+export function freePreviewFacts(report: Pick<CustomerReport, "coverage" | "access" | "samples" | "totalFindings" | "hiddenCount">): FreePreviewFacts {
+  let checksRun = 0;
+  let checksNotRun = 0;
+  const familiesNotRun: string[] = [];
+  for (const row of report.coverage) {
+    checksRun += row.checksRun.length;
+    checksNotRun += row.checksNotRun.length;
+    if (row.checksRun.length === 0) familiesNotRun.push(row.label);
+  }
+  return {
+    findingsShown: report.access === "teaser" ? report.samples.length : report.totalFindings,
+    checksRun,
+    checksNotRun,
+    hiddenFindings: report.hiddenCount,
+    familiesNotRun,
+  };
+}
+
+function countNoun(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+/** Sentences use only counts present on the report. Missing checks are not turned into findings. */
+export function freePreviewLines(facts: FreePreviewFacts): string[] {
+  const lines = [`This free preview shows ${countNoun(facts.findingsShown, "finding")} from ${countNoun(facts.checksRun, "check")}.`];
+  if (facts.checksNotRun > 0) {
+    lines.push(`The full report includes ${countNoun(facts.checksNotRun, "check")} that did not run on this preview.`);
+  }
+  if (facts.hiddenFindings > 0) {
+    const verb = facts.hiddenFindings === 1 ? "is" : "are";
+    lines.push(`${countNoun(facts.hiddenFindings, "finding")} from checks that already ran ${verb} in the full report.`);
+  }
+  if (facts.familiesNotRun.length > 0) {
+    lines.push(`Families not run on this preview: ${facts.familiesNotRun.join(", ")}.`);
+  }
+  return lines;
+}
+
 export function sortFindings(findings: CustomerFinding[]): CustomerFinding[] {
   return [...findings].sort((a, b) => {
     const ar = a.headlineRank ?? 100;
