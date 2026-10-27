@@ -53,7 +53,7 @@ export function renderScoreGaugeSvg(input: { score: number | null; tone?: GaugeT
   const progress =
     score === null || score <= 0
       ? ""
-      : `<path d="${arc}" pathLength="100" fill="none" stroke="${band?.color}" stroke-width="14" stroke-linecap="round" stroke-dasharray="${score} 100"/>`;
+      : `<path class="gauge-progress" d="${arc}" pathLength="100" fill="none" stroke="${band?.color}" stroke-width="14" stroke-linecap="round" stroke-dasharray="${score} 100"/>`;
   const aria = score === null ? "Score not ready" : `${ratio}, ${label}`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 136" role="img" aria-label="${escapeXml(aria)}" data-score-gauge="${score ?? ""}">
   <path d="${arc}" fill="none" stroke="${tone.track}" stroke-width="14" stroke-linecap="round"/>
