@@ -15,7 +15,7 @@ export async function runAuthConfig(ctx: ScanContext): Promise<void> {
     const signup = locateText(ctx.scripts, /role\s*:\s*["']admin["']/);
     if (signup) {
       const file = ctx.scripts.find((script) => script.url === signup.url);
-      const url = signup.url.startsWith("inline:") || signup.url.startsWith("rendered:") ? ctx.home?.url || ctx.targetUrl : signup.url;
+      const url = ctx.scriptUrl(signup.url);
       ctx.add(
         "signup_privileged_role",
         "Public client code sends an admin role during signup. The server must ignore that field.",
@@ -37,6 +37,8 @@ export async function runAuthConfig(ctx: ScanContext): Promise<void> {
             ],
           },
         ),
+        undefined,
+        ctx.pagesMatching(/role\s*:\s*["']admin["']/),
       );
     }
 

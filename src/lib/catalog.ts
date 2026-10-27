@@ -672,6 +672,44 @@ Referrer-Policy: strict-origin-when-cross-origin
 Keep secrets out of query strings even after you set the header.`,
   },
   {
+    id: "mixed_content",
+    module: "page-content",
+    family: "transport_headers",
+    title: "HTTPS page loads a resource over HTTP",
+    severity: "medium",
+    headlineRank: null,
+    owaspTop10: "A02:2021 Cryptographic Failures",
+    owaspApiTop10: "API8:2023 Security Misconfiguration",
+    asvs: "V9 Communications",
+    cwe: "CWE-319",
+    impact:
+      "A script, frame, stylesheet, or form on an HTTPS page still requests cleartext HTTP. A network attacker can change that response.",
+    fix: `Point every script, frame, image, stylesheet, and form at an https URL.
+
+<script src="https://app.example.com/assets/app.js"></script>
+
+Update hardcoded http:// asset URLs and set Content-Security-Policy with upgrade-insecure-requests only after those URLs are https.`,
+  },
+  {
+    id: "insecure_form",
+    module: "page-content",
+    family: "transport_headers",
+    title: "Form submits to an insecure or different origin",
+    severity: "medium",
+    headlineRank: null,
+    owaspTop10: "A02:2021 Cryptographic Failures",
+    owaspApiTop10: "API8:2023 Security Misconfiguration",
+    asvs: "V9 Communications",
+    cwe: "CWE-319",
+    impact:
+      "A form can send passwords or other fields in cleartext, or to a host you do not control. The browser will submit it when a visitor continues.",
+    fix: `Keep the form action on this origin and use HTTPS.
+
+<form method="post" action="/login">
+
+Do not post passwords to an http:// URL or to another host. Check the session on the server before acting on the submission.`,
+  },
+  {
     id: "reflected_xss",
     module: "injection",
     family: "injection_xss",
@@ -1056,6 +1094,7 @@ export function renderChecklistMarkdown(): string {
   lines.push("- Source code and dependencies, unless a repository is connected or a manifest is already public.");
   lines.push("- Load testing and brute-force testing.");
   lines.push("- Mobile apps and backends that are not part of this web origin.");
+  lines.push("- Subdomains and other hosts are not crawled. Pages beyond the page limit are not scanned.");
   lines.push("");
   lines.push("A manual pentest is a better fit when you need those covered in depth.");
   lines.push("");

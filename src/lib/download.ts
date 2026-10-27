@@ -42,6 +42,9 @@ export function renderFixMarkdown(report: CustomerReport, targetUrl: string): st
     "",
     `Findings: ${report.totalFindings}. ${formatSeverityBreakdown(report.severityCounts) || "No findings."}`,
     "",
+    ...(report.pagesScanned !== null
+      ? [`Scanned ${report.pagesScanned} ${report.pagesScanned === 1 ? "page" : "pages"}.`, ""]
+      : []),
     "Apply each fix in the application. Keep secrets on the server. The values below are already redacted.",
     "",
   ];
@@ -60,6 +63,12 @@ export function renderFixMarkdown(report: CustomerReport, targetUrl: string): st
     lines.push("");
     lines.push(...locationLines(finding));
     lines.push("");
+    if (finding.affectedPages && finding.affectedPages.length > 0) {
+      lines.push("### Affected pages");
+      lines.push("");
+      for (const page of finding.affectedPages) lines.push(`- ${page}`);
+      lines.push("");
+    }
     lines.push("### Proof");
     lines.push("");
     lines.push(...proofLines(finding));
@@ -121,6 +130,7 @@ export function renderPrintHtml(report: CustomerReport, targetUrl: string): stri
         <h2>${escapeHtml(finding.title)}</h2>
         <h3>Location</h3>
         <ul>${places || "<li>No request URL was recorded.</li>"}</ul>
+        ${(finding.affectedPages ?? []).length > 0 ? `<h3>Affected pages</h3><ul>${(finding.affectedPages ?? []).map((page) => `<li>${escapeHtml(page)}</li>`).join("")}</ul>` : ""}
         <h3>Proof</h3>
         <p>${finding.proof ? `Request: ${escapeHtml(finding.proof.method)} ${escapeHtml(finding.proof.url)}` : "No request was recorded."}</p>
         ${headers ? `<ul class="headers">${headers}</ul>` : ""}
@@ -186,6 +196,7 @@ export function renderPrintHtml(report: CustomerReport, targetUrl: string): stri
     <p class="label">${report.totalFindings} finding${report.totalFindings === 1 ? "" : "s"}</p>
     <p class="meta-line"><strong>Target.</strong> ${escapeHtml(targetUrl)}</p>
     <p class="meta-line"><strong>Scanned.</strong> ${escapeHtml(when)}</p>
+    ${report.pagesScanned !== null ? `<p class="meta-line"><strong>Pages.</strong> ${report.pagesScanned} ${report.pagesScanned === 1 ? "page" : "pages"}</p>` : ""}
     <ul class="counts">${counts}</ul>
     <p class="disclaimer">${escapeHtml(report.disclaimer || POINT_IN_TIME_DISCLAIMER)}</p>
     ${report.notices.length ? `<h2>Notices</h2><ul>${report.notices.map((notice) => `<li>${escapeHtml(notice)}</li>`).join("")}</ul>` : ""}

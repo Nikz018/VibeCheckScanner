@@ -26,6 +26,7 @@ export function reportFromStored(input: {
       proof: detail.proof,
       steps: detail.steps,
       confidence: detail.confidence,
+      affectedPages: detail.affectedPages,
     };
   });
   return buildCustomerReport({
@@ -37,6 +38,7 @@ export function reportFromStored(input: {
     results,
     marked,
     notices: readNotices(input.coverage),
+    pagesScanned: readPagesScanned(input.coverage),
     now: input.now,
   });
 }
@@ -50,6 +52,13 @@ function readMarked(coverage: unknown): Record<string, CheckRunState> {
     if (value === "ok" || value === "error" || value === "skipped") out[key] = value;
   }
   return out;
+}
+
+function readPagesScanned(coverage: unknown): number | null {
+  if (!coverage || typeof coverage !== "object" || !("pagesScanned" in coverage)) return null;
+  const value = (coverage as { pagesScanned?: unknown }).pagesScanned;
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
+  return Math.floor(value);
 }
 
 function readNotices(coverage: unknown): string[] {

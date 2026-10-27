@@ -17,74 +17,78 @@ export const HEADER_CHECK_IDS = [
 export async function runHeaders(ctx: ScanContext): Promise<void> {
   await runModule([...HEADER_CHECK_IDS], ctx, async () => {
     const home = ctx.home ?? (await ctx.fetch(ctx.origin));
+    const pages = ctx.pages.length > 0 ? ctx.pages : [home];
     const cors = ctx.corsProbe ?? home;
-    const headers = lowerHeaders(home.headers);
-    const corsHeaders = lowerHeaders(cors.headers);
 
-    const csp = headers["content-security-policy"] || headers["content-security-policy-report-only"] || "";
+    const missingCsp = pages.filter((page) => !cspHeader(page));
     ctx.mark("missing_csp");
-    if (!csp) {
-      ctx.add(
+    if (missingCsp.length > 0) {
+      addForPages(
+        ctx,
         "missing_csp",
-        "The homepage response did not include a Content-Security-Policy header.",
-        ctx.detailFor(home, {
-          requestHeaders: { accept: "text/html" },
-          steps: reproduce("GET", home.url, "The response headers do not include Content-Security-Policy.", "Send a policy that limits scripts to your origin."),
-        }),
+        `${pagePhrase(missingCsp.length)} did not include a Content-Security-Policy header.`,
+        missingCsp,
+        "The response headers do not include Content-Security-Policy.",
+        "Send a policy that limits scripts to your origin.",
       );
     }
 
     const https = ctx.origin.startsWith("https:");
+    const missingHsts = https ? pages.filter((page) => !page.headers["strict-transport-security"]) : [];
     ctx.mark("missing_hsts");
-    if (https && !headers["strict-transport-security"]) {
-      ctx.add(
+    if (missingHsts.length > 0) {
+      addForPages(
+        ctx,
         "missing_hsts",
-        "The HTTPS response did not include a Strict-Transport-Security header.",
-        ctx.detailFor(home, {
-          requestHeaders: { accept: "text/html" },
-          steps: reproduce("GET", home.url, "The response headers do not include Strict-Transport-Security.", "Send HSTS on HTTPS responses."),
-        }),
+        `${pagePhrase(missingHsts.length)} did not include a Strict-Transport-Security header.`,
+        missingHsts,
+        "The response headers do not include Strict-Transport-Security.",
+        "Send HSTS on HTTPS responses.",
       );
     }
 
+    const missingFrame = pages.filter((page) => {
+      const framed = page.headers["x-frame-options"] || /frame-ancestors/i.test(cspHeader(page));
+      return !framed;
+    });
     ctx.mark("missing_frame_protection");
-    const framed = headers["x-frame-options"] || /frame-ancestors/i.test(csp);
-    if (!framed) {
-      ctx.add(
+    if (missingFrame.length > 0) {
+      addForPages(
+        ctx,
         "missing_frame_protection",
-        "The homepage did not send X-Frame-Options or a CSP frame-ancestors directive.",
-        ctx.detailFor(home, {
-          requestHeaders: { accept: "text/html" },
-          steps: reproduce("GET", home.url, "The response can be embedded in a frame.", "Send frame-ancestors 'none' or X-Frame-Options: DENY."),
-        }),
+        `${pagePhrase(missingFrame.length)} did not send X-Frame-Options or a CSP frame-ancestors directive.`,
+        missingFrame,
+        "The response can be embedded in a frame.",
+        "Send frame-ancestors 'none' or X-Frame-Options: DENY.",
       );
     }
 
+    const missingNosniff = pages.filter((page) => page.headers["x-content-type-options"]?.toLowerCase() !== "nosniff");
     ctx.mark("missing_content_type_options");
-    if (headers["x-content-type-options"]?.toLowerCase() !== "nosniff") {
-      ctx.add(
+    if (missingNosniff.length > 0) {
+      addForPages(
+        ctx,
         "missing_content_type_options",
-        "The homepage did not send X-Content-Type-Options: nosniff.",
-        ctx.detailFor(home, {
-          requestHeaders: { accept: "text/html" },
-          steps: reproduce("GET", home.url, "The response headers do not include X-Content-Type-Options: nosniff."),
-        }),
+        `${pagePhrase(missingNosniff.length)} did not send X-Content-Type-Options: nosniff.`,
+        missingNosniff,
+        "The response headers do not include X-Content-Type-Options: nosniff.",
       );
     }
 
+    const missingReferrer = pages.filter((page) => !page.headers["referrer-policy"]);
     ctx.mark("missing_referrer_policy");
-    if (!headers["referrer-policy"]) {
-      ctx.add(
+    if (missingReferrer.length > 0) {
+      addForPages(
+        ctx,
         "missing_referrer_policy",
-        "The homepage did not send a Referrer-Policy header.",
-        ctx.detailFor(home, {
-          requestHeaders: { accept: "text/html" },
-          steps: reproduce("GET", home.url, "The response headers do not include Referrer-Policy."),
-        }),
+        `${pagePhrase(missingReferrer.length)} did not send a Referrer-Policy header.`,
+        missingReferrer,
+        "The response headers do not include Referrer-Policy.",
       );
     }
 
     ctx.mark("cors_credential_wildcard");
+    const corsHeaders = lowerHeaders(cors.headers);
     const allowOrigin = corsHeaders["access-control-allow-origin"] || "";
     const allowCredentials = (corsHeaders["access-control-allow-credentials"] || "").toLowerCase() === "true";
     const wildcard = allowOrigin.trim() === "*";
@@ -102,28 +106,67 @@ export async function runHeaders(ctx: ScanContext): Promise<void> {
             "Reflect only origins you operate, and do not combine a wildcard with credentials.",
           ),
         }),
+        undefined,
+        [cors.url],
       );
     }
 
+    const weakPages = pages.flatMap((page) => {
+      const weak = page.setCookies.filter((cookie) => !cookieIsHardened(cookie));
+      return weak.length > 0 ? [{ page, weak }] : [];
+    });
     ctx.mark("insecure_cookies");
-    const weakCookies = home.setCookies.filter((cookie) => !cookieIsHardened(cookie));
-    if (weakCookies.length > 0) {
-      const names = weakCookies.map(cookieName).slice(0, 4).join(", ");
-      const shown = weakCookies.slice(0, 4).map(redactCookieFlags);
+    if (weakPages.length > 0) {
+      const names = [...new Set(weakPages.flatMap((entry) => entry.weak.map(cookieName)))].slice(0, 4).join(", ");
+      const shown = weakPages[0].weak.slice(0, 4).map(redactCookieFlags);
+      const affected = weakPages.map((entry) => entry.page.url);
       ctx.add(
         "insecure_cookies",
         `Cookie ${names} is missing HttpOnly, Secure, or SameSite.`,
-        ctx.detailFor(home, {
+        ctx.detailFor(weakPages[0].page, {
           requestHeaders: { accept: "text/html" },
+          locations: weakPages.slice(0, 6).map((entry) => ({ method: "GET", url: entry.page.url })),
           snippetLines: shown.map((cookie) => `set-cookie: ${cookie}`),
-          steps: reproduce("GET", home.url, `Set-Cookie for ${names} is missing HttpOnly, Secure, or SameSite.`),
+          steps: reproduce("GET", weakPages[0].page.url, `Set-Cookie for ${names} is missing HttpOnly, Secure, or SameSite.`),
         }),
+        undefined,
+        affected,
       );
     }
 
     ctx.mark("weak_tls");
     await inspectTransport(ctx);
   });
+}
+
+function cspHeader(page: ProbeResponse): string {
+  return page.headers["content-security-policy"] || page.headers["content-security-policy-report-only"] || "";
+}
+
+function pagePhrase(count: number): string {
+  return `${count} scanned ${count === 1 ? "page" : "pages"}`;
+}
+
+function addForPages(
+  ctx: ScanContext,
+  checkId: string,
+  evidence: string,
+  pages: ProbeResponse[],
+  saw: string,
+  next?: string,
+): void {
+  const first = pages[0];
+  ctx.add(
+    checkId,
+    evidence,
+    ctx.detailFor(first, {
+      requestHeaders: { accept: "text/html" },
+      locations: pages.slice(0, 6).map((page) => ({ method: "GET", url: page.url })),
+      steps: reproduce("GET", first.url, saw, next),
+    }),
+    undefined,
+    pages.map((page) => page.url),
+  );
 }
 
 async function inspectTransport(ctx: ScanContext): Promise<void> {

@@ -115,6 +115,8 @@ HTTPS, browser security headers, CORS, and cookie flags.
 | `missing_frame_protection` | `headers` | low | — | A05:2021 Security Misconfiguration | API8:2023 Security Misconfiguration | V14 Configuration | CWE-1021 |
 | `missing_content_type_options` | `headers` | low | — | A05:2021 Security Misconfiguration | API8:2023 Security Misconfiguration | V14 Configuration | CWE-693 |
 | `missing_referrer_policy` | `headers` | low | — | A05:2021 Security Misconfiguration | API8:2023 Security Misconfiguration | V14 Configuration | CWE-200 |
+| `mixed_content` | `page-content` | medium | — | A02:2021 Cryptographic Failures | API8:2023 Security Misconfiguration | V9 Communications | CWE-319 |
+| `insecure_form` | `page-content` | medium | — | A02:2021 Cryptographic Failures | API8:2023 Security Misconfiguration | V9 Communications | CWE-319 |
 
 ### Information disclosure (`info_disclosure`)
 
@@ -150,5 +152,6 @@ Reports group findings by the eight families and include a coverage row for each
 - Source code and dependencies, unless a repository is connected or a manifest is already public.
 - Load testing and brute-force testing.
 - Mobile apps and backends that are not part of this web origin.
+- Subdomains and other hosts are not crawled. Pages beyond the page limit are not scanned.
 
 A manual pentest is a better fit when you need those covered in depth.

@@ -1,4 +1,5 @@
 import { reproduce } from "@/lib/finding-detail";
+import type { ProbeResponse } from "@/lib/http";
 import { locateText } from "../extract";
 import { runModule, type ScanContext } from "../context";
 
@@ -7,23 +8,35 @@ export const INJECTION_CHECK_IDS = ["reflected_xss", "dom_xss_sink"] as const;
 export async function runInjection(ctx: ScanContext): Promise<void> {
   await runModule([...INJECTION_CHECK_IDS], ctx, async () => {
     const marker = "vcZX777<b>";
-    const response = await ctx.fetch(`/?q=${encodeURIComponent(marker)}`);
+    const targets = reflectionTargets(ctx);
+    const reflected: ProbeResponse[] = [];
+    for (const pageUrl of targets) {
+      const url = new URL(pageUrl);
+      url.searchParams.set("q", marker);
+      const response = await ctx.fetch(url.toString(), { headers: { accept: "text/html" } });
+      if (response.body.includes(marker)) reflected.push(response);
+    }
     ctx.mark("reflected_xss");
-    if (response.body.includes(marker)) {
+    if (reflected.length > 0) {
+      const first = reflected[0];
       ctx.add(
         "reflected_xss",
         "A query parameter was copied into the HTML response without encoding a < character.",
-        ctx.detailFor(response, {
-          steps: reproduce("GET", response.url, "The marker, including a < character, is copied into the HTML.", "Encode untrusted text before inserting it into HTML."),
+        ctx.detailFor(first, {
+          locations: reflected.slice(0, 6).map((response) => ({ method: "GET", url: response.url })),
+          steps: reproduce("GET", first.url, "The marker, including a < character, is copied into the HTML.", "Encode untrusted text before inserting it into HTML."),
         }),
+        undefined,
+        reflected.map((response) => response.url),
       );
     }
 
     ctx.mark("dom_xss_sink");
-    const sink = locateText(ctx.scripts, /\.innerHTML\s*=|document\.write\s*\(|dangerouslySetInnerHTML|\beval\s*\(/);
+    const sinkPattern = /\.innerHTML\s*=|document\.write\s*\(|dangerouslySetInnerHTML|\beval\s*\(/;
+    const sink = locateText(ctx.scripts, sinkPattern);
     if (sink) {
       const file = ctx.scripts.find((script) => script.url === sink.url);
-      const url = sink.url.startsWith("inline:") || sink.url.startsWith("rendered:") ? ctx.home?.url || ctx.targetUrl : sink.url;
+      const url = ctx.scriptUrl(sink.url);
       ctx.add(
         "dom_xss_sink",
         "Client code assigns HTML through innerHTML, document.write, dangerouslySetInnerHTML, or eval.",
@@ -45,7 +58,22 @@ export async function runInjection(ctx: ScanContext): Promise<void> {
             ],
           },
         ),
+        undefined,
+        ctx.pagesMatching(sinkPattern),
       );
     }
   });
+}
+
+function reflectionTargets(ctx: ScanContext): string[] {
+  const targets: string[] = [];
+  const add = (url: string) => {
+    if (!url.startsWith("http") || targets.includes(url)) return;
+    targets.push(url);
+  };
+  add(ctx.home?.url || ctx.targetUrl);
+  for (const page of ctx.pages) {
+    if (/<form\b|<input\b/i.test(page.body)) add(page.url);
+  }
+  return targets;
 }

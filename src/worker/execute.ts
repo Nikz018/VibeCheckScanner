@@ -95,6 +95,7 @@ async function runQueuedScan(scan: Prisma.ScanGetPayload<{ include: { project: t
       results: output.results,
       marked: output.marked,
       notices: output.notices,
+      pagesScanned: output.pagesScanned,
     });
 
     await prisma.finding.deleteMany({ where: { scanId: scan.id } });
@@ -118,6 +119,7 @@ async function runQueuedScan(scan: Prisma.ScanGetPayload<{ include: { project: t
               proof: result.proof ?? null,
               steps: result.steps ?? [],
               confidence: result.confidence ?? null,
+              affectedPages: result.affectedPages ?? [],
             }),
           ) as Prisma.InputJsonObject,
         },
@@ -132,7 +134,7 @@ async function runQueuedScan(scan: Prisma.ScanGetPayload<{ include: { project: t
         score: finalScore,
         passed,
         severityCounts: report.severityCounts as unknown as Prisma.InputJsonObject,
-        coverage: { marked: output.marked, notices: output.notices } as unknown as Prisma.InputJsonObject,
+        coverage: { marked: output.marked, notices: output.notices, pagesScanned: output.pagesScanned } as unknown as Prisma.InputJsonObject,
         error: null,
       },
     });

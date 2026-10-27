@@ -66,6 +66,7 @@ export function buildDemoReport(now = new Date("2026-10-24T12:00:00.000Z"), acce
     finishedAt: now,
     results,
     marked,
+    pagesScanned: 4,
     now,
   });
 }

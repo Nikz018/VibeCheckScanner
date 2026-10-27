@@ -161,15 +161,19 @@ export function sanitizeDetail(detail: FindingDetail): FindingDetail {
   };
 }
 
-export function parseStoredDetail(raw: unknown): Partial<FindingDetail> & { confidence?: "high" | "medium" | "low" } {
+export function parseStoredDetail(raw: unknown): Partial<FindingDetail> & { confidence?: "high" | "medium" | "low"; affectedPages?: string[] } {
   if (!raw || typeof raw !== "object") return {};
   const value = raw as Record<string, unknown>;
   const locations = Array.isArray(value.locations) ? value.locations.filter(isLocation) : [];
   const proof = isProof(value.proof) ? value.proof : undefined;
   const steps = Array.isArray(value.steps) ? value.steps.filter((step): step is string => typeof step === "string") : [];
   const confidence = value.confidence === "high" || value.confidence === "medium" || value.confidence === "low" ? value.confidence : undefined;
-  if (locations.length === 0 || !proof) return confidence ? { confidence } : {};
-  return { locations, proof, steps, ...(confidence ? { confidence } : {}) };
+  const affectedPages = Array.isArray(value.affectedPages)
+    ? value.affectedPages.filter((page): page is string => typeof page === "string" && page.startsWith("http")).slice(0, 25)
+    : undefined;
+  const pages = affectedPages && affectedPages.length > 0 ? { affectedPages } : {};
+  if (locations.length === 0 || !proof) return { ...pages, ...(confidence ? { confidence } : {}) };
+  return { locations, proof, steps, ...pages, ...(confidence ? { confidence } : {}) };
 }
 
 function isLocation(value: unknown): value is FindingLocation {
