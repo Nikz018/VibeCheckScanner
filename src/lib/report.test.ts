@@ -21,9 +21,10 @@ test("demo report groups families, orders headline ranks, and hides tool brands"
   assert.doesNotMatch(report.disclaimer, /guarantee of security that lasts/i);
 });
 
-test("free teaser keeps two samples and drops the rest of the evidence", () => {
+test("free teaser keeps the lowest-severity finding and drops the rest of the evidence", () => {
   const marked = Object.fromEntries(CHECK_CATALOG.map((check) => [check.id, "ok" as const]));
   const hidden = "HIDDEN_EVIDENCE_TOKEN_should_not_leak";
+  const shown = "LOW_FINDING_EVIDENCE_is_visible";
   const report = buildCustomerReport({
     scanId: "teaser",
     status: "completed",
@@ -34,17 +35,23 @@ test("free teaser keeps two samples and drops the rest of the evidence", () => {
     marked,
     results: [
       { checkId: "supabase_rls_disabled", evidence: "sample one evidence" },
-      { checkId: "secret_in_client", evidence: "sample two evidence" },
-      { checkId: "missing_referrer_policy", evidence: hidden },
+      { checkId: "secret_in_client", evidence: hidden },
+      { checkId: "missing_referrer_policy", evidence: shown },
     ],
   });
   const blob = JSON.stringify(report);
-  assert.equal(report.samples.length, 2);
-  assert.equal(report.hiddenCount, 1);
+  assert.equal(report.samples.length, 1);
+  assert.equal(report.samples[0]?.checkId, "missing_referrer_policy");
+  assert.equal(report.samples[0]?.severity, "low");
+  assert.equal(report.hiddenCount, 2);
+  assert.equal(report.totalFindings, 3);
+  assert.equal(report.severityCounts.critical, 2);
+  assert.equal(report.severityCounts.low, 1);
   assert.equal(report.families.length, 0);
   assert.equal(report.priority.length, 0);
   assert.equal(blob.includes(hidden), false);
-  assert.equal(report.severityCounts.critical >= 1, true);
+  assert.equal(blob.includes(shown), true);
+  assert.equal(blob.includes("sample one evidence"), false);
   assert.ok(report.coverage.find((row) => row.family === "secrets"));
 });
 
@@ -109,16 +116,22 @@ test("paid findings keep location and proof, and the teaser drops them", () => {
 
   const teaser = buildCustomerReport({ ...input, access: "teaser" });
   const blob = JSON.stringify(teaser);
+  assert.equal(teaser.samples.length, 1);
+  assert.equal(teaser.samples[0]?.checkId, "firebase_rules_open");
+  assert.equal(teaser.samples[0]?.severity, "critical");
+  assert.equal(teaser.hiddenCount, 1);
+  assert.equal(teaser.totalFindings, 2);
+  assert.equal(teaser.severityCounts.critical, 2);
   assert.equal(blob.includes(bundle), false);
-  assert.equal(blob.includes(firebase), false);
   assert.equal(blob.includes(secret), false);
   assert.equal(blob.includes("sk_t…0000"), false);
+  assert.equal(blob.includes(firebase), true);
+  assert.equal(teaser.samples[0]?.locations?.[0].url, firebase);
+  assert.ok(teaser.samples[0]?.proof);
   assert.equal(blob.includes("ada@example.com"), false);
-  assert.equal(blob.includes("Steps to reproduce"), false);
-  assert.equal("locations" in (teaser.samples[0] ?? {}), false);
-  assert.equal("proof" in (teaser.samples[0] ?? {}), false);
   assert.ok(teaser.samples.every((finding) => finding.title && finding.severity));
   assert.equal(containsToolBrand(JSON.stringify(paid)), null);
+  assert.equal(containsToolBrand(blob), null);
 });
 
 test("free preview counts only checks and findings that are on the report", () => {
@@ -159,11 +172,11 @@ test("free preview counts only checks and findings that are on the report", () =
     ],
   });
   const hidden = freePreviewFacts(teaser);
-  assert.equal(hidden.findingsShown, 2);
-  assert.equal(hidden.hiddenFindings, 1);
+  assert.equal(hidden.findingsShown, 1);
+  assert.equal(hidden.hiddenFindings, 2);
   assert.equal(hidden.checksNotRun, 0);
   const hiddenLines = freePreviewLines(hidden);
-  assert.match(hiddenLines.join("\n"), /1 finding from checks that already ran is in the full report/);
+  assert.match(hiddenLines.join("\n"), /2 findings from checks that already ran are in the full report/);
   assert.equal(hiddenLines.some((line) => /did not run/.test(line)), false);
 });
 

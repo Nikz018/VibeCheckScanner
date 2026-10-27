@@ -152,30 +152,71 @@ function materialize(result: RawCheckResult): CustomerFinding {
   return finding;
 }
 
-/** Paid fields stay off the free report object, not only out of the markup. */
-export function hidePaidDetail(finding: CustomerFinding): CustomerFinding {
-  const urls = new Set<string>();
-  for (const location of finding.locations ?? []) {
-    if (location.url.length > 6) urls.add(location.url);
-    if (location.maskedSecret) urls.add(location.maskedSecret);
+/** A full paid report is a full-mode scan that was unlocked. Mini previews stay free even when stored access is "full". */
+export function isFreeTierDelivery(input: { mode: "full" | "mini"; access: "teaser" | "full" }): boolean {
+  return !(input.mode === "full" && input.access === "full");
+}
+
+/** Least severe finding. Ties break by title, then check id, so the choice is stable. */
+export function lowestSeverityFinding(findings: CustomerFinding[]): CustomerFinding | null {
+  if (findings.length === 0) return null;
+  return [...findings].sort((a, b) => {
+    const bySeverity = SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity];
+    if (bySeverity !== 0) return bySeverity;
+    const byTitle = a.title.localeCompare(b.title);
+    if (byTitle !== 0) return byTitle;
+    return a.checkId.localeCompare(b.checkId);
+  })[0];
+}
+
+export function formatSeverityBreakdown(counts: Record<Severity, number>): string {
+  return SEVERITIES.filter((severity) => (counts[severity] ?? 0) > 0)
+    .map((severity) => {
+      const count = counts[severity] ?? 0;
+      const label = severity.charAt(0).toUpperCase() + severity.slice(1);
+      return `${count} ${label}`;
+    })
+    .join(", ");
+}
+
+export function readSeverityCounts(value: unknown): Record<Severity, number> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const counts = Object.fromEntries(SEVERITIES.map((severity) => [severity, 0])) as Record<Severity, number>;
+  let seen = false;
+  for (const severity of SEVERITIES) {
+    const raw = record[severity];
+    if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0) continue;
+    counts[severity] = Math.floor(raw);
+    seen = true;
   }
-  if (finding.proof && finding.proof.url.length > 6) urls.add(finding.proof.url);
-  let evidence = finding.evidence;
-  for (const secret of urls) {
-    evidence = evidence.split(secret).join("the tested endpoint");
+  return seen ? counts : null;
+}
+
+/** Severity labels for withheld findings. Derived from counts, never from hidden titles or evidence. */
+export function lockedSeverityRows(report: Pick<CustomerReport, "access" | "samples" | "severityCounts">): Severity[] {
+  if (report.access !== "teaser") return [];
+  const counts = { ...report.severityCounts };
+  const shown = report.samples[0];
+  if (shown && counts[shown.severity] > 0) counts[shown.severity] -= 1;
+  const rows: Severity[] = [];
+  for (const severity of SEVERITIES) {
+    for (let index = 0; index < counts[severity]; index += 1) rows.push(severity);
   }
-  return {
-    checkId: finding.checkId,
-    family: finding.family,
-    familyLabel: finding.familyLabel,
-    severity: finding.severity,
-    title: finding.title,
-    evidence: clampText(evidence),
-    impact: finding.impact,
-    fix: finding.fix,
-    headlineRank: finding.headlineRank,
-    ...(finding.confidence ? { confidence: finding.confidence } : {}),
-  };
+  return rows;
+}
+
+/** Findings that may be sent to a browser, file, or email. Free tier returns the one revealed finding. */
+export function visibleCustomerFindings(report: CustomerReport): CustomerFinding[] {
+  if (report.access === "teaser") return [...report.samples];
+  const seen = new Set<string>();
+  const ordered: CustomerFinding[] = [];
+  for (const finding of [...report.priority, ...report.families.flatMap((group) => group.findings)]) {
+    if (seen.has(finding.checkId)) continue;
+    seen.add(finding.checkId);
+    ordered.push(finding);
+  }
+  return ordered;
 }
 
 export const FREE_PREVIEW_LABEL = "Free preview";
@@ -266,7 +307,6 @@ export function buildCustomerReport(input: {
     findings.map((finding) => finding.checkId),
   );
   const priority = findings.filter((finding) => finding.headlineRank !== null);
-  const samples = findings.slice(0, 2);
   const notices = [...new Set((input.notices ?? []).filter((notice) => notice.trim().length > 0))];
   const shared = {
     notices,
@@ -275,7 +315,9 @@ export function buildCustomerReport(input: {
     limitationsNote: SCAN_LIMITATIONS_NOTE,
   };
 
-  if (input.access === "teaser") {
+  if (isFreeTierDelivery({ mode: input.mode, access: input.access })) {
+    const revealed = lowestSeverityFinding(findings);
+    const samples = revealed ? [revealed] : [];
     return {
       scanId: input.scanId,
       status: input.status,
@@ -289,13 +331,15 @@ export function buildCustomerReport(input: {
       coverage,
       priority: [],
       families: [],
-      samples: samples.map(hidePaidDetail),
+      samples,
       hiddenCount: Math.max(0, findings.length - samples.length),
       totalFindings: findings.length,
       disclaimer: POINT_IN_TIME_DISCLAIMER,
       ...shared,
     };
   }
+
+  const samples = findings.slice(0, 2);
 
   const families = FAMILIES.map((family) => ({
     family: family.id,

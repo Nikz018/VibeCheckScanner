@@ -10,7 +10,7 @@ This is not a certification, and it is not a promise that an app stays safe afte
 
 | Tier | Price | Unlocks |
 | --- | --- | --- |
-| Free teaser | $0 | Full scan runs and is stored. The page shows the score, severity counts, family coverage, and two sample issues. The rest of the evidence stays locked. |
+| Free teaser | $0 | Full scan runs and is stored. The page shows the score, severity counts, family coverage, and the lowest-severity finding in full. Every other finding stays off the page, the download, and email. |
 | Full report | $49 once, plus applicable taxes | Every finding on that scan: where it was found, evidence, the request and response, and a copy-paste fix. Download a PDF or a Markdown file for an AI coding assistant. |
 | Report + rescan | $99 once, plus applicable taxes | The full report, plus one credit to run another full-access scan after you fix things. |
 | Monitoring | $29/month, plus applicable taxes | Full reports while the subscription is active, a scheduled rescan of a verified origin, and an alert when a new high-severity issue appears. |
@@ -133,7 +133,7 @@ The checklist in [docs/SECURITY_CHECKLIST.md](docs/SECURITY_CHECKLIST.md) is gen
 - info_disclosure
 - dependencies
 
-Headline ranks 1–10 sort first in the report and choose the free teaser samples. They do not replace the rest of the catalog. A full scan attempts every family. A mini check does not, and it must not show those families as passed.
+Headline ranks 1–10 sort first in a paid report. They do not replace the rest of the catalog, and they do not choose the free preview. A free preview shows the lowest-severity finding. A full scan attempts every family. A mini check does not, and it must not show those families as passed.
 
 The headless render is optional. Set `PLAYWRIGHT_ENABLED=false` to use HTTP fetching only. Static bundles are still downloaded and reviewed. If the browser cannot launch, or if it runs longer than `BROWSER_TIMEOUT_MS`, the worker kills that browser process and the scan continues with the fetched files. The report does not mention the browser.
 
