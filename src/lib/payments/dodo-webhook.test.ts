@@ -27,15 +27,29 @@ test("signed payment unlocks a scan once, a failure does not, and subscription e
     data: { userId: user.id, scanId: scan.id, tier: "report", status: "pending", dodoCheckoutSession: `cks_report_${suffix}` },
   });
 
-  const failed = await post(
-    POST,
-    event(`msg_fail_${suffix}`, "payment.failed", {
-      payment_id: `pay_fail_${suffix}`,
-      checkout_session_id: `cks_report_${suffix}`,
-      metadata: { userId: user.id, tier: "report", scanId: scan.id },
-    }),
-  );
+  const logs: string[] = [];
+  const originalInfo = console.info;
+  console.info = (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "));
+  };
+  let failed: Response;
+  try {
+    failed = await post(
+      POST,
+      event(`msg_fail_${suffix}`, "payment.failed", {
+        payment_id: `pay_fail_${suffix}`,
+        checkout_session_id: `cks_report_${suffix}`,
+        error_code: "GENERIC_DECLINE",
+        error_message: `declined for ${user.email}`,
+        metadata: { userId: user.id, tier: "report", scanId: scan.id },
+      }),
+    );
+  } finally {
+    console.info = originalInfo;
+  }
   assert.equal(failed.status, 200);
+  assert.ok(logs.some((line) => line === "dodo payment failed error_code=GENERIC_DECLINE"));
+  assert.equal(logs.some((line) => line.includes("@")), false);
   assert.equal((await prisma.scan.findUniqueOrThrow({ where: { id: scan.id } })).reportAccess, "teaser");
   assert.equal((await prisma.purchase.findFirstOrThrow({ where: { dodoCheckoutSession: `cks_report_${suffix}` } })).status, "failed");
 

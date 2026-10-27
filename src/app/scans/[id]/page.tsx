@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { monitoringActive } from "@/lib/entitlements";
 import { instructionsFor } from "@/lib/ownership";
 import { collectsBillingAddress } from "@/lib/payments";
+import { settlePreviewCheckout } from "@/lib/payments/confirm-purchase";
 import { FULL_SCAN_PROGRESS_LABEL, FULL_SCAN_STOPPED_LABEL, RETRY_FULL_SCAN_LABEL } from "@/lib/payments/paid-scan-status";
 import { signInPath } from "@/lib/checkout-path";
 import { privateMetadata } from "@/lib/seo/metadata";
@@ -21,7 +22,7 @@ export default async function ScanPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ checkout?: string }>;
+  searchParams: Promise<{ checkout?: string; status?: string; payment_status?: string; recheck?: string }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -35,18 +36,34 @@ export default async function ScanPage({
   const purchases = await prisma.purchase.findMany({
     where: {
       userId: user.id,
-      status: "paid",
       tier: { in: ["report", "rescan"] },
       OR: [{ scanId: scan.id }, { fullScanId: scan.id }],
     },
     include: { fullScan: { select: { id: true, status: true, error: true } } },
     orderBy: { createdAt: "desc" },
   });
-  const purchase =
-    purchases.find((row) => row.fullScanId === scan.id) ??
-    purchases.find((row) => row.fullScan && row.fullScan.status !== "completed") ??
-    purchases[0] ??
+  let purchase =
+    purchases.find((row) => row.status === "paid" && row.fullScanId === scan.id) ??
+    purchases.find((row) => row.status === "paid" && row.scanId === scan.id) ??
     null;
+  let paymentNotice: "confirming" | "declined" | null = null;
+  let paymentTier: "report" | "rescan" = "report";
+  if (!purchase && scan.mode === "mini" && scan.status === "completed") {
+    const latest = purchases.find((row) => row.scanId === scan.id) ?? null;
+    const settled = await settlePreviewCheckout({
+      purchase: latest,
+      query,
+    });
+    paymentTier = settled.tier === "rescan" ? "rescan" : "report";
+    if (settled.kind === "paid" && latest) {
+      purchase = await prisma.purchase.findUnique({
+        where: { id: latest.id },
+        include: { fullScan: { select: { id: true, status: true, error: true } } },
+      });
+    } else if (settled.kind === "confirming" || settled.kind === "declined") {
+      paymentNotice = settled.kind;
+    }
+  }
   const paidFullScan = purchase?.fullScanId === scan.id;
   if (scan.status !== "completed") {
     const proof = instructionsFor(scan.project.url, scan.project.ownershipToken);
@@ -93,7 +110,9 @@ export default async function ScanPage({
           monitoringAllowed: monitoringActive(user.subscription?.status),
         }}
         collectBilling={collectsBillingAddress()}
-        checkoutPending={query.checkout === "success" && scan.mode === "mini" && !purchase}
+        paymentNotice={paymentNotice}
+        paymentTier={paymentTier}
+        recheck={query.recheck === "1"}
         paidFollowup={
           scan.mode === "mini" && purchase
             ? {

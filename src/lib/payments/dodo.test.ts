@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { CheckoutSessionCreateParams } from "dodopayments/resources/checkout-sessions";
 import { CHECKOUT_SETUP_MESSAGE, DEFAULT_DODO_PRODUCT_IDS } from "../pricing";
-import { dodoEnvironment, dodoPaymentProvider, dodoProductId, normalizeDodoEvent, parseBilling } from "./dodo";
+import { dodoEnvironment, dodoPaymentProvider, dodoProductId, normalizeDodoEvent, parseBilling, paymentFailureLog, safeErrorCode } from "./dodo";
 import { InvalidSignatureError, MissingSignatureError, PaymentNotConfiguredError, PaymentRequestError } from "./errors";
 import { paymentProviderId, prepareCheckout, subscriptionCancelTarget } from "./index";
 import { Webhook } from "standardwebhooks";
@@ -87,6 +87,14 @@ test("checkout session sends the product, metadata, and billing address", async 
   assert.deepEqual(sent.billing_address, { country: "US", street: "1 Main", city: "Austin", state: "TX", zipcode: "78701" });
   assert.equal(sent.return_url, "https://app.example/scans/scan_1?checkout=success");
   assert.equal(sent.cancel_url, "https://app.example/scans/scan_1?checkout=cancel");
+  assert.equal(sent.billing_currency, "USD");
+  const customer = sent.customer;
+  assert.ok(customer && "email" in customer);
+  if (customer && "email" in customer) {
+    assert.equal(customer.email, "ada@example.com");
+    assert.equal(customer.name, "Ada");
+  }
+  assert.equal(sent.feature_flags?.allow_currency_selection, false);
   assert.equal(sent.minimal_address, false);
   if (previous === undefined) delete process.env.DODO_PRODUCT_REPORT;
   else process.env.DODO_PRODUCT_REPORT = previous;
@@ -244,9 +252,28 @@ test("webhook verification accepts a Standard Webhooks signature and rejects a b
 test("normalized events map unlocks and monitoring", () => {
   const paid = normalizeDodoEvent("msg_paid", {
     type: "payment.failed",
-    data: { payment_id: "pay_f", checkout_session_id: "cks_f", metadata: { userId: "user_1", tier: "report", scanId: "scan_1" } },
+    data: {
+      payment_id: "pay_f",
+      checkout_session_id: "cks_f",
+      error_code: "GENERIC_DECLINE",
+      error_message: "The card was declined for ada@example.com",
+      metadata: { userId: "user_1", tier: "report", scanId: "scan_1" },
+    },
   });
   assert.equal(paid.action, "payment_failed");
+  if (paid.action === "payment_failed") {
+    assert.equal(paid.errorCode, "GENERIC_DECLINE");
+    assert.equal(paid.errorCode?.includes("@"), false);
+  }
+  assert.equal(paymentFailureLog("GENERIC_DECLINE"), "dodo payment failed error_code=GENERIC_DECLINE");
+  assert.equal(paymentFailureLog("ada@example.com"), "dodo payment failed error_code=unknown");
+  assert.equal(safeErrorCode("4242424242424242"), null);
+  assert.equal(safeErrorCode("INSUFFICIENT_FUNDS"), "INSUFFICIENT_FUNDS");
+  const paymentCancelled = normalizeDodoEvent("msg_pay_cancel", {
+    type: "payment.cancelled",
+    data: { payment_id: "pay_c", checkout_session_id: "cks_c" },
+  });
+  assert.equal(paymentCancelled.action, "payment_failed");
   const active = normalizeDodoEvent("msg_active", {
     type: "subscription.active",
     data: {

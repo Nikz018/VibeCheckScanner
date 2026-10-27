@@ -1,5 +1,6 @@
 import { prisma } from "../db";
 import { isTierId, type TierId } from "../pricing";
+import { paymentFailureLog } from "./dodo";
 import { fulfillPaidMiniScan, type PaidFullScanDeps } from "./paid-full-scan";
 import type { NormalizedWebhook, PaymentProviderId } from "./types";
 
@@ -79,9 +80,13 @@ export async function applyPaidAccess(provider: PaymentProviderId, event: PaidEv
 }
 
 export async function applyPaymentFailed(event: FailedEvent): Promise<void> {
+  console.info(paymentFailureLog(event.errorCode));
   if (!event.sessionId && !event.paymentId) return;
   await prisma.purchase.updateMany({
-    where: event.sessionId ? { dodoCheckoutSession: event.sessionId } : { dodoPaymentId: event.paymentId || "" },
+    where: {
+      ...(event.sessionId ? { dodoCheckoutSession: event.sessionId } : { dodoPaymentId: event.paymentId || "" }),
+      status: { not: "paid" },
+    },
     data: { status: "failed", ...(event.paymentId ? { dodoPaymentId: event.paymentId } : {}) },
   });
 }

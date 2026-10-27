@@ -13,6 +13,7 @@ export function UpgradePanel({
   tierIds = ALL_TIERS,
   heading = "Unlock the rest of this report",
   lede = "The scan already finished. Paying opens the stored findings. It does not rescan, except the rescan credit.",
+  actionLabel,
   id,
 }: {
   scanId: string;
@@ -20,6 +21,7 @@ export function UpgradePanel({
   tierIds?: readonly TierId[];
   heading?: string;
   lede?: string;
+  actionLabel?: string;
   id?: string;
 }) {
   const [error, setError] = useState("");
@@ -96,7 +98,7 @@ export function UpgradePanel({
             <div className="font-semibold">{tier.name}</div>
             <p className="mt-2 text-sm text-[#4e584f]">{tier.blurb}</p>
             <button className="btn btn-ink mt-4 w-full" disabled={busy === tier.id} onClick={() => checkout(tier.id)} type="button">
-              {busy === tier.id ? "Starting checkout…" : UPGRADE_ACTIONS[tier.id]}
+              {busy === tier.id ? "Starting checkout…" : actionLabel || UPGRADE_ACTIONS[tier.id]}
             </button>
           </article>
         ))}
