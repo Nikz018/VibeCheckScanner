@@ -72,10 +72,12 @@ export function normalizeDodoEvent(eventId: string, payload: unknown): Normalize
   const data = record(body.data);
   const metadata = record(data.metadata);
   const customer = readCustomer(data.customer);
-  if (type === "payment.succeeded" || type === "payment.failed") {
+  if (type === "payment.succeeded" || type === "payment.failed" || type === "payment.cancelled") {
     const sessionId = text(data.checkout_session_id) || null;
     const paymentId = text(data.payment_id) || null;
-    if (type === "payment.failed") return { action: "payment_failed", id: eventId, type, sessionId, paymentId };
+    if (type === "payment.failed" || type === "payment.cancelled") {
+      return { action: "payment_failed", id: eventId, type, sessionId, paymentId, errorCode: safeErrorCode(data.error_code) };
+    }
     return {
       action: "payment_succeeded",
       id: eventId,
@@ -122,12 +124,14 @@ async function createCheckout(client: DodoApi | null, input: CheckoutDraft): Pro
       state: input.billing.state,
       zipcode: input.billing.zipcode,
     },
+    // Products are priced in USD. Lock the currency so a test card is not charged in another currency.
     billing_currency: "USD",
     return_url: input.successUrl,
     cancel_url: input.cancelUrl,
     metadata: { userId: input.userId, scanId: input.scanId, tier: input.tier },
     minimal_address: false,
     feature_flags: {
+      allow_currency_selection: false,
       allow_customer_editing_country: true,
       allow_customer_editing_street: true,
       allow_customer_editing_city: true,
@@ -184,4 +188,16 @@ function record(value: unknown): Record<string, unknown> {
 
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+/** Keep the processor code. Drop anything that could carry a card, email, or address. */
+export function safeErrorCode(value: unknown): string | null {
+  const code = text(value);
+  if (!/^[A-Za-z0-9_.:-]{1,64}$/.test(code)) return null;
+  if (/^\d{12,19}$/.test(code)) return null;
+  return code;
+}
+
+export function paymentFailureLog(errorCode: string | null): string {
+  return `dodo payment failed error_code=${safeErrorCode(errorCode) || "unknown"}`;
 }

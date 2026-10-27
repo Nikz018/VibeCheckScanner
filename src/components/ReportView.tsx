@@ -1,8 +1,9 @@
 import type { CustomerReport } from "@/lib/report";
 import { FREE_PREVIEW_LABEL, FULL_REPORT_PURCHASE_LEDE, RESCAN_PURCHASE_NOTE, freePreviewFacts, freePreviewLines } from "@/lib/report";
 import type { Severity } from "@/lib/catalog";
-import { TAX_NOTE, TIERS } from "@/lib/pricing";
-import { PaidScanFollowup, type PaidScanFollowupState } from "./PaidScanFollowup";
+import { TAX_NOTE, TIERS, type TierId } from "@/lib/pricing";
+import { PAYMENT_DECLINED_COPY, PAYMENT_TRY_AGAIN_LABEL } from "@/lib/payments/checkout-return";
+import { PaidScanFollowup, PaymentConfirming, type PaidScanFollowupState } from "./PaidScanFollowup";
 import { UpgradePanel } from "./UpgradePanel";
 import { SharePanel } from "./SharePanel";
 import { MonitorToggle } from "./MonitorToggle";
@@ -25,7 +26,9 @@ export function ReportView({
   project,
   collectBilling = false,
   paidFollowup = null,
-  checkoutPending = false,
+  paymentNotice = null,
+  paymentTier = "report",
+  recheck = false,
 }: {
   report: CustomerReport;
   targetLabel?: string;
@@ -35,7 +38,9 @@ export function ReportView({
   project?: { id: string; monitorEnabled: boolean; monitoringAllowed: boolean };
   collectBilling?: boolean;
   paidFollowup?: PaidScanFollowupState | null;
-  checkoutPending?: boolean;
+  paymentNotice?: "confirming" | "declined" | null;
+  paymentTier?: TierId;
+  recheck?: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -147,7 +152,7 @@ export function ReportView({
                 <p key={line}>{line}</p>
               ))}
             </div>
-            {paidFollowup || checkoutPending ? null : (
+            {paidFollowup || paymentNotice ? null : (
               <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-[#d9d3c5]">
                 <li>
                   {TIERS.report.priceLabel} {TIERS.report.name}. {FULL_REPORT_PURCHASE_LEDE} {TAX_NOTE}.
@@ -160,8 +165,23 @@ export function ReportView({
           </div>
           {paidFollowup ? (
             <PaidScanFollowup followup={paidFollowup} />
-          ) : checkoutPending ? (
-            <PaidScanFollowup followup={null} pending />
+          ) : paymentNotice === "confirming" ? (
+            <PaymentConfirming recheck={recheck} />
+          ) : paymentNotice === "declined" && scanId ? (
+            <div className="space-y-4">
+              <section className="rounded-3xl border border-[#f3c7bc]/50 bg-[#f3c7bc]/10 p-5">
+                <h2 className="font-display text-3xl">Payment didn't go through</h2>
+                <p className="mt-3 text-sm text-[#d9d3c5]">{PAYMENT_DECLINED_COPY}</p>
+              </section>
+              <UpgradePanel
+                scanId={scanId}
+                collectBilling={collectBilling}
+                tierIds={[paymentTier]}
+                heading="Try again"
+                lede="The free preview is still available."
+                actionLabel={PAYMENT_TRY_AGAIN_LABEL}
+              />
+            </div>
           ) : scanId ? (
             <UpgradePanel
               scanId={scanId}

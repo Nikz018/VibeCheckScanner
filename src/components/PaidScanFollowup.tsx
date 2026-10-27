@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { PAYMENT_CONFIRMING_COPY, PAYMENT_CONFIRM_TIMEOUT_MS } from "@/lib/payments/checkout-return";
 import {
   CHECK_OWNERSHIP_LABEL,
   FULL_SCAN_PROGRESS_LABEL,
@@ -26,10 +27,8 @@ export interface PaidScanFollowupState {
   instructions: PaidOwnershipInstructions | null;
 }
 
-export function PaidScanFollowup({ followup, pending = false }: { followup: PaidScanFollowupState | null; pending?: boolean }) {
-  if (!followup) {
-    return pending ? <PaymentPending /> : null;
-  }
+export function PaidScanFollowup({ followup }: { followup: PaidScanFollowupState | null }) {
+  if (!followup) return null;
   const scan = followup.fullScan;
   if (scan && (scan.status === "queued" || scan.status === "running")) {
     return (
@@ -131,16 +130,25 @@ export function RetryFullScanButton({ purchaseId, label }: { purchaseId: string;
   );
 }
 
-function PaymentPending() {
+export function PaymentConfirming({ recheck }: { recheck: boolean }) {
   const router = useRouter();
   useEffect(() => {
-    const timer = setInterval(() => router.refresh(), 3000);
+    const started = Date.now();
+    const timer = setInterval(() => {
+      if (!recheck && Date.now() - started >= PAYMENT_CONFIRM_TIMEOUT_MS) {
+        const url = new URL(window.location.href);
+        url.searchParams.set("recheck", "1");
+        router.replace(`${url.pathname}${url.search}`);
+        return;
+      }
+      router.refresh();
+    }, recheck ? PAYMENT_CONFIRM_TIMEOUT_MS : 3000);
     return () => clearInterval(timer);
-  }, [router]);
+  }, [recheck, router]);
   return (
-    <section className="rounded-3xl border border-lime/40 bg-lime/10 p-5">
-      <h2 className="font-display text-3xl">{FULL_SCAN_PROGRESS_LABEL}</h2>
-      <p className="mt-3 text-sm text-[#d9d3c5]">Payment received. The full scan starts when the payment is confirmed. This page updates on its own.</p>
+    <section className="rounded-3xl border border-white/15 bg-white/5 p-5">
+      <h2 className="font-display text-3xl">{PAYMENT_CONFIRMING_COPY}</h2>
+      <p className="mt-3 text-sm text-[#d9d3c5]">This page checks again on its own. The full scan starts after the payment is confirmed.</p>
     </section>
   );
 }

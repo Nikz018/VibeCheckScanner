@@ -46,6 +46,7 @@ export type NormalizedWebhook =
       type: string;
       sessionId: string | null;
       paymentId: string | null;
+      errorCode: string | null;
     }
   | {
       action: "subscription";
