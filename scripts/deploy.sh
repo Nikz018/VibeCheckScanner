@@ -2,6 +2,19 @@
 # One-command update: git pull, then rebuild and start the production stack.
 set -euo pipefail
 
+# mkswap reports a little less than the file size: a 4G file is about 4095 MB,
+# and a 2G file is about 2047 MB. 3900 and 1900 accept those files.
+swap_file_to_add() {
+  local mem_mb="$1"
+  local swap_mb="$2"
+  if [[ "$mem_mb" -lt 3000 && "$swap_mb" -lt 3900 ]]; then
+    printf '4 GB\n'
+  elif [[ "$mem_mb" -lt 6000 && "$swap_mb" -lt 1900 ]]; then
+    printf '2 GB\n'
+  fi
+}
+
+main() {
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
@@ -20,13 +33,9 @@ bash scripts/check-prod-env.sh
 
 mem_mb="$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)"
 swap_mb="$(awk '/SwapTotal/ {print int($2/1024)}' /proc/meminfo)"
-if [[ "$mem_mb" -lt 3000 && "$swap_mb" -lt 4096 ]]; then
-  echo "This VM has ${mem_mb} MB of RAM. Add a 4 GB swap file before the first build." >&2
-  echo "The commands are in docs/DEPLOY_SELF_HOSTED.md." >&2
-  exit 1
-fi
-if [[ "$mem_mb" -lt 6000 && "$swap_mb" -lt 2048 ]]; then
-  echo "This VM has ${mem_mb} MB of RAM. Add a 2 GB swap file before the first build." >&2
+needed="$(swap_file_to_add "$mem_mb" "$swap_mb")"
+if [[ -n "$needed" ]]; then
+  echo "This VM has ${mem_mb} MB of RAM. Add a ${needed} swap file before the first build." >&2
   echo "The commands are in docs/DEPLOY_SELF_HOSTED.md." >&2
   exit 1
 fi
@@ -65,3 +74,8 @@ install_backup_cron
 site="$(awk -F= '/^SITE_ADDRESS=/ { value=$2 } END { print value }' .env | tr -d '"\r')"
 echo "Stack is starting. When DNS and HTTPS are ready, open https://${site}/api/health"
 echo "Expect {\"ok\":true}. The first certificate can take a few minutes."
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi
