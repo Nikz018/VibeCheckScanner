@@ -1,9 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { TAX_NOTE, TIERS } from "@/lib/pricing";
+import { pricingCheckoutPath, scanCheckoutPath, signInPath } from "@/lib/checkout-path";
+import { requestCheckout } from "@/lib/checkout-request";
+import { TAX_NOTE, TIERS, UPGRADE_ACTIONS, type TierId } from "@/lib/pricing";
 
-export function UpgradePanel({ scanId, collectBilling = false }: { scanId: string; collectBilling?: boolean }) {
+const ALL_TIERS: TierId[] = ["report", "rescan", "monitor"];
+
+export function UpgradePanel({
+  scanId,
+  collectBilling = false,
+  tierIds = ALL_TIERS,
+  heading = "Unlock the rest of this report",
+  lede = "The scan already finished. Paying opens the stored findings. It does not rescan, except the rescan credit.",
+  id,
+}: {
+  scanId: string;
+  collectBilling?: boolean;
+  tierIds?: readonly TierId[];
+  heading?: string;
+  lede?: string;
+  id?: string;
+}) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [country, setCountry] = useState("");
@@ -12,38 +30,34 @@ export function UpgradePanel({ scanId, collectBilling = false }: { scanId: strin
   const [state, setState] = useState("");
   const [zipcode, setZipcode] = useState("");
   const [name, setName] = useState("");
+  const tiers = tierIds.map((tierId) => TIERS[tierId]);
 
-  async function checkout(tier: string) {
+  async function checkout(tier: TierId) {
     setError("");
-    if (collectBilling && (!/^[A-Za-z]{2}$/.test(country.trim()) || !street.trim() || !city.trim() || !state.trim() || !zipcode.trim())) {
-      setError("Enter a 2-letter billing country plus street, city, state, and postal code.");
-      return;
-    }
     setBusy(tier);
-    const response = await fetch("/api/checkout", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        tier,
-        scanId,
-        ...(collectBilling
-          ? { billing: { country: country.trim(), street: street.trim(), city: city.trim(), state: state.trim(), zipcode: zipcode.trim(), name: name.trim() } }
-          : {}),
-      }),
+    const result = await requestCheckout({
+      tier,
+      scanId,
+      ...(collectBilling
+        ? { billing: { country: country.trim(), street: street.trim(), city: city.trim(), state: state.trim(), zipcode: zipcode.trim(), ...(name.trim() ? { name: name.trim() } : {}) } }
+        : {}),
     });
-    const data = (await response.json()) as { url?: string; error?: string };
     setBusy("");
-    if (!response.ok || !data.url) {
-      setError(data.error || "Checkout is not available yet.");
+    if (!result.ok) {
+      if (result.status === 401) {
+        window.location.href = signInPath(scanId ? scanCheckoutPath(scanId, tier) : pricingCheckoutPath(tier));
+        return;
+      }
+      setError(result.error);
       return;
     }
-    window.location.href = data.url;
+    window.location.href = result.url;
   }
 
   return (
-    <div className="rounded-3xl border border-[#ead98a] bg-[#fff7d4] p-5 text-ink">
-      <h3 className="font-display text-2xl">Unlock the rest of this report</h3>
-      <p className="mt-1 text-sm text-[#5c5644]">The scan already finished. Paying opens the stored findings. It does not rescan, except the rescan credit.</p>
+    <div id={id} className="rounded-3xl border border-[#ead98a] bg-[#fff7d4] p-5 text-ink">
+      <h3 className="font-display text-2xl">{heading}</h3>
+      {lede ? <p className="mt-1 text-sm text-[#5c5644]">{lede}</p> : null}
       {collectBilling ? (
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           <p className="text-sm text-[#5c5644] md:col-span-2">Checkout needs a billing country and address.</p>
@@ -73,18 +87,25 @@ export function UpgradePanel({ scanId, collectBilling = false }: { scanId: strin
           </label>
         </div>
       ) : null}
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        {Object.values(TIERS).map((tier) => (
-          <button key={tier.id} className="rounded-2xl bg-white p-4 text-left shadow-sm" disabled={busy === tier.id} onClick={() => checkout(tier.id)} type="button">
+      <div className={`mt-4 grid gap-3 ${tiers.length > 2 ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+        {tiers.map((tier) => (
+          <article key={tier.id} className="rounded-2xl bg-white p-4 text-left shadow-sm">
             <div className="text-xs uppercase tracking-wide text-[#6d6758]">{tier.cadence}</div>
             <div className="mt-1 font-display text-3xl">{tier.priceLabel}</div>
             <p className="text-xs text-[#6d6758]">{TAX_NOTE}</p>
             <div className="font-semibold">{tier.name}</div>
             <p className="mt-2 text-sm text-[#4e584f]">{tier.blurb}</p>
-          </button>
+            <button className="btn btn-ink mt-4 w-full" disabled={busy === tier.id} onClick={() => checkout(tier.id)} type="button">
+              {busy === tier.id ? "Starting checkout…" : UPGRADE_ACTIONS[tier.id]}
+            </button>
+          </article>
         ))}
       </div>
-      {error ? <p className="mt-3 text-sm text-[#8a2d18]">{error}</p> : null}
+      {error ? (
+        <p className="mt-3 text-sm text-[#8a2d18]" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

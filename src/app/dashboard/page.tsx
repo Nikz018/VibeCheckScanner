@@ -6,6 +6,8 @@ import { ScoreGauge } from "@/components/ScoreGauge";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { monitoringActive } from "@/lib/entitlements";
+import { paidScanDashboardAction } from "@/lib/payments/paid-scan-status";
+import { UPGRADE_ACTIONS } from "@/lib/pricing";
 import { privateMetadata } from "@/lib/seo/metadata";
 
 export const dynamic = "force-dynamic";
@@ -14,11 +16,20 @@ export const metadata: Metadata = privateMetadata("Dashboard");
 export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/dashboard");
-  const [projects, scans, alerts] = await Promise.all([
+  const [projects, scans, alerts, purchases] = await Promise.all([
     prisma.project.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" } }),
     prisma.scan.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 20, include: { project: true } }),
     prisma.alert.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 10 }),
+    prisma.purchase.findMany({
+      where: { userId: user.id, status: "paid", tier: { in: ["report", "rescan"] }, scanId: { not: null } },
+      include: { fullScan: { select: { id: true, status: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
+  const purchaseByPreview = new Map<string, (typeof purchases)[number]>();
+  for (const purchase of purchases) {
+    if (purchase.scanId && !purchaseByPreview.has(purchase.scanId)) purchaseByPreview.set(purchase.scanId, purchase);
+  }
   const subscribed = monitoringActive(user.subscription?.status);
 
   return (
@@ -73,23 +84,34 @@ export default async function DashboardPage() {
         <h2 className="font-display text-3xl">Recent scans</h2>
         <ul className="mt-3 divide-y divide-white/10">
           {scans.length === 0 ? <li className="py-4 text-sm text-[#c9c2b2]">No scans yet.</li> : null}
-          {scans.map((scan) => (
-            <li key={scan.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
-              <div className="flex items-center gap-3">
-                <ScoreGauge score={scan.score} size="sm" tone="dark" />
-                <div>
-                  <Link href={`/scans/${scan.id}`} className="font-semibold underline">
-                    {scan.project.url}
-                  </Link>
-                  <p className="text-[#b7b1a4]">
-                    {scan.mode} · {scan.status} · {scan.reportAccess}
-                    {scan.scheduled ? " · scheduled" : ""}
-                  </p>
+          {scans.map((scan) => {
+            const action = scan.mode === "mini" ? paidScanDashboardAction(scan.id, purchaseByPreview.get(scan.id) ?? null, UPGRADE_ACTIONS.report) : null;
+            return (
+              <li key={scan.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+                <div className="flex items-center gap-3">
+                  <ScoreGauge score={scan.score} size="sm" tone="dark" />
+                  <div>
+                    <Link href={`/scans/${scan.id}`} className="font-semibold underline">
+                      {scan.project.url}
+                    </Link>
+                    <p className="text-[#b7b1a4]">
+                      {scan.mode === "mini" ? "free preview" : scan.mode} · {scan.status}
+                      {scan.mode === "mini" ? "" : ` · ${scan.reportAccess}`}
+                      {scan.scheduled ? " · scheduled" : ""}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <span className="text-[#b7b1a4]">{scan.createdAt.toISOString().slice(0, 10)}</span>
-            </li>
-          ))}
+                <div className="flex flex-wrap items-center gap-3">
+                  {action ? (
+                    <Link href={action.href} className="btn btn-lime px-3 py-1.5 text-sm">
+                      {action.label}
+                    </Link>
+                  ) : null}
+                  <span className="text-[#b7b1a4]">{scan.createdAt.toISOString().slice(0, 10)}</span>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       </section>
       <section>

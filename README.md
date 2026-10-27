@@ -166,9 +166,9 @@ Dodo is the default. Create a Dodo Payments account, switch the dashboard to tes
 | `DODO_PRODUCT_RESCAN` | `pdt_0NqUQCBmdARxCAyoaIRVZ` ($99 once, tax-exclusive) |
 | `DODO_PRODUCT_MONITOR` | `pdt_0NqUQeUgIBSIizoXIrkrJ` ($29/month, tax-exclusive) |
 
-The prices on the site are before tax. Dodo products are tax-exclusive, so tax is added on the checkout page. The upgrade form asks for a billing country and address, then sends the customer to that page. The webhook is `POST /api/dodo/webhook`. It checks the [Standard Webhooks](https://www.standardwebhooks.com/) signature. A missing or bad signature gets HTTP 400 and changes nothing. `payment.succeeded` unlocks the report (and adds the rescan credit on the $99 product). `payment.failed` does not unlock anything. `subscription.active` and `subscription.renewed` turn monitoring on. `subscription.cancelled` and `subscription.failed` turn it off. The same event id is applied once.
+The prices on the site are before tax. Dodo products are tax-exclusive, so tax is added on the checkout page. The upgrade form asks for a billing country and address, then sends the customer to that page. The webhook is `POST /api/dodo/webhook`. It checks the [Standard Webhooks](https://www.standardwebhooks.com/) signature. A missing or bad signature gets HTTP 400 and changes nothing. `payment.succeeded` for a free preview starts one full scan of that origin after ownership is checked again. The $99 product also adds one rescan credit. A stored full scan that was still a teaser is unlocked instead. `payment.failed` does not start a scan or unlock anything. `subscription.active` and `subscription.renewed` turn monitoring on. `subscription.cancelled` and `subscription.failed` turn it off. The same event id is applied once.
 
-You do not need a Dodo account to run the tests. They mock checkout and sign a local webhook fixture. A real test-mode payment still needs the API key and the webhook secret. The three product IDs above are already the defaults in `.env.example`.
+You do not need a Dodo account to run the tests. They mock checkout and sign a local webhook fixture. A real test-mode payment still needs the API key and the webhook secret. The three product IDs above are the defaults in `.env.example` and in the server when those variables are empty. Until `DODO_PAYMENTS_API_KEY` is set, pricing and upgrade buttons say that checkout is being set up.
 
 ## Stripe
 
@@ -188,7 +188,7 @@ Checkout is a hosted Stripe Checkout session. The webhook is `POST /api/stripe/w
 stripe listen --forward-to localhost:3000/api/stripe/webhook
 ```
 
-Put the signing secret in `STRIPE_WEBHOOK_SECRET`. A paid Checkout session unlocks the scan referenced in the session metadata. The $99 price also adds one rescan credit. The subscription marks the account active so new scans and scheduled rescans open the full report.
+Put the signing secret in `STRIPE_WEBHOOK_SECRET`. A paid Checkout session for a free preview starts one full scan of that origin. A stored full scan that was still a teaser is unlocked. The $99 price also adds one rescan credit. The subscription marks the account active so new scans and scheduled rescans open the full report.
 
 Until those env vars are set, the upgrade buttons return a clear configuration error and the free teaser still works.
 

@@ -42,6 +42,21 @@ export function isTierId(value: string): value is TierId {
 
 export const TAX_NOTE = "plus applicable taxes";
 
+export const CHECKOUT_SETUP_MESSAGE = "Checkout is being set up, try again soon.";
+
+/** Live Dodo product IDs. Env vars override these. Not secrets. */
+export const DEFAULT_DODO_PRODUCT_IDS: Record<TierId, string> = {
+  report: "pdt_0NqUPK77rA0fd1CknGv8C",
+  rescan: "pdt_0NqUQCBmdARxCAyoaIRVZ",
+  monitor: "pdt_0NqUQeUgIBSIizoXIrkrJ",
+};
+
+export const UPGRADE_ACTIONS: Record<TierId, string> = {
+  report: "Upgrade to full report",
+  rescan: "Upgrade to report + fix rescan",
+  monitor: "Start monitoring",
+};
+
 export const FREE_TIER = {
   name: "Free teaser",
   priceLabel: "$0",

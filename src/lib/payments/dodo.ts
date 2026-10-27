@@ -1,7 +1,7 @@
 import DodoPayments from "dodopayments";
 import type { CheckoutSessionCreateParams } from "dodopayments/resources/checkout-sessions";
 import type { CountryCode } from "dodopayments/resources/misc";
-import { TIERS, type TierId } from "../pricing";
+import { CHECKOUT_SETUP_MESSAGE, DEFAULT_DODO_PRODUCT_IDS, TIERS, type TierId } from "../pricing";
 import { InvalidSignatureError, MissingSignatureError, PaymentNotConfiguredError, PaymentRequestError } from "./errors";
 import type { BillingAddress, CheckoutDraft, CheckoutSession, NormalizedWebhook, PaymentProvider } from "./types";
 
@@ -23,9 +23,9 @@ export function dodoEnvironment(): "test_mode" | "live_mode" {
   return process.env.DODO_ENV === "live_mode" ? "live_mode" : "test_mode";
 }
 
-export function dodoProductId(tier: TierId): string | null {
-  const value = process.env[TIERS[tier].dodoEnv];
-  return value && value.trim() ? value.trim() : null;
+export function dodoProductId(tier: TierId): string {
+  const value = process.env[TIERS[tier].dodoEnv]?.trim();
+  return value || DEFAULT_DODO_PRODUCT_IDS[tier];
 }
 
 export function getDodoClient(): DodoPayments | null {
@@ -41,7 +41,8 @@ export function dodoPaymentProvider(client?: DodoApi): PaymentProvider {
     id: "dodo",
     webhookConfigured: () => Boolean(process.env.DODO_PAYMENTS_API_KEY?.trim() && process.env.DODO_WEBHOOK_SECRET?.trim()),
     webhookDisabledMessage: () => "Dodo webhook is not configured.",
-    checkoutDisabledMessage: () => CHECKOUT_DISABLED,
+    checkoutConfigured: () => Boolean(client) || Boolean(process.env.DODO_PAYMENTS_API_KEY?.trim()),
+    checkoutDisabledMessage: () => CHECKOUT_SETUP_MESSAGE,
     createCheckout: (input) => createCheckout(api(), input),
     cancelSubscription: (subscriptionId) => cancelSubscription(api(), subscriptionId),
     parseWebhook: (payload, headers) => parseWebhook(api(), payload, headers),
@@ -109,7 +110,7 @@ export function normalizeDodoEvent(eventId: string, payload: unknown): Normalize
 
 async function createCheckout(client: DodoApi | null, input: CheckoutDraft): Promise<CheckoutSession> {
   const productId = dodoProductId(input.tier);
-  if (!client || !productId) throw new PaymentNotConfiguredError(CHECKOUT_DISABLED);
+  if (!client || !productId) throw new PaymentNotConfiguredError(CHECKOUT_SETUP_MESSAGE);
   if (!input.billing) throw new PaymentRequestError("Enter a billing country and address.");
   const session = await client.checkoutSessions.create({
     product_cart: [{ product_id: productId, quantity: 1 }],

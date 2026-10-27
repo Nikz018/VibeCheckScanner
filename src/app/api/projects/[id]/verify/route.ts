@@ -7,6 +7,7 @@ import { deleteScanCredentials, saveScanCredentials } from "@/lib/credential-sto
 import { prisma } from "@/lib/db";
 import { resolveReportAccess } from "@/lib/entitlements";
 import { LOGIN_AVAILABLE_NOTICE } from "@/lib/limitations";
+import { ACTIVE_SCAN_LIMIT } from "@/lib/payments/paid-scan-status";
 import { enqueueScan } from "@/lib/queue";
 import { CONSENT_TEXT, assertConsent, verifyOwnership } from "@/lib/ownership";
 import { recordScanAuthorization } from "@/lib/scan-authorization";
@@ -48,7 +49,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   });
 
   const active = await prisma.scan.count({ where: { userId: user.id, status: { in: ["queued", "running"] } } });
-  if (active >= 3) return NextResponse.json({ error: "Wait for a running scan to finish before starting another." }, { status: 429 });
+  if (active >= ACTIVE_SCAN_LIMIT) return NextResponse.json({ error: "Wait for a running scan to finish before starting another." }, { status: 429 });
 
   const mode = parsed.data.mode;
   if (parsed.data.auth && mode === "mini") {

@@ -1,10 +1,12 @@
 import type { CustomerReport } from "@/lib/report";
+import { FREE_PREVIEW_LABEL, FULL_REPORT_PURCHASE_LEDE, RESCAN_PURCHASE_NOTE, freePreviewFacts, freePreviewLines } from "@/lib/report";
 import type { Severity } from "@/lib/catalog";
+import { TAX_NOTE, TIERS } from "@/lib/pricing";
+import { PaidScanFollowup, type PaidScanFollowupState } from "./PaidScanFollowup";
 import { UpgradePanel } from "./UpgradePanel";
 import { SharePanel } from "./SharePanel";
 import { MonitorToggle } from "./MonitorToggle";
 import { ScoreGauge } from "./ScoreGauge";
-import Link from "next/link";
 
 const SEVERITY_STYLE: Record<Severity, string> = {
   critical: "bg-[#f3c7bc] text-[#6e2414]",
@@ -22,6 +24,8 @@ export function ReportView({
   share,
   project,
   collectBilling = false,
+  paidFollowup = null,
+  checkoutPending = false,
 }: {
   report: CustomerReport;
   targetLabel?: string;
@@ -30,13 +34,17 @@ export function ReportView({
   share?: { enabled: boolean; token: string | null };
   project?: { id: string; monitorEnabled: boolean; monitoringAllowed: boolean };
   collectBilling?: boolean;
+  paidFollowup?: PaidScanFollowupState | null;
+  checkoutPending?: boolean;
 }) {
   return (
     <div className="space-y-6">
       <section className="paper rounded-[28px] p-6 text-ink shadow-card md:p-8">
         <div className="flex flex-wrap items-center justify-between gap-6">
           <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-[#6d6758]">{sample ? "Sample report" : report.mode === "mini" ? "Mini check" : "Launch scan"}</p>
+            <p className={report.mode === "mini" && !sample ? "inline-flex rounded-full bg-[#fff3c4] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#5c4a10]" : "text-xs uppercase tracking-[0.18em] text-[#6d6758]"}>
+              {sample ? "Sample report" : report.mode === "mini" ? FREE_PREVIEW_LABEL : "Launch scan"}
+            </p>
             <div className="mt-3">
               <ScoreGauge score={report.score} tone="light" />
             </div>
@@ -98,7 +106,7 @@ export function ReportView({
             ))}
           </div>
           <p className="text-sm text-[#d9d3c5]">{report.hiddenCount} more findings are hidden on the free teaser. Logged-in checks are available in the full report.</p>
-          {scanId ? <UpgradePanel scanId={scanId} collectBilling={collectBilling} /> : null}
+          {scanId && report.mode !== "mini" ? <UpgradePanel id="upgrade" scanId={scanId} collectBilling={collectBilling} /> : null}
         </section>
       ) : (
         <>
@@ -130,14 +138,40 @@ export function ReportView({
         </>
       )}
 
-      {report.mode === "mini" ? (
-        <div className="rounded-3xl border border-lime/40 bg-lime/10 p-5">
-          <h3 className="font-display text-2xl">This was the mini check</h3>
-          <p className="mt-2 text-sm text-[#d9d3c5]">Headers and public files ran. Supabase, Firebase, admin routes, and the rest of the launch scan did not. Coverage above marks those families as not run.</p>
-          <Link href="/scans/new" className="btn btn-lime mt-4">
-            Run a full launch scan
-          </Link>
-        </div>
+      {report.mode === "mini" && !sample ? (
+        <section id="upgrade" className="space-y-4">
+          <div className="rounded-3xl border border-lime/40 bg-lime/10 p-5">
+            <h2 className="font-display text-3xl">{FREE_PREVIEW_LABEL}</h2>
+            <div className="mt-3 space-y-2 text-sm text-[#d9d3c5]">
+              {freePreviewLines(freePreviewFacts(report)).map((line) => (
+                <p key={line}>{line}</p>
+              ))}
+            </div>
+            {paidFollowup || checkoutPending ? null : (
+              <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-[#d9d3c5]">
+                <li>
+                  {TIERS.report.priceLabel} {TIERS.report.name}. {FULL_REPORT_PURCHASE_LEDE} {TAX_NOTE}.
+                </li>
+                <li>
+                  {TIERS.rescan.priceLabel} {TIERS.rescan.name}. {RESCAN_PURCHASE_NOTE} {TAX_NOTE}.
+                </li>
+              </ul>
+            )}
+          </div>
+          {paidFollowup ? (
+            <PaidScanFollowup followup={paidFollowup} />
+          ) : checkoutPending ? (
+            <PaidScanFollowup followup={null} pending />
+          ) : scanId ? (
+            <UpgradePanel
+              scanId={scanId}
+              collectBilling={collectBilling}
+              tierIds={["report", "rescan"]}
+              heading="What the full report adds"
+              lede={FULL_REPORT_PURCHASE_LEDE}
+            />
+          ) : null}
+        </section>
       ) : null}
 
       <section className="rounded-3xl border border-white/10 p-5">

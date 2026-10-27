@@ -1,17 +1,20 @@
 import { prisma } from "../db";
 import { isTierId, type TierId } from "../pricing";
+import { fulfillPaidMiniScan, type PaidFullScanDeps } from "./paid-full-scan";
 import type { NormalizedWebhook, PaymentProviderId } from "./types";
 
 type PaidEvent = Extract<NormalizedWebhook, { action: "payment_succeeded" }>;
 type FailedEvent = Extract<NormalizedWebhook, { action: "payment_failed" }>;
 type SubscriptionEvent = Extract<NormalizedWebhook, { action: "subscription" }>;
 
-export async function applyPaidAccess(provider: PaymentProviderId, event: PaidEvent): Promise<void> {
+export async function applyPaidAccess(provider: PaymentProviderId, event: PaidEvent, deps?: PaidFullScanDeps): Promise<void> {
   const resolved = provider === "dodo" ? await resolveDodoPurchase(event) : event;
   if (!resolved.userId || !isTierId(resolved.tier)) return;
   const tier: TierId = resolved.tier;
   const userId = resolved.userId;
-  const scanId = resolved.scanId;
+  const purchase = await findPurchase(provider, resolved);
+  const alreadyPaid = purchase?.status === "paid";
+  const scanId = resolved.scanId || purchase?.scanId || "";
 
   if (provider === "stripe" && event.sessionId) {
     await prisma.purchase.updateMany({
@@ -49,6 +52,16 @@ export async function applyPaidAccess(provider: PaymentProviderId, event: PaidEv
         },
       });
     }
+    return;
+  }
+
+  const linked = purchase && purchase.userId === userId ? purchase : null;
+  const preview = scanId ? await prisma.scan.findFirst({ where: { id: scanId, userId }, select: { mode: true } }) : null;
+  if (linked && preview?.mode === "mini" && (tier === "report" || tier === "rescan")) {
+    if (!alreadyPaid && tier === "rescan") {
+      await prisma.user.update({ where: { id: userId }, data: { rescanCredits: { increment: 1 } } });
+    }
+    await fulfillPaidMiniScan({ userId, purchaseId: linked.id, deps });
     return;
   }
 
@@ -133,6 +146,19 @@ export async function applySubscription(provider: PaymentProviderId, event: Subs
     where: { dodoSubscriptionId: event.subscriptionId },
     data: { status: event.status, currentPeriodEnd: event.currentPeriodEnd, dodoCustomerId: event.customerId },
   });
+}
+
+async function findPurchase(provider: PaymentProviderId, event: PaidEvent) {
+  if (provider === "stripe" && event.sessionId) {
+    return prisma.purchase.findUnique({ where: { stripeCheckoutSession: event.sessionId } });
+  }
+  if (provider === "dodo" && event.sessionId) {
+    return prisma.purchase.findUnique({ where: { dodoCheckoutSession: event.sessionId } });
+  }
+  if (provider === "dodo" && event.paymentId) {
+    return prisma.purchase.findFirst({ where: { dodoPaymentId: event.paymentId } });
+  }
+  return null;
 }
 
 async function resolveDodoPurchase(event: PaidEvent): Promise<PaidEvent> {

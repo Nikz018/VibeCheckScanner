@@ -85,6 +85,7 @@ model Scan {
   findings       Finding[]
   alerts         Alert[]
   credential     ScanCredential?
+  paidFor        Purchase[]    @relation("PaidFullScan")
 
   @@index([projectId])
   @@index([userId])
@@ -148,9 +149,13 @@ model Purchase {
   stripePaymentIntent   String?
   dodoCheckoutSession   String?  @unique
   dodoPaymentId         String?
+  fullScanId            String?  @unique
+  ownershipBlock        String?
+  startNote             String?
   status                String   @default("pending")
   createdAt             DateTime @default(now())
   user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullScan              Scan?    @relation("PaidFullScan", fields: [fullScanId], references: [id], onDelete: SetNull)
 
   @@index([userId])
 }

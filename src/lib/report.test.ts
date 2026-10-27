@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { CHECK_CATALOG } from "./catalog";
 import { buildDemoReport } from "./demo-report";
-import { buildCoverage, buildCustomerReport } from "./report";
+import { FREE_PREVIEW_LABEL, buildCoverage, buildCustomerReport, freePreviewFacts, freePreviewLines } from "./report";
 import { containsToolBrand } from "./sanitize";
 
 test("demo report groups families, orders headline ranks, and hides tool brands", () => {
@@ -119,6 +119,52 @@ test("paid findings keep location and proof, and the teaser drops them", () => {
   assert.equal("proof" in (teaser.samples[0] ?? {}), false);
   assert.ok(teaser.samples.every((finding) => finding.title && finding.severity));
   assert.equal(containsToolBrand(JSON.stringify(paid)), null);
+});
+
+test("free preview counts only checks and findings that are on the report", () => {
+  assert.equal(FREE_PREVIEW_LABEL, "Free preview");
+  const marked = { missing_csp: "ok" as const, exposed_dotenv: "ok" as const };
+  const report = buildCustomerReport({
+    scanId: "mini",
+    status: "completed",
+    mode: "mini",
+    access: "full",
+    finishedAt: new Date("2026-10-24T00:00:00.000Z"),
+    marked,
+    results: [{ checkId: "exposed_dotenv", evidence: "env file was public" }],
+  });
+  const facts = freePreviewFacts(report);
+  assert.equal(facts.findingsShown, 1);
+  assert.equal(facts.checksRun, 2);
+  assert.equal(facts.checksNotRun, CHECK_CATALOG.length - 2);
+  assert.equal(facts.hiddenFindings, 0);
+  assert.ok(facts.familiesNotRun.includes("Access control"));
+  const lines = freePreviewLines(facts);
+  assert.equal(lines.some((line) => /more finding/i.test(line)), false);
+  assert.match(lines.join("\n"), new RegExp(`After purchase, the full report runs all ${CHECK_CATALOG.length} checks on this origin`));
+  assert.match(lines.join("\n"), new RegExp(`${CHECK_CATALOG.length - 2} checks that did not run`));
+  assert.equal(containsToolBrand(lines.join("\n")), null);
+
+  const teaser = buildCustomerReport({
+    scanId: "mini-teaser",
+    status: "completed",
+    mode: "mini",
+    access: "teaser",
+    finishedAt: new Date("2026-10-24T00:00:00.000Z"),
+    marked: Object.fromEntries(CHECK_CATALOG.map((check) => [check.id, "ok" as const])),
+    results: [
+      { checkId: "supabase_rls_disabled", evidence: "one" },
+      { checkId: "secret_in_client", evidence: "two" },
+      { checkId: "missing_csp", evidence: "three" },
+    ],
+  });
+  const hidden = freePreviewFacts(teaser);
+  assert.equal(hidden.findingsShown, 2);
+  assert.equal(hidden.hiddenFindings, 1);
+  assert.equal(hidden.checksNotRun, 0);
+  const hiddenLines = freePreviewLines(hidden);
+  assert.match(hiddenLines.join("\n"), /1 finding from checks that already ran is in the full report/);
+  assert.equal(hiddenLines.some((line) => /did not run/.test(line)), false);
 });
 
 test("coverage marks families that were not executed", () => {
