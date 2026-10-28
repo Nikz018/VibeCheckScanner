@@ -19,15 +19,22 @@ export interface DiscoveredConfig {
 export interface ScriptDocument {
   url: string;
   body: string;
+  /** HTML pages that referenced this script. Inline scripts point at their page. */
+  pageUrls?: string[];
 }
+
+const MAX_AFFECTED_PAGES = 25;
 
 export class ScanContext {
   readonly targetUrl: string;
   readonly origin: string;
   readonly mode: "full" | "mini";
+  readonly reportAccess: "teaser" | "full";
   home: ProbeResponse | null = null;
   corsProbe: ProbeResponse | null = null;
   html = "";
+  pages: ProbeResponse[] = [];
+  pagesScanned = 0;
   scripts: ScriptDocument[] = [];
   packageJson: string | null = null;
   config: DiscoveredConfig = {
@@ -42,10 +49,11 @@ export class ScanContext {
   notices: string[] = [];
   private secretValues: string[] = [];
 
-  constructor(targetUrl: string, mode: "full" | "mini") {
+  constructor(targetUrl: string, mode: "full" | "mini", reportAccess?: "teaser" | "full") {
     this.targetUrl = targetUrl;
     this.origin = originOf(targetUrl);
     this.mode = mode;
+    this.reportAccess = reportAccess ?? (mode === "full" ? "full" : "teaser");
   }
 
   async fetch(
@@ -97,15 +105,17 @@ export class ScanContext {
     }
   }
 
-  add(checkId: string, evidence: string, detail: FindingDetail, confidence?: Confidence): void {
+  add(checkId: string, evidence: string, detail: FindingDetail, confidence?: Confidence, affectedPages?: string[]): void {
     this.mark(checkId);
     const clean = sanitizeDetail(this.applySecrets(detail));
     const cleanEvidence = this.scrub(evidence);
+    const pages = this.cleanPages(affectedPages);
     const existing = this.results.find((result) => result.checkId === checkId);
     if (existing) {
       existing.evidence = this.scrub(`${existing.evidence} ${cleanEvidence}`);
       existing.locations = mergeLocations(existing.locations ?? [], clean.locations);
       existing.confidence = higherConfidence(existing.confidence, confidence);
+      existing.affectedPages = mergePages(existing.affectedPages, pages);
       return;
     }
     this.results.push({
@@ -115,7 +125,53 @@ export class ScanContext {
       proof: clean.proof,
       steps: clean.steps,
       ...(confidence ? { confidence } : {}),
+      ...(pages.length > 0 ? { affectedPages: pages } : {}),
     });
+  }
+
+  /** Public URL to show for an inline or external script. */
+  scriptUrl(url: string): string {
+    if (!url || url === "source" || url.startsWith("rendered:")) return this.home?.url || this.targetUrl;
+    if (url.startsWith("inline:")) {
+      const rest = url.slice("inline:".length);
+      const hash = rest.lastIndexOf("#");
+      const page = (hash >= 0 ? rest.slice(0, hash) : rest).trim();
+      if (page.startsWith("http://") || page.startsWith("https://")) return page;
+      return this.home?.url || this.targetUrl;
+    }
+    return url;
+  }
+
+  /** Pages whose HTML or scripts match. Used to dedupe one finding across the crawl. */
+  pagesMatching(pattern: RegExp): string[] {
+    const expression = new RegExp(pattern.source, pattern.flags.replace("g", ""));
+    const found: string[] = [];
+    const add = (url: string) => {
+      const clean = stripSensitiveQuery(this.scrub(url));
+      if (!clean.startsWith("http") || found.includes(clean)) return;
+      if (found.length >= MAX_AFFECTED_PAGES) return;
+      found.push(clean);
+    };
+    for (const script of this.scripts) {
+      if (!expression.test(script.body)) continue;
+      const pages = script.pageUrls?.length ? script.pageUrls : [this.scriptUrl(script.url)];
+      for (const page of pages) add(page);
+    }
+    for (const page of this.pages) {
+      if (expression.test(page.body)) add(page.url);
+    }
+    return found;
+  }
+
+  private cleanPages(pages: string[] | undefined): string[] {
+    const found: string[] = [];
+    for (const page of pages ?? []) {
+      const clean = stripSensitiveQuery(this.scrub(page));
+      if (!clean.startsWith("http") || found.includes(clean)) continue;
+      found.push(clean);
+      if (found.length >= MAX_AFFECTED_PAGES) break;
+    }
+    return found;
   }
 
   detailFor(
@@ -171,7 +227,7 @@ export class ScanContext {
   }
 
   scriptText(): string {
-    return [this.html, ...this.scripts.map((script) => script.body)].join("\n");
+    return [this.html, ...this.pages.map((page) => page.body), ...this.scripts.map((script) => script.body)].join("\n");
   }
 }
 
@@ -180,6 +236,19 @@ function higherConfidence(current: Confidence | undefined, next: Confidence | un
   if (!next) return current;
   if (!current) return next;
   return rank[next] > rank[current] ? next : current;
+}
+
+function mergePages(current: string[] | undefined, extra: string[]): string[] | undefined {
+  if (extra.length === 0) return current;
+  const merged = [...(current ?? [])];
+  const seen = new Set(merged);
+  for (const page of extra) {
+    if (seen.has(page)) continue;
+    seen.add(page);
+    merged.push(page);
+    if (merged.length >= MAX_AFFECTED_PAGES) break;
+  }
+  return merged;
 }
 
 function mergeLocations(current: FindingLocation[], extra: FindingLocation[]): FindingLocation[] {

@@ -21,8 +21,17 @@ test("logged-in probes refuse mutating methods and allow the login POST only", a
   await assert.rejects(guardedRequest("DELETE", "http://127.0.0.1:4013/api/notes/u_alice", null, async () => undefined), /read-only/);
 
   assert.equal(isActionUrl("http://127.0.0.1:4013/logout"), true);
+  assert.equal(isActionUrl("http://127.0.0.1:4013/signout"), true);
+  assert.equal(isActionUrl("http://127.0.0.1:4013/sign-out"), true);
+  assert.equal(isActionUrl("http://127.0.0.1:4013/account/delete"), true);
+  assert.equal(isActionUrl("http://127.0.0.1:4013/remove"), true);
+  assert.equal(isActionUrl("http://127.0.0.1:4013/destroy"), true);
+  assert.equal(isActionUrl("http://127.0.0.1:4013/unsubscribe"), true);
+  assert.equal(isActionUrl("http://127.0.0.1:4013/cancel"), true);
   assert.equal(isActionUrl("http://127.0.0.1:4013/settings/profile"), true);
   assert.equal(isActionUrl("http://127.0.0.1:4013/api/billing/portal"), true);
+  assert.equal(isActionUrl("http://127.0.0.1:4013/notes?action=delete"), true);
   assert.equal(isActionUrl("http://127.0.0.1:4013/api/notes/u_alice"), false);
   assert.equal(isActionUrl("http://127.0.0.1:4013/admin"), false);
+  assert.equal(isActionUrl("http://127.0.0.1:4013/pricing"), false);
 });

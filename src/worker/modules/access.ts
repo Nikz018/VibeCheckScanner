@@ -51,7 +51,7 @@ export async function runAccess(ctx: ScanContext): Promise<void> {
     const paywall = locateText(ctx.scripts, /localStorage\.getItem\(\s*["'](plan|isPro|isPremium|subscription)["']\s*\)/);
     if (paywall) {
       const file = ctx.scripts.find((script) => script.url === paywall.url);
-      const url = paywall.url.startsWith("inline:") || paywall.url.startsWith("rendered:") ? ctx.home?.url || ctx.targetUrl : paywall.url;
+      const url = ctx.scriptUrl(paywall.url);
       ctx.add(
         "client_side_paywall",
         "Client code gates premium access with a localStorage flag instead of a server check.",
@@ -73,6 +73,8 @@ export async function runAccess(ctx: ScanContext): Promise<void> {
             ],
           },
         ),
+        undefined,
+        ctx.pagesMatching(/localStorage\.getItem\(\s*["'](plan|isPro|isPremium|subscription)["']\s*\)/),
       );
     }
   });

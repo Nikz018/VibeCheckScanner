@@ -8,6 +8,7 @@ import { runAuthenticated, skipAuthenticated } from "./modules/authenticated";
 import { runAuthConfig } from "./modules/authcfg";
 import { runFirebase, runStorage, runSupabase } from "./modules/backends";
 import { runCrawl } from "./modules/crawl";
+import { runPageContent } from "./modules/page-content";
 import { runDependencies } from "./modules/dependencies";
 import { runExposure } from "./modules/exposure";
 import { runHeaders } from "./modules/headers";
@@ -19,6 +20,7 @@ export interface PipelineOutput {
   results: RawCheckResult[];
   marked: Record<string, CheckRunState>;
   notices: string[];
+  pagesScanned: number;
 }
 
 export async function runScanPipeline(options: {
@@ -34,9 +36,10 @@ export async function runScanPipeline(options: {
   }
   const origin = new URL(options.targetUrl).origin;
   await assertProbeAllowed(options.targetUrl, origin);
-  const ctx = new ScanContext(options.targetUrl, options.mode);
+  const ctx = new ScanContext(options.targetUrl, options.mode, options.reportAccess);
   await runCrawl(ctx);
   await runHeaders(ctx);
+  await runPageContent(ctx);
   await runExposure(ctx);
   if (options.mode === "full") {
     await runSecrets(ctx);
@@ -52,5 +55,5 @@ export async function runScanPipeline(options: {
     else if (options.authError) skipAuthenticated(ctx, options.authError);
     else await runAuthenticated(ctx, options.auth ?? null);
   }
-  return { results: ctx.results, marked: ctx.marked, notices: ctx.notices };
+  return { results: ctx.results, marked: ctx.marked, notices: ctx.notices, pagesScanned: ctx.pagesScanned };
 }

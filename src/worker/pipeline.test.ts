@@ -94,6 +94,9 @@ test("demo targets produce multi-section reports with no tool brands", async () 
       marked: open.marked,
     });
     assert.equal(openReport.coverage.length, 8);
+    assert.ok(open.pagesScanned >= 1);
+    assert.match(openReport.limitations.join(" "), /subdomains/i);
+    assert.match(openReport.limitations.join(" "), /page limit/i);
     assert.ok((openReport.score ?? 0) < 100);
     assert.equal(containsToolBrand(JSON.stringify(openReport)), null);
     for (const result of open.results) {

@@ -67,6 +67,9 @@ export function ReportView({
               {report.stale ? " · rescan needed" : ""}
             </p>
             {targetLabel ? <p className="mt-2 text-sm">Origin: {targetLabel}</p> : null}
+            {report.pagesScanned !== null ? (
+              <p className="mt-2 text-sm">Scanned {report.pagesScanned} {report.pagesScanned === 1 ? "page" : "pages"}.</p>
+            ) : null}
             {report.access === "full" && scanId && !sample ? (
               <div className="mt-4 flex flex-wrap gap-2">
                 <a className="btn btn-lime" href={`/api/scans/${scanId}/pdf`}>
@@ -120,7 +123,7 @@ export function ReportView({
               <h2 className="font-display text-3xl">Priority issues</h2>
               <div className="grid gap-4">
                 {report.priority.map((finding) => (
-                  <FindingCard key={finding.checkId} finding={finding} />
+                  <FindingCard key={finding.checkId} finding={finding} showAffectedPages />
                 ))}
               </div>
             </section>
@@ -133,7 +136,7 @@ export function ReportView({
               {group.findings
                 .filter((finding) => finding.headlineRank === null)
                 .map((finding) => (
-                  <FindingCard key={finding.checkId} finding={finding} />
+                  <FindingCard key={finding.checkId} finding={finding} showAffectedPages />
                 ))}
               {group.findings.every((finding) => finding.headlineRank !== null) ? (
                 <p className="text-sm text-[#c5d2e6]">Headline findings for this family are in the priority list above.</p>
@@ -291,8 +294,9 @@ function PriceHint() {
   );
 }
 
-function FindingCard({ finding }: { finding: CustomerReport["samples"][number] }) {
+function FindingCard({ finding, showAffectedPages = false }: { finding: CustomerReport["samples"][number]; showAffectedPages?: boolean }) {
   const showWhere = reportHasWhere(finding);
+  const affected = showAffectedPages ? finding.affectedPages ?? [] : [];
   return (
     <article className="lift panel p-5">
       <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -313,6 +317,16 @@ function FindingCard({ finding }: { finding: CustomerReport["samples"][number] }
           <span className="font-semibold">Impact. </span>
           {finding.impact}
         </p>
+        {affected.length > 0 ? (
+          <div>
+            <p className="font-semibold">Affected pages.</p>
+            <ul className="mt-1 space-y-1">
+              {affected.map((page) => (
+                <li key={page}>{page}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         {showWhere && finding.locations ? (
           <div>
             <p className="font-semibold">Location.</p>

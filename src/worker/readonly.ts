@@ -34,12 +34,21 @@ export function assertLoginPost(method: string, url: string, allowedUrls: string
 }
 
 const ACTION_PATH =
-  /(^|\/)(logout|sign-?out|log-?out|delete|destroy|settings|billing|checkout|password|deactivate|unsubscribe)(\/|$)/i;
+  /(^|\/)(logout|sign-?out|log-?out|log-?off|delete|remove|destroy|unsubscribe|cancel|settings|billing|checkout|password|deactivate)(\/|$)/i;
 
+const ACTION_KEY = /^(?:action|method|op|do)$/i;
+const ACTION_VALUE = /^(?:logout|sign-?out|log-?out|log-?off|delete|remove|destroy|unsubscribe|cancel)$/i;
+
+/** GET can still sign a visitor out or delete data, so these URLs are never fetched. */
 export function isActionUrl(url: string): boolean {
   try {
     const parsed = new URL(url, "http://localhost");
-    return ACTION_PATH.test(parsed.pathname);
+    if (ACTION_PATH.test(parsed.pathname)) return true;
+    for (const [key, value] of parsed.searchParams) {
+      if (ACTION_VALUE.test(key)) return true;
+      if (ACTION_KEY.test(key) && (value === "" || ACTION_VALUE.test(value))) return true;
+    }
+    return false;
   } catch {
     return true;
   }

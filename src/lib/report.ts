@@ -26,6 +26,8 @@ export interface RawCheckResult {
   locations?: FindingLocation[];
   proof?: FindingProof;
   steps?: string[];
+  /** Public page URLs where this finding was observed. Deduped across the crawl. */
+  affectedPages?: string[];
 }
 
 export type CheckRunState = "ok" | "error" | "skipped";
@@ -53,6 +55,7 @@ export interface CustomerFinding {
   locations?: FindingLocation[];
   proof?: FindingProof;
   steps?: string[];
+  affectedPages?: string[];
 }
 
 export interface CustomerReport {
@@ -76,6 +79,7 @@ export interface CustomerReport {
   limitationsTitle: string;
   limitations: string[];
   limitationsNote: string;
+  pagesScanned: number | null;
 }
 
 const SEVERITY_RANK: Record<Severity, number> = {
@@ -137,6 +141,16 @@ function materialize(result: RawCheckResult): CustomerFinding {
     finding.locations = detail.locations;
     finding.proof = detail.proof;
     finding.steps = detail.steps;
+  }
+  if (result.affectedPages && result.affectedPages.length > 0) {
+    const pages: string[] = [];
+    for (const page of result.affectedPages) {
+      const clean = sanitizeCustomerText(page);
+      if (!clean.startsWith("http") || pages.includes(clean)) continue;
+      pages.push(clean);
+      if (pages.length >= 25) break;
+    }
+    if (pages.length > 0) finding.affectedPages = pages;
   }
   const blob = JSON.stringify(finding);
   const brand = containsToolBrand(blob);
@@ -294,6 +308,7 @@ export function buildCustomerReport(input: {
   results: RawCheckResult[];
   marked: Record<string, CheckRunState>;
   notices?: string[];
+  pagesScanned?: number | null;
   now?: Date;
 }): CustomerReport {
   const findings = sortFindings(input.results.map(materialize));
@@ -308,11 +323,13 @@ export function buildCustomerReport(input: {
   );
   const priority = findings.filter((finding) => finding.headlineRank !== null);
   const notices = [...new Set((input.notices ?? []).filter((notice) => notice.trim().length > 0))];
+  const pagesScanned = typeof input.pagesScanned === "number" && input.pagesScanned >= 0 ? Math.floor(input.pagesScanned) : null;
   const shared = {
     notices,
     limitationsTitle: SCAN_LIMITATIONS_TITLE,
     limitations: [...SCAN_LIMITATIONS],
     limitationsNote: SCAN_LIMITATIONS_NOTE,
+    pagesScanned,
   };
 
   if (isFreeTierDelivery({ mode: input.mode, access: input.access })) {

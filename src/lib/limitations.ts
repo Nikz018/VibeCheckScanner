@@ -6,6 +6,7 @@ export const SCAN_LIMITATIONS = [
   "Source code and dependencies, unless a repository is connected or a manifest is already public.",
   "Load testing and brute-force testing.",
   "Mobile apps and backends that are not part of this web origin.",
+  "Subdomains and other hosts are not crawled. Pages beyond the page limit are not scanned.",
 ] as const;
 
 export const SCAN_LIMITATIONS_NOTE =
