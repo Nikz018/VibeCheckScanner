@@ -3,6 +3,7 @@ import { getCheck } from "@/lib/catalog";
 import { deleteScanCredentials, loadScanCredentials } from "@/lib/credential-store";
 import { prisma } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
+import { renderMonitorAlertEmail } from "@/lib/email-template";
 import type { AuthScanPayload } from "@/lib/auth-input";
 import { verifyOwnership } from "@/lib/ownership";
 import { paidReportAlertMessage, paidReportNotice } from "@/lib/payments/paid-scan-status";
@@ -180,10 +181,10 @@ async function maybeAlert(
   });
   if (fresh.length === 0) return;
   const host = new URL(targetUrl).host;
-  const message = `A monitored scan of ${host} found ${fresh.length} new high-severity issue${fresh.length === 1 ? "" : "s"}. Open the latest scan to review them.`;
-  await prisma.alert.create({ data: { userId, scanId, message } });
   const link = `${process.env.APP_URL || "http://localhost:3000"}/scans/${scanId}`;
-  await sendEmail(email, "VibeCheck found new high-severity issues", `${message}\n\n${link}`);
+  const alert = renderMonitorAlertEmail(host, fresh.length, link);
+  await prisma.alert.create({ data: { userId, scanId, message: alert.message } });
+  await sendEmail({ to: email, subject: alert.subject, text: alert.text, html: alert.html });
 }
 
 async function notifyPaidReport(scanId: string, userId: string, email: string, targetUrl: string): Promise<void> {
@@ -194,7 +195,7 @@ async function notifyPaidReport(scanId: string, userId: string, email: string, t
     const link = `${process.env.APP_URL || "http://localhost:3000"}/scans/${scanId}`;
     const notice = paidReportNotice(host, link);
     await prisma.alert.create({ data: { userId, scanId, message: paidReportAlertMessage(host) } });
-    await sendEmail(email, notice.subject, notice.text);
+    await sendEmail({ to: email, subject: notice.subject, text: notice.text, html: notice.html });
   } catch (error) {
     console.error("full report notice failed", error instanceof Error ? error.message : "error");
   }
