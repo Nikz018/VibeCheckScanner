@@ -2,6 +2,8 @@ import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { prisma } from "./db";
 import { sendEmail } from "./email";
+import { renderMagicLinkEmail } from "./email-template";
+import { magicLinkExpiresAt } from "./magic-link";
 import { hashToken } from "./ownership";
 
 export const SESSION_COOKIE = "vc_session";
@@ -29,11 +31,12 @@ export async function requestMagicLink(email: string, nextPath = "/dashboard"): 
     data: {
       email: normalized,
       tokenHash: hashToken(token),
-      expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+      expiresAt: magicLinkExpiresAt(),
     },
   });
   const link = `${process.env.APP_URL || "http://localhost:3000"}/api/auth/verify?token=${token}&next=${encodeURIComponent(nextPath)}`;
-  await sendEmail(normalized, "Your VibeCheck sign-in link", `Open this link to sign in. It expires in 30 minutes.\n\n${link}`);
+  const message = renderMagicLinkEmail(link);
+  await sendEmail({ to: normalized, subject: message.subject, text: message.text, html: message.html });
   if (process.env.DEV_EXPOSE_MAGIC_LINK === "true") return { devLink: link };
   return {};
 }

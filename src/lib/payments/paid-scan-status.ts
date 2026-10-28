@@ -1,3 +1,5 @@
+import { renderTransactionalEmail } from "../email-template";
+
 export const FULL_SCAN_PROGRESS_LABEL = "Full scan in progress";
 export const FULL_SCAN_STOPPED_LABEL = "Full scan stopped";
 export const ACTIVE_SCAN_LIMIT_MESSAGE = "Wait for a running scan to finish before starting another.";
@@ -10,11 +12,16 @@ export const OPEN_FULL_REPORT_LABEL = "Open the full report";
 
 export const ACTIVE_SCAN_LIMIT = 3;
 
-export function paidReportNotice(host: string, scanUrl: string): { subject: string; text: string } {
-  return {
-    subject: "Your VibeCheck full report is ready",
-    text: `The full report for ${host} is ready.\n\n${scanUrl}`,
-  };
+export function paidReportNotice(host: string, scanUrl: string): { subject: string; text: string; html: string } {
+  const subject = "Your VibeCheck full report is ready";
+  const lead = `The full report for ${host} is ready.`;
+  const rendered = renderTransactionalEmail({
+    documentTitle: subject,
+    preheader: lead,
+    paragraphs: [lead],
+    action: { href: scanUrl, label: OPEN_FULL_REPORT_LABEL },
+  });
+  return { subject, text: rendered.text, html: rendered.html };
 }
 
 export function paidReportAlertMessage(host: string): string {
