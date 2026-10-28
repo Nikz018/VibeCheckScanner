@@ -74,6 +74,8 @@ export interface CustomerReport {
   samples: CustomerFinding[];
   hiddenCount: number;
   totalFindings: number;
+  /** When false, pages, downloads, and emails must not offer an upgrade. */
+  upsell: boolean;
   disclaimer: string;
   notices: string[];
   limitationsTitle: string;
@@ -234,6 +236,13 @@ export function visibleCustomerFindings(report: CustomerReport): CustomerFinding
 }
 
 export const FREE_PREVIEW_LABEL = "Free preview";
+export const FULL_REPORT_LABEL = "Full report";
+
+export function reportBadge(report: Pick<CustomerReport, "upsell">, sample = false): string {
+  if (sample && !report.upsell) return "Sample report";
+  if (report.upsell) return FREE_PREVIEW_LABEL;
+  return FULL_REPORT_LABEL;
+}
 export const FULL_REPORT_PURCHASE_LEDE = "After purchase, the full report runs every check on this origin.";
 export const RESCAN_PURCHASE_NOTE = "The same full scan, plus one credit to run another full scan after you ship fixes.";
 
@@ -310,6 +319,8 @@ export function buildCustomerReport(input: {
   notices?: string[];
   pagesScanned?: number | null;
   now?: Date;
+  /** Subscriber or one-time purchase: return every stored finding and clear the upsell flag. */
+  unlock?: boolean;
 }): CustomerReport {
   const findings = sortFindings(input.results.map(materialize));
   const counts = Object.fromEntries(SEVERITIES.map((severity) => [severity, 0])) as Record<Severity, number>;
@@ -332,7 +343,7 @@ export function buildCustomerReport(input: {
     pagesScanned,
   };
 
-  if (isFreeTierDelivery({ mode: input.mode, access: input.access })) {
+  if (!input.unlock && isFreeTierDelivery({ mode: input.mode, access: input.access })) {
     const revealed = lowestSeverityFinding(findings);
     const samples = revealed ? [revealed] : [];
     return {
@@ -351,6 +362,7 @@ export function buildCustomerReport(input: {
       samples,
       hiddenCount: Math.max(0, findings.length - samples.length),
       totalFindings: findings.length,
+      upsell: true,
       disclaimer: POINT_IN_TIME_DISCLAIMER,
       ...shared,
     };
@@ -380,6 +392,7 @@ export function buildCustomerReport(input: {
     samples,
     hiddenCount: 0,
     totalFindings: findings.length,
+    upsell: false,
     disclaimer: POINT_IN_TIME_DISCLAIMER,
     ...shared,
   };

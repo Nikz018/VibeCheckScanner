@@ -1,6 +1,6 @@
 import { SCORE_EXPLAINER, renderScoreGaugeSvg, type GaugeTone } from "@/lib/score-gauge";
 
-const WIDTH = { sm: 132, md: 188, lg: 232 } as const;
+const WIDTH = { sm: 128, md: 200, lg: 240 } as const;
 
 export function ScoreGauge({
   score,

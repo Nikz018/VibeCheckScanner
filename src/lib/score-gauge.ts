@@ -35,31 +35,23 @@ export function formatScoreRatio(score: number): string {
   return `${clampScore(score)}/100`;
 }
 
-/** Upper semicircle, left to right, so the ring fills from the left as the score rises. */
-function gaugeArcPath(): string {
-  const radius = 74;
-  const cx = 100;
-  const cy = 96;
-  return `M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 0 ${cx + radius} ${cy}`;
-}
-
+/** Full ring. The ratio and band sit in the open center so they are not covered by the stroke. */
 export function renderScoreGaugeSvg(input: { score: number | null; tone?: GaugeTone }): string {
   const tone = TONE[input.tone ?? "light"];
   const score = input.score === null ? null : clampScore(input.score);
   const band = score === null ? null : scoreBand(score);
   const ratio = score === null ? "—" : formatScoreRatio(score);
   const label = band?.label ?? "";
-  const arc = gaugeArcPath();
   const progress =
     score === null || score <= 0
       ? ""
-      : `<path class="gauge-progress" d="${arc}" pathLength="100" fill="none" stroke="${band?.color}" stroke-width="14" stroke-linecap="round" stroke-dasharray="${score} 100"/>`;
+      : `<circle class="gauge-progress" cx="100" cy="100" r="78" fill="none" stroke="${band?.color}" stroke-width="12" stroke-linecap="round" pathLength="100" stroke-dasharray="${score} 100" transform="rotate(-90 100 100)"/>`;
   const aria = score === null ? "Score not ready" : `${ratio}, ${label}`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 136" role="img" aria-label="${escapeXml(aria)}" data-score-gauge="${score ?? ""}">
-  <path d="${arc}" fill="none" stroke="${tone.track}" stroke-width="14" stroke-linecap="round"/>
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="${escapeXml(aria)}" data-score-gauge="${score ?? ""}">
+  <circle cx="100" cy="100" r="78" fill="none" stroke="${tone.track}" stroke-width="12"/>
   ${progress}
-  <text x="100" y="90" text-anchor="middle" font-family="Georgia, serif" font-size="28" font-weight="700" fill="${tone.value}">${escapeXml(ratio)}</text>
-  <text x="100" y="118" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" fill="${band ? band.color : tone.label}">${escapeXml(label)}</text>
+  <text x="100" y="96" text-anchor="middle" font-family="Georgia, serif" font-size="28" font-weight="700" fill="${tone.value}">${escapeXml(ratio)}</text>
+  <text x="100" y="122" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13" fill="${band ? band.color : tone.label}">${escapeXml(label)}</text>
 </svg>`;
 }
 

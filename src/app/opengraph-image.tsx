@@ -8,21 +8,10 @@ export const contentType = "image/png";
 
 const EXAMPLE_SCORE = 72;
 
-function gaugePaths(score: number) {
-  const radius = 74;
-  const cx = 100;
-  const cy = 96;
-  const track = `M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 0 ${cx + radius} ${cy}`;
-  const theta = Math.PI * (1 - score / 100);
-  const x = cx + radius * Math.cos(theta);
-  const y = cy - radius * Math.sin(theta);
-  const progress = `M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 0 ${x.toFixed(1)} ${y.toFixed(1)}`;
-  return { track, progress };
-}
-
 export default function OpenGraphImage() {
   const band = scoreBand(EXAMPLE_SCORE);
-  const { track, progress } = gaugePaths(EXAMPLE_SCORE);
+  const ring = 2 * Math.PI * 78;
+  const dash = (EXAMPLE_SCORE / 100) * ring;
   return new ImageResponse(
     (
       <div
@@ -81,12 +70,26 @@ export default function OpenGraphImage() {
               width: 360,
             }}
           >
-            <svg width="280" height="150" viewBox="0 0 200 120">
-              <path d={track} fill="none" stroke="#e4dfd2" strokeWidth="14" strokeLinecap="round" />
-              <path d={progress} fill="none" stroke={band.color} strokeWidth="14" strokeLinecap="round" />
+            <svg width="240" height="240" viewBox="0 0 200 200">
+              <circle cx="100" cy="100" r="78" fill="none" stroke="#e4dfd2" strokeWidth="12" />
+              <circle
+                cx="100"
+                cy="100"
+                r="78"
+                fill="none"
+                stroke={band.color}
+                strokeWidth="12"
+                strokeLinecap="round"
+                strokeDasharray={`${dash} ${ring}`}
+                transform="rotate(-90 100 100)"
+              />
+              <text x="100" y="96" textAnchor="middle" fill="#14201b" fontSize="28" fontWeight={700}>
+                72/100
+              </text>
+              <text x="100" y="122" textAnchor="middle" fill={band.color} fontSize="14">
+                {band.label}
+              </text>
             </svg>
-            <div style={{ display: "flex", fontSize: 48, fontWeight: 700, marginTop: 8 }}>72/100</div>
-            <div style={{ display: "flex", fontSize: 22, color: band.color, marginTop: 4 }}>{band.label}</div>
             <div style={{ display: "flex", fontSize: 16, color: "#536058", marginTop: 8 }}>Example gauge</div>
           </div>
         </div>

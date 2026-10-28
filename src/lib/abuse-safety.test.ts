@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { abuseContactEmail, scannerUserAgent } from "./scanner-identity";
+import { abuseContactEmail, scannerUserAgent, supportContactEmail } from "./scanner-identity";
 import { parseAbuseHost, shapeAbuseExport } from "./scan-authorization";
 import { resetTargetPaceForTests, targetHostKey, targetPaceSettings, withTargetPace } from "./target-pace";
 
@@ -19,6 +19,10 @@ test("abuse contact email is shown only when it is an email", () => {
   assert.equal(abuseContactEmail(""), "");
   assert.equal(abuseContactEmail("not an email"), "");
   assert.equal(abuseContactEmail("  abuse@example.com  "), "abuse@example.com");
+  assert.equal(supportContactEmail("support@vibecheck.test", "abuse@vibecheck.test"), "support@vibecheck.test");
+  assert.equal(supportContactEmail("", "abuse@vibecheck.test"), "abuse@vibecheck.test");
+  assert.equal(supportContactEmail("not-an-email", "abuse@vibecheck.test"), "abuse@vibecheck.test");
+  assert.equal(supportContactEmail("", ""), "");
 });
 
 test("target pace uses gentle defaults and ignores out-of-range values", () => {

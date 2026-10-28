@@ -12,7 +12,6 @@ import { GET as llmsFullRoute } from "../app/llms-full.txt/route";
 import { GET as llmsRoute } from "../app/llms.txt/route";
 import { publicCopyCorpus } from "./seo/corpus";
 import {
-  CONTACT_EMAIL_PLACEHOLDER,
   DEFINITION,
   DISCLAIMER,
   FAQ,
@@ -20,7 +19,6 @@ import {
   HOW_TO_STEPS,
   ISSUE_CHECKS,
   ISSUE_CHECKS_ANSWER,
-  LEGAL_REVIEW_NOTE,
   PUBLIC_PAGES,
   allCopyBlocks,
   getPublicPage,
@@ -313,8 +311,9 @@ test("answer-shaped copy and llms files describe the product without tool brands
   assert.doesNotMatch(corpus, /testimonial|trusted by|customers trust/i);
   assert.match(corpus, new RegExp(DISCLAIMER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(corpus, new RegExp(TAX_NOTE));
-  assert.match(corpus, new RegExp(LEGAL_REVIEW_NOTE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  assert.match(corpus, new RegExp(CONTACT_EMAIL_PLACEHOLDER.replace(".", "\\.")));
+  assert.doesNotMatch(corpus, /Nikz/);
+  assert.doesNotMatch(corpus, /contact@example\.com/);
+  assert.doesNotMatch(corpus, /\bdraft\b/i);
 });
 
 test("llms routes return text, and the manifest names the app", async () => {

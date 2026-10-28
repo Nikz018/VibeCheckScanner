@@ -11,6 +11,7 @@ import { recordScanAuthorization } from "@/lib/scan-authorization";
 import { buildCustomerReport } from "@/lib/report";
 import { clampText, sanitizeCode, sanitizeCustomerText } from "@/lib/sanitize";
 import { computeScore, isPassingScore } from "@/lib/score";
+import type { ScanStageId } from "@/lib/scan-progress";
 import { runScanPipeline } from "./run-scan";
 
 export async function executeScan(scanId: string): Promise<void> {
@@ -36,7 +37,7 @@ async function runQueuedScan(scan: Prisma.ScanGetPayload<{ include: { project: t
 
   await prisma.scan.update({
     where: { id: scan.id },
-    data: { status: "running", startedAt: new Date(), error: null },
+    data: { status: "running", startedAt: new Date(), error: null, progressStage: "ownership" },
   });
 
   const proof = await verifyOwnership(scan.targetUrl, scan.project.ownershipToken);
@@ -82,6 +83,7 @@ async function runQueuedScan(scan: Prisma.ScanGetPayload<{ include: { project: t
       auth,
       authError,
       reportAccess: scan.reportAccess === "full" ? "full" : "teaser",
+      onProgress: (update) => recordProgress(scan.id, update.stage, update.pagesDiscovered),
     });
     const finishedAt = new Date();
     const severities = output.results.map((result) => ({ severity: getCheck(result.checkId).severity }));
@@ -198,6 +200,20 @@ async function notifyPaidReport(scanId: string, userId: string, email: string, t
     await sendEmail({ to: email, subject: notice.subject, text: notice.text, html: notice.html });
   } catch (error) {
     console.error("full report notice failed", error instanceof Error ? error.message : "error");
+  }
+}
+
+async function recordProgress(scanId: string, stage: ScanStageId, pagesDiscovered?: number): Promise<void> {
+  try {
+    await prisma.scan.update({
+      where: { id: scanId },
+      data: {
+        progressStage: stage,
+        ...(pagesDiscovered !== undefined ? { pagesDiscovered } : {}),
+      },
+    });
+  } catch (error) {
+    console.error("progress update failed", error instanceof Error ? error.message : "error");
   }
 }
 

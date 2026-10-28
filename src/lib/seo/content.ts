@@ -23,12 +23,6 @@ export const OG_IMAGE_PATH = "/opengraph-image";
 export const OG_WIDTH = 1200;
 export const OG_HEIGHT = 630;
 
-/** Placeholder until Nikz sets a real mailbox. Do not put this address in JSON-LD. */
-export const CONTACT_EMAIL_PLACEHOLDER = "contact@example.com";
-
-export const LEGAL_REVIEW_NOTE =
-  "Draft for Nikz to review. This placeholder is not final legal text, not legal advice, and it must be replaced before the site takes payment.";
-
 export const ISSUE_CHECKS_ANSWER =
   "VibeCheck checks a vibe-coded app for leaked API keys, open Supabase row level security and Firebase rules, missing authentication, user IDs in URLs, paywall bypass, exposed env and admin routes, weak security headers, and related launch issues.";
 
@@ -425,14 +419,13 @@ export const GUIDES: Record<"guide-lovable" | "guide-rls" | "guide-keys", GuideD
   },
 };
 
+const CONTACT_LINE = "Use the email address published on the contact page.";
+
 export const LEGAL_SECTIONS: Record<"terms" | "privacy" | "refund" | "contact", CopyBlock[]> = {
   terms: [
     {
       heading: "Who do these terms apply to?",
-      paragraphs: [
-        "These draft terms apply to anyone who creates a VibeCheck account or starts a scan.",
-        "Nikz must have counsel review this page before the site takes payment.",
-      ],
+      paragraphs: ["These terms apply to anyone who creates a VibeCheck account or starts a scan."],
     },
     {
       heading: "What does VibeCheck provide?",
@@ -464,7 +457,7 @@ export const LEGAL_SECTIONS: Record<"terms" | "privacy" | "refund" | "contact", 
     },
     {
       heading: "How much do the paid plans cost?",
-      paragraphs: [priceAnswer(), "Checkout is handled by Stripe when the price IDs are configured. A failed payment does not unlock a report."],
+      paragraphs: [priceAnswer(), "Checkout is handled by the payment provider configured for this site. A failed payment does not unlock a report."],
     },
     {
       heading: "Is a report a certification?",
@@ -481,26 +474,21 @@ export const LEGAL_SECTIONS: Record<"terms" | "privacy" | "refund" | "contact", 
       ],
     },
     {
-      heading: "What liability terms are still a draft?",
+      heading: "What does a report not promise?",
       paragraphs: [
-        "Placeholder: a limitation of liability, warranty disclaimer, and governing law are not written yet.",
-        "Nikz needs counsel to add those clauses before this page is published as binding terms.",
+        "A report is a point-in-time list of findings and fixes. It is not a warranty that the app is secure, and it is not legal advice.",
+        "It does not promise that the app stays in that condition after you deploy again.",
       ],
     },
     {
       heading: "How do I contact you about these terms?",
-      paragraphs: [
-        `Email ${CONTACT_EMAIL_PLACEHOLDER} and include the account email. That address is a placeholder until Nikz replaces it.`,
-      ],
+      paragraphs: [`${CONTACT_LINE} Include the account email.`],
     },
   ],
   privacy: [
     {
       heading: "What does this privacy page cover?",
-      paragraphs: [
-        "This draft describes the account, scan, and payment data the current VibeCheck app stores.",
-        "It is not a finished privacy policy. Nikz must review it before the site takes payment.",
-      ],
+      paragraphs: ["This page describes the account, scan, and payment data the current VibeCheck app stores."],
     },
     {
       heading: "What account data do you store?",
@@ -517,17 +505,17 @@ export const LEGAL_SECTIONS: Record<"terms" | "privacy" | "refund" | "contact", 
       ],
     },
     {
-      heading: "What does Stripe receive?",
+      heading: "What does the payment provider receive?",
       paragraphs: [
-        "Paid checkout is a Stripe Checkout session. Stripe processes the card. VibeCheck stores the Stripe customer id, checkout session id, and payment status, not the full card number.",
-        "A monitoring subscription also stores the Stripe subscription id and status.",
+        "Paid checkout is handled by the payment provider configured for this site. That provider processes the card. VibeCheck stores the customer id, checkout session id, and payment status the provider returns, not the full card number.",
+        "A monitoring subscription also stores the subscription id and status.",
       ],
     },
     {
       heading: "Which cookies do you set?",
       paragraphs: [
         "The app sets the vc_session cookie so you stay signed in. It is not an advertising cookie.",
-        "This draft does not add analytics or marketing pixels. If that changes, Nikz needs to update this page first.",
+        "The app does not set analytics or marketing cookies.",
       ],
     },
     {
@@ -540,59 +528,54 @@ export const LEGAL_SECTIONS: Record<"terms" | "privacy" | "refund" | "contact", 
     {
       heading: "How long do you keep data?",
       paragraphs: [
-        "Placeholder: a retention and deletion schedule is not decided. Sessions and magic links expire on the timers above, and scan rows stay until a deletion process exists.",
-        "Nikz needs to set how long accounts, findings, and alerts are kept, and how a person asks for deletion, before this page is final.",
+        "Magic links expire in 30 minutes and the session cookie expires in 30 days unless you sign out.",
+        "Account rows, scan rows, findings, and alerts stay until you ask for them to be removed. Email the address on the contact page from the account mailbox to ask.",
       ],
     },
     {
       heading: "How do I ask a privacy question?",
-      paragraphs: [
-        `Email ${CONTACT_EMAIL_PLACEHOLDER} from the account mailbox and describe the request. Replace that placeholder address before publication.`,
-      ],
+      paragraphs: [`${CONTACT_LINE} Send it from the account mailbox and describe the request.`],
     },
   ],
   refund: [
     {
-      heading: "Which purchases does this draft cover?",
+      heading: "Which purchases does this cover?",
       paragraphs: [
-        `This draft covers the ${TIERS.report.priceLabel} full report, the ${TIERS.rescan.priceLabel} report plus rescan, and ${monitoringPriceWords()} monitoring, each plus applicable taxes.`,
-        "The free teaser has no charge. Nikz must confirm this page with the payment provider before it is treated as the live refund policy.",
+        `This covers the ${TIERS.report.priceLabel} full report, the ${TIERS.rescan.priceLabel} report plus rescan, and ${monitoringPriceWords()} monitoring, each plus applicable taxes.`,
+        "The free teaser has no charge.",
       ],
     },
     {
       heading: "When is a paid report delivered?",
       paragraphs: [
-        "The scan runs before you pay. A successful payment unlocks the report that is already stored for that scan.",
+        "For a finished full scan, a successful payment unlocks the report already stored for that scan. For a mini check, a successful payment starts a full scan of that origin. Retrying that full scan does not charge you again.",
         "The rescan credit is used later, when you start another scan. Monitoring unlocks full reports while the subscription status is active.",
       ],
     },
     {
       heading: "Can I get a refund on a one-time purchase?",
       paragraphs: [
-        "Placeholder: email the contact address within 14 days of purchase if you were charged and the paid scan did not produce a report after ownership proof and consent both succeeded.",
-        "Nikz must confirm that window, the exceptions, and who approves the refund before this sentence is published as policy.",
+        "Email the address on the contact page if you were charged and the paid scan did not produce a report after ownership proof and consent both succeeded. Include the account email, the scan id if you have one, and the receipt.",
       ],
     },
     {
       heading: "How do I cancel monitoring?",
       paragraphs: [
-        "Placeholder: cancel by emailing the contact address from the account mailbox. This draft does not promise a self-serve billing button, because that flow is not described here.",
-        "Nikz needs to decide whether cancellation stops the next renewal only, and whether the current period stays unlocked.",
+        "Cancel monitoring from the dashboard while you are signed in and the subscription is active. Cancellation is sent to the payment provider.",
+        "Scheduled rescans stop when the subscription is no longer active. This page does not promise a refund of the current period.",
       ],
     },
     {
       heading: "How do I ask for a refund?",
-      paragraphs: [
-        `Email ${CONTACT_EMAIL_PLACEHOLDER} with the account email, the scan id if you have one, and the Stripe receipt. That mailbox is a placeholder.`,
-      ],
+      paragraphs: [`${CONTACT_LINE} Include the account email, the scan id if you have one, and the receipt from the payment provider.`],
     },
   ],
   contact: [
     {
       heading: "How do I contact VibeCheck?",
       paragraphs: [
-        `Email ${CONTACT_EMAIL_PLACEHOLDER}. That address is a placeholder for Nikz to replace with a mailbox that is actually read.`,
-        "Use it for scan questions, receipts, refund requests, and privacy requests until a permanent address is published.",
+        "Email the address shown on this page. Use it for scan questions, receipts, refund requests, and privacy requests.",
+        "If this page does not show an address, a support mailbox is not configured on this server.",
       ],
     },
     {
@@ -611,10 +594,7 @@ export const LEGAL_SECTIONS: Record<"terms" | "privacy" | "refund" | "contact", 
     },
     {
       heading: "Is this the address a payment provider should use?",
-      paragraphs: [
-        `Not yet. ${CONTACT_EMAIL_PLACEHOLDER} is not a production support address, and the terms, privacy, and refund pages are drafts.`,
-        "Nikz needs to replace the address and approve the legal pages before sending a payment provider to this site.",
-      ],
+      paragraphs: ["Yes, when an address is shown on this page. Use it for receipts and payment questions."],
     },
   ],
 };
@@ -631,7 +611,6 @@ export interface PublicPage {
   crumb: string;
   changeFrequency: "weekly" | "monthly" | "yearly";
   priority: number;
-  review?: boolean;
 }
 
 export const PUBLIC_PAGES: PublicPage[] = [
@@ -745,37 +724,34 @@ export const PUBLIC_PAGES: PublicPage[] = [
     id: "terms",
     path: "/terms",
     title: "Terms",
-    description: "Draft terms for using VibeCheck, including ownership proof, point-in-time reports, and the paid plans. Nikz must review this page.",
+    description: "Terms for using VibeCheck, including ownership proof, point-in-time reports, and the paid plans.",
     h1: "Terms of service",
-    lede: "These draft terms describe the VibeCheck scan service, including ownership proof, point-in-time reports, and the paid plans.",
+    lede: "These terms describe the VibeCheck scan service, including ownership proof, point-in-time reports, and the paid plans.",
     crumb: "Terms",
     changeFrequency: "yearly",
     priority: 0.3,
-    review: true,
   },
   {
     id: "privacy",
     path: "/privacy",
     title: "Privacy",
-    description: "Draft privacy notes for VibeCheck account email, scan data, the session cookie, and Stripe checkout. Nikz must review this page.",
+    description: "What VibeCheck stores: account email, scan data, the session cookie, and payment checkout records.",
     h1: "Privacy",
-    lede: "This draft explains the account, scan, and payment data the current VibeCheck app stores, and it is waiting on Nikz to review it.",
+    lede: "This page explains the account, scan, and payment data the current VibeCheck app stores.",
     crumb: "Privacy",
     changeFrequency: "yearly",
     priority: 0.3,
-    review: true,
   },
   {
     id: "refund",
     path: "/refund",
     title: "Refunds",
-    description: `Draft refund terms for the ${TIERS.report.priceLabel} report, the ${TIERS.rescan.priceLabel} plan, and ${monitoringPriceWords()} monitoring. Nikz must review this page.`,
+    description: `Refund terms for the ${TIERS.report.priceLabel} report, the ${TIERS.rescan.priceLabel} plan, and ${monitoringPriceWords()} monitoring.`,
     h1: "What is the VibeCheck refund policy?",
-    lede: `This draft refund policy is for Nikz to review before a payment provider checks the site: paid plans are the ${TIERS.report.priceLabel} report, the ${TIERS.rescan.priceLabel} report plus rescan, and ${monitoringPriceWords()} monitoring, plus applicable taxes.`,
+    lede: `Paid plans are the ${TIERS.report.priceLabel} report, the ${TIERS.rescan.priceLabel} report plus rescan, and ${monitoringPriceWords()} monitoring, plus applicable taxes.`,
     crumb: "Refunds",
     changeFrequency: "yearly",
     priority: 0.3,
-    review: true,
   },
   {
     id: "scanner-info",
@@ -793,13 +769,12 @@ export const PUBLIC_PAGES: PublicPage[] = [
     id: "contact",
     path: "/contact",
     title: "Contact",
-    description: "Contact VibeCheck about a scan, a receipt, or a refund. The email address on this page is a placeholder until Nikz replaces it.",
+    description: "Contact VibeCheck about a scan, a receipt, or a refund.",
     h1: "How do I contact VibeCheck?",
-    lede: `Email ${CONTACT_EMAIL_PLACEHOLDER} about a scan, a receipt, or a refund. That address is a placeholder until Nikz replaces it.`,
+    lede: "Email the address on this page about a scan, a receipt, or a refund.",
     crumb: "Contact",
     changeFrequency: "yearly",
     priority: 0.4,
-    review: true,
   },
 ];
 

@@ -296,6 +296,41 @@ textarea:focus-visible {
   animation: gauge-draw 1.05s ease-out both;
 }
 
+.scan-progress {
+  height: 0.7rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(20, 32, 27, 0.08);
+}
+
+.scan-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #3ec6ff, #dff25b);
+  transition: width 0.7s ease;
+}
+
+.scan-progress > span.scan-progress-live {
+  background-image: linear-gradient(90deg, #3ec6ff, #dff25b, #3ec6ff);
+  background-size: 200% 100%;
+  animation: scan-sheen 2.4s linear infinite;
+}
+
+.scan-stage-mark {
+  display: inline-grid;
+  width: 1.35rem;
+  height: 1.35rem;
+  place-items: center;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.scan-stage-current {
+  animation: scan-dot 1.6s ease-in-out infinite;
+}
+
 .locked-row {
   display: grid;
   gap: 0.35rem 0.8rem;
@@ -353,6 +388,15 @@ textarea:focus-visible {
 
 @keyframes gauge-draw {
   from { stroke-dasharray: 0 100; }
+}
+
+@keyframes scan-sheen {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+@keyframes scan-dot {
+  50% { opacity: 0.45; }
 }
 
 @media (prefers-reduced-motion: reduce) {

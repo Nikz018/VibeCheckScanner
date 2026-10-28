@@ -143,7 +143,7 @@ export function NewScanForm({
             Free mini check (headers and public files only)
           </label>
         </fieldset>
-        {mode === "full" ? (
+        {mode === "full" && !monitoring ? (
           <label className="block text-sm">
             Report access
             <select className="field mt-1" value={use} onChange={(event) => setUse(event.target.value as typeof use)}>

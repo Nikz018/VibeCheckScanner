@@ -11,6 +11,7 @@ export function reportFromStored(input: {
   findings: Array<{ checkId: string; evidence: string; severity: string; title: string; impact: string; fix: string; raw?: unknown }>;
   coverage: unknown;
   now?: Date;
+  unlock?: boolean;
 }): CustomerReport {
   const marked = readMarked(input.coverage);
   const results: RawCheckResult[] = input.findings.map((finding) => {
@@ -40,6 +41,7 @@ export function reportFromStored(input: {
     notices: readNotices(input.coverage),
     pagesScanned: readPagesScanned(input.coverage),
     now: input.now,
+    unlock: input.unlock,
   });
 }
 

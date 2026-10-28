@@ -12,9 +12,12 @@ import {
   readSeverityCounts,
   visibleCustomerFindings,
   buildCustomerReport,
+  FULL_REPORT_LABEL,
+  reportBadge,
   type CustomerFinding,
   type CustomerReport,
 } from "./report";
+import { ownedScanAccess } from "./entitlements";
 import { reportFromStored } from "./stored-report";
 
 const marked = Object.fromEntries(CHECK_CATALOG.map((check) => [check.id, "ok" as const]));
@@ -241,4 +244,100 @@ test("dashboard count parser and customer APIs do not describe hidden finding bo
   assert.doesNotMatch(alerts, /finding\.(title|evidence|impact|fix|locations|proof)/);
   const dashboard = read("src/app/dashboard/page.tsx");
   assert.doesNotMatch(dashboard, /include:\s*\{\s*findings/);
+});
+
+test("subscriber gating returns every finding on a free or mini scan and clears upsell", () => {
+  assert.deepEqual(ownedScanAccess({ mode: "mini", reportAccess: "full", subscriber: true, purchased: false }), {
+    unlock: true,
+    upsell: false,
+  });
+  assert.deepEqual(ownedScanAccess({ mode: "full", reportAccess: "teaser", subscriber: true, purchased: false }), {
+    unlock: true,
+    upsell: false,
+  });
+  assert.deepEqual(ownedScanAccess({ mode: "mini", reportAccess: "teaser", subscriber: false, purchased: true }), {
+    unlock: true,
+    upsell: false,
+  });
+  assert.deepEqual(ownedScanAccess({ mode: "mini", reportAccess: "full", subscriber: false, purchased: false }), {
+    unlock: false,
+    upsell: true,
+  });
+  assert.deepEqual(ownedScanAccess({ mode: "full", reportAccess: "full", subscriber: false, purchased: false }), {
+    unlock: false,
+    upsell: false,
+  });
+
+  for (const mode of ["mini", "full"] as const) {
+    const report = buildCustomerReport({
+      scanId: `subscriber-${mode}`,
+      status: "completed",
+      mode,
+      access: "teaser",
+      unlock: true,
+      finishedAt: new Date("2026-10-24T00:00:00.000Z"),
+      marked,
+      results: [
+        { checkId: "supabase_rls_disabled", evidence: "CRITICAL_TABLE_EVIDENCE", ...detail("https://app.example/rest/v1/users") },
+        { checkId: "exposed_git", evidence: "HIGH_ADMIN_EVIDENCE", ...detail("https://app.example/admin") },
+        { checkId: "missing_csp", evidence: "MEDIUM_CSP_EVIDENCE", ...detail("https://app.example/") },
+        { checkId: "missing_referrer_policy", evidence: "LOW_REFERRER_EVIDENCE", ...detail("https://app.example/low") },
+        { checkId: "client_backend_config", evidence: "INFO_CONFIG_EVIDENCE", ...detail("https://app.example/config.js") },
+      ],
+    });
+    assert.equal(report.upsell, false);
+    assert.equal(report.access, "full");
+    assert.equal(report.hiddenCount, 0);
+    assert.equal(report.totalFindings, 5);
+    assert.equal(visibleCustomerFindings(report).length, 5);
+    assert.equal(lockedSeverityRows(report).length, 0);
+    assert.equal(reportBadge(report), FULL_REPORT_LABEL);
+    const blob = JSON.stringify(report);
+    for (const evidence of ["CRITICAL_TABLE_EVIDENCE", "HIGH_ADMIN_EVIDENCE", "MEDIUM_CSP_EVIDENCE", "LOW_REFERRER_EVIDENCE", "INFO_CONFIG_EVIDENCE"]) {
+      assert.equal(blob.includes(evidence), true, evidence);
+    }
+    const markdown = renderFixMarkdown(report, "https://app.example");
+    const html = renderPrintHtml(report, "https://app.example");
+    for (const body of [markdown, html]) {
+      assert.match(body, /https:\/\/app\.example\/rest\/v1\/users/);
+      assert.match(body, /https:\/\/app\.example\/config\.js/);
+      assert.match(body, /Supabase table is readable/);
+      assert.doesNotMatch(body, /\$49|\$99|\$29|Upgrade to|What the full report adds|Free preview/);
+    }
+  }
+
+  const stored = reportFromStored({
+    scanId: "subscriber-stored-mini",
+    status: "completed",
+    mode: "mini",
+    reportAccess: "teaser",
+    finishedAt: new Date("2026-10-24T00:00:00.000Z"),
+    unlock: true,
+    coverage: { marked, pagesScanned: 5 },
+    findings: [
+      {
+        checkId: "missing_csp",
+        evidence: "MEDIUM_CSP_EVIDENCE",
+        severity: "medium",
+        title: "Content-Security-Policy header is missing",
+        impact: "medium impact",
+        fix: "medium fix",
+        raw: detail("https://app.example/medium-only"),
+      },
+      {
+        checkId: "missing_referrer_policy",
+        evidence: "LOW_REFERRER_EVIDENCE",
+        severity: "low",
+        title: "Referrer-Policy is missing",
+        impact: "low impact",
+        fix: "low fix",
+        raw: detail("https://app.example/low"),
+      },
+    ],
+  });
+  assert.equal(stored.upsell, false);
+  assert.equal(stored.pagesScanned, 5);
+  assert.equal(visibleCustomerFindings(stored).length, 2);
+  assert.equal(JSON.stringify(stored).includes("MEDIUM_CSP_EVIDENCE"), true);
+  assert.equal(JSON.stringify(stored).includes("https://app.example/medium-only"), true);
 });

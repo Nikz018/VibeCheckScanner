@@ -2,6 +2,7 @@ import type { AuthScanPayload } from "@/lib/auth-input";
 import { assertProbeAllowed } from "@/lib/http";
 import { LOGIN_AVAILABLE_NOTICE } from "@/lib/limitations";
 import type { CheckRunState, RawCheckResult } from "@/lib/report";
+import type { ScanStageId } from "@/lib/scan-progress";
 import { ScanContext } from "./context";
 import { runAccess } from "./modules/access";
 import { runAuthenticated, skipAuthenticated } from "./modules/authenticated";
@@ -30,6 +31,7 @@ export async function runScanPipeline(options: {
   auth?: AuthScanPayload | null;
   authError?: string | null;
   reportAccess?: "teaser" | "full";
+  onProgress?: (update: { stage: ScanStageId; pagesDiscovered?: number }) => void | Promise<void>;
 }): Promise<PipelineOutput> {
   if (options.ownershipConfirmed !== true) {
     throw new Error("Ownership proof and consent are required before an active scan");
@@ -37,11 +39,21 @@ export async function runScanPipeline(options: {
   const origin = new URL(options.targetUrl).origin;
   await assertProbeAllowed(options.targetUrl, origin);
   const ctx = new ScanContext(options.targetUrl, options.mode, options.reportAccess);
+  const reportStage = async (stage: ScanStageId, pagesDiscovered?: number) => {
+    if (!options.onProgress) return;
+    await options.onProgress({ stage, ...(pagesDiscovered !== undefined ? { pagesDiscovered } : {}) });
+  };
+  ctx.onPagesDiscovered = (count) => reportStage("discover", count);
+  await reportStage("discover");
   await runCrawl(ctx);
+  await reportStage("headers", ctx.pagesScanned);
   await runHeaders(ctx);
+  await reportStage("scripts", ctx.pagesScanned);
   await runPageContent(ctx);
+  await reportStage("exposure", ctx.pagesScanned);
   await runExposure(ctx);
   if (options.mode === "full") {
+    await reportStage("routes", ctx.pagesScanned);
     await runSecrets(ctx);
     await runDependencies(ctx);
     await runSupabase(ctx);
@@ -55,5 +67,6 @@ export async function runScanPipeline(options: {
     else if (options.authError) skipAuthenticated(ctx, options.authError);
     else await runAuthenticated(ctx, options.auth ?? null);
   }
+  await reportStage("report", ctx.pagesScanned);
   return { results: ctx.results, marked: ctx.marked, notices: ctx.notices, pagesScanned: ctx.pagesScanned };
 }

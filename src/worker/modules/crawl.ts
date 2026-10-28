@@ -121,6 +121,8 @@ export async function runCrawl(ctx: ScanContext): Promise<void> {
     if (canonical) fetched.add(canonical);
     fetched.add(response.url);
     pages.push(response);
+    ctx.pagesScanned = pages.length;
+    if (ctx.onPagesDiscovered) await ctx.onPagesDiscovered(pages.length);
     for (const href of extractAnchorHrefs(response.body)) remember(href, response.url, "page");
     await collectScripts(response);
   };

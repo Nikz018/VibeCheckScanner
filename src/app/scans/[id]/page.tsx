@@ -5,7 +5,7 @@ import { ScanPoller } from "@/components/ScanPoller";
 import { ReportView } from "@/components/ReportView";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { monitoringActive } from "@/lib/entitlements";
+import { monitoringActive, ownedScanAccess } from "@/lib/entitlements";
 import { instructionsFor } from "@/lib/ownership";
 import { collectsBillingAddress } from "@/lib/payments";
 import { settlePreviewCheckout } from "@/lib/payments/confirm-purchase";
@@ -65,6 +65,15 @@ export default async function ScanPage({
     }
   }
   const paidFullScan = purchase?.fullScanId === scan.id;
+  const purchased =
+    purchase?.status === "paid" ||
+    purchases.some((row) => row.status === "paid" && (row.scanId === scan.id || row.fullScanId === scan.id));
+  const gating = ownedScanAccess({
+    mode: scan.mode,
+    reportAccess: scan.reportAccess,
+    subscriber: monitoringActive(user.subscription?.status),
+    purchased,
+  });
   if (scan.status !== "completed") {
     const proof = instructionsFor(scan.project.url, scan.project.ownershipToken);
     return (
@@ -73,6 +82,11 @@ export default async function ScanPage({
           scanId={scan.id}
           initialStatus={scan.status}
           initialError={scan.error}
+          mode={scan.mode}
+          initialStage={scan.progressStage}
+          initialPages={scan.pagesDiscovered}
+          initialStartedAt={scan.startedAt?.toISOString() ?? null}
+          initialCreatedAt={scan.createdAt.toISOString()}
           progressTitle={paidFullScan ? FULL_SCAN_PROGRESS_LABEL : undefined}
           stoppedTitle={paidFullScan ? FULL_SCAN_STOPPED_LABEL : undefined}
         />
@@ -96,6 +110,7 @@ export default async function ScanPage({
     finishedAt: scan.finishedAt,
     findings: scan.findings,
     coverage: scan.coverage,
+    unlock: gating.unlock,
   });
   return (
     <div className="py-6">
