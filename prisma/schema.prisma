@@ -77,9 +77,11 @@ model Scan {
   shareEnabled   Boolean   @default(false)
   shareToken     String?   @unique
   scheduled      Boolean   @default(false)
-  startedAt      DateTime?
-  finishedAt     DateTime?
-  createdAt      DateTime  @default(now())
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  progressStage   String?
+  pagesDiscovered Int       @default(0)
+  createdAt       DateTime  @default(now())
   project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   findings       Finding[]

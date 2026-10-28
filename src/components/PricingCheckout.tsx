@@ -12,10 +12,12 @@ export function PricingCheckout({
   signedIn,
   collectBilling,
   initialTier,
+  monitoring = false,
 }: {
   signedIn: boolean;
   collectBilling: boolean;
   initialTier: TierId | null;
+  monitoring?: boolean;
 }) {
   const [active, setActive] = useState<TierId | null>(initialTier);
   const [busy, setBusy] = useState<TierId | "">("");
@@ -23,7 +25,7 @@ export function PricingCheckout({
   const [billing, setBilling] = useState(EMPTY_BILLING);
 
   useEffect(() => {
-    if (!signedIn || !initialTier || !collectBilling) return;
+    if (monitoring || !signedIn || !initialTier || !collectBilling) return;
     let cancelled = false;
     void requestCheckout({ tier: initialTier }).then((probe) => {
       if (cancelled || probe.ok || probe.status !== 503) return;
@@ -33,7 +35,7 @@ export function PricingCheckout({
     return () => {
       cancelled = true;
     };
-  }, [signedIn, initialTier, collectBilling]);
+  }, [signedIn, initialTier, collectBilling, monitoring]);
 
   async function choose(tier: TierId) {
     setError("");
@@ -85,6 +87,7 @@ export function PricingCheckout({
 
   return (
     <div className="space-y-4">
+      {monitoring ? <p className="rounded-2xl border border-lime/40 bg-lime/10 px-4 py-3 text-sm font-semibold text-lime">You're on Monitoring</p> : null}
       <div className="grid gap-4 md:grid-cols-4">
         <article className="lift rounded-3xl border border-white/10 bg-white/5 p-5">
           <p className="font-semibold">{FREE_TIER.name}</p>
@@ -100,7 +103,9 @@ export function PricingCheckout({
             <p className="font-display text-4xl">{tier.priceLabel}</p>
             <p className="text-xs">{TAX_NOTE}</p>
             <p className="mt-3 text-sm">{tier.blurb}</p>
-            {signedIn ? (
+            {monitoring ? (
+              <p className="mt-4 text-sm font-semibold text-lime">You're on Monitoring</p>
+            ) : signedIn ? (
               <button className="btn btn-lime mt-4 w-full" type="button" disabled={busy === tier.id} onClick={() => choose(tier.id)}>
                 {busy === tier.id ? "Starting checkout…" : "Checkout"}
               </button>
@@ -112,7 +117,7 @@ export function PricingCheckout({
           </article>
         ))}
       </div>
-      {signedIn && active && collectBilling ? (
+      {!monitoring && signedIn && active && collectBilling ? (
         <form
           className="paper rounded-3xl p-5 text-ink"
           onSubmit={(event) => {
@@ -135,14 +140,14 @@ export function PricingCheckout({
           ) : null}
         </form>
       ) : null}
-      {signedIn && active && !collectBilling ? (
+      {!monitoring && signedIn && active && !collectBilling ? (
         <div>
           <button className="btn btn-lime" disabled={busy === active} type="button" onClick={() => void submit(active, billing)}>
             {busy === active ? "Starting checkout…" : `Continue to checkout for ${TIERS[active].name} (${TIERS[active].priceLabel}, ${TAX_NOTE})`}
           </button>
         </div>
       ) : null}
-      {error && !(signedIn && active && collectBilling) ? (
+      {!monitoring && error && !(signedIn && active && collectBilling) ? (
         <p className="text-sm text-[#f3c7bc]" role="alert">
           {error}
         </p>

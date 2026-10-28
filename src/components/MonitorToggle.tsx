@@ -2,7 +2,17 @@
 
 import { useState } from "react";
 
-export function MonitorToggle({ projectId, enabled, allowed }: { projectId: string; enabled: boolean; allowed: boolean }) {
+export function MonitorToggle({
+  projectId,
+  enabled,
+  allowed,
+  showPrice = true,
+}: {
+  projectId: string;
+  enabled: boolean;
+  allowed: boolean;
+  showPrice?: boolean;
+}) {
   const [on, setOn] = useState(enabled);
   const [error, setError] = useState("");
 
@@ -26,7 +36,7 @@ export function MonitorToggle({ projectId, enabled, allowed }: { projectId: stri
       <button className="btn btn-ghost-ink" type="button" onClick={toggle} disabled={!allowed && !on}>
         {on ? "Monitoring on" : "Monitor this origin"}
       </button>
-      {!allowed && !on ? <p className="mt-1 text-[#6a6154]">Monitoring needs an active $29/mo subscription.</p> : null}
+      {!allowed && !on && showPrice ? <p className="mt-1 text-[#6a6154]">Monitoring needs an active $29/mo subscription.</p> : null}
       {error ? <p className="mt-1 text-[#8a2d18]">{error}</p> : null}
     </div>
   );

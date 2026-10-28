@@ -1,5 +1,5 @@
 import type { CustomerReport } from "@/lib/report";
-import { FREE_PREVIEW_LABEL, FULL_REPORT_PURCHASE_LEDE, RESCAN_PURCHASE_NOTE, formatSeverityBreakdown, freePreviewFacts, freePreviewLines, lockedSeverityRows } from "@/lib/report";
+import { FREE_PREVIEW_LABEL, FULL_REPORT_PURCHASE_LEDE, RESCAN_PURCHASE_NOTE, formatSeverityBreakdown, freePreviewFacts, freePreviewLines, lockedSeverityRows, reportBadge } from "@/lib/report";
 import type { Severity } from "@/lib/catalog";
 import { TAX_NOTE, TIERS, type TierId } from "@/lib/pricing";
 import { PAYMENT_DECLINED_COPY, PAYMENT_TRY_AGAIN_LABEL } from "@/lib/payments/checkout-return";
@@ -56,8 +56,8 @@ export function ReportView({
       <section className="panel panel-glow p-6 md:p-8">
         <div className="flex flex-wrap items-center justify-between gap-6">
           <div>
-            <p className={report.access === "teaser" && !sample ? "inline-flex rounded-full bg-[#fff3c4] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#5c4a10]" : "text-xs uppercase tracking-[0.18em] text-[#b7c6dc]"}>
-              {report.access === "teaser" ? FREE_PREVIEW_LABEL : sample ? "Sample report" : "Launch scan"}
+            <p className={report.upsell && !sample ? "inline-flex rounded-full bg-[#fff3c4] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#5c4a10]" : "text-xs uppercase tracking-[0.18em] text-[#b7c6dc]"}>
+              {reportBadge(report, sample)}
             </p>
             <div className="mt-3">
               <ScoreGauge score={report.score} tone="dark" />
@@ -70,7 +70,7 @@ export function ReportView({
             {report.pagesScanned !== null ? (
               <p className="mt-2 text-sm">Scanned {report.pagesScanned} {report.pagesScanned === 1 ? "page" : "pages"}.</p>
             ) : null}
-            {report.access === "full" && scanId && !sample ? (
+            {!report.upsell && scanId && !sample ? (
               <div className="mt-4 flex flex-wrap gap-2">
                 <a className="btn btn-lime" href={`/api/scans/${scanId}/pdf`}>
                   Download PDF
@@ -114,7 +114,7 @@ export function ReportView({
         ))}
       </section>
 
-      {report.access === "teaser" ? (
+      {report.upsell ? (
         <FreeFindings report={report} scanId={scanId} collectBilling={collectBilling} />
       ) : (
         <>
@@ -146,7 +146,7 @@ export function ReportView({
         </>
       )}
 
-      {report.mode === "mini" && !sample ? (
+      {report.upsell && report.mode === "mini" && !sample ? (
         <section id="upgrade" className="space-y-4">
           <div className="upgrade-panel p-5">
             <h2 className="font-display text-3xl">{FREE_PREVIEW_LABEL}</h2>
@@ -192,6 +192,17 @@ export function ReportView({
             <UpgradePanel scanId={scanId} collectBilling={collectBilling} heading="What the full report adds" lede={FULL_REPORT_PURCHASE_LEDE} />
           ) : null}
         </section>
+      ) : !report.upsell && (paidFollowup || paymentNotice) && !sample ? (
+        <section className="space-y-4">
+          {paidFollowup ? <PaidScanFollowup followup={paidFollowup} /> : null}
+          {paymentNotice === "confirming" ? <PaymentConfirming recheck={recheck} /> : null}
+          {paymentNotice === "declined" ? (
+            <section className="rounded-3xl border border-[#f3c7bc]/50 bg-[#f3c7bc]/10 p-5">
+              <h2 className="font-display text-3xl">Payment didn't go through</h2>
+              <p className="mt-3 text-sm text-[#d5deee]">{PAYMENT_DECLINED_COPY}</p>
+            </section>
+          ) : null}
+        </section>
       ) : null}
 
       <section className="panel p-5">
@@ -205,11 +216,11 @@ export function ReportView({
       </section>
 
       {scanId && share ? <SharePanel scanId={scanId} enabled={share.enabled} token={share.token} /> : null}
-      {project ? (
+      {project && (project.monitoringAllowed || report.upsell) ? (
         <div className="paper rounded-3xl p-5 text-ink">
           <h3 className="font-display text-2xl">Continuous monitoring</h3>
           <p className="mb-3 mt-1 text-sm text-[#3d4d44]">Scheduled rescans use the same ownership proof. If you remove the token, the next run stops.</p>
-          <MonitorToggle projectId={project.id} enabled={project.monitorEnabled} allowed={project.monitoringAllowed} />
+          <MonitorToggle projectId={project.id} enabled={project.monitorEnabled} allowed={project.monitoringAllowed} showPrice={report.upsell} />
         </div>
       ) : null}
     </div>

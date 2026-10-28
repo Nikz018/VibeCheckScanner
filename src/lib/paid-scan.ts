@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "./auth";
 import { downloadAccess } from "./download";
 import { prisma } from "./db";
+import { monitoringActive, ownedScanAccess } from "./entitlements";
 import { reportFromStored } from "./stored-report";
 import type { CustomerReport } from "./report";
 
@@ -16,9 +17,29 @@ export async function requirePaidScan(scanId: string): Promise<
         include: { findings: true },
       })
     : null;
+  const purchased = user && scan
+    ? await prisma.purchase.findFirst({
+        where: {
+          userId: user.id,
+          status: "paid",
+          tier: { in: ["report", "rescan"] },
+          OR: [{ scanId: scan.id }, { fullScanId: scan.id }],
+        },
+        select: { id: true },
+      })
+    : null;
+  const gating = scan
+    ? ownedScanAccess({
+        mode: scan.mode,
+        reportAccess: scan.reportAccess,
+        subscriber: monitoringActive(user?.subscription?.status),
+        purchased: Boolean(purchased),
+      })
+    : { unlock: false, upsell: true };
   const gate = downloadAccess({
     userId: user?.id ?? null,
     scan: scan ? { userId: scan.userId, reportAccess: scan.reportAccess, status: scan.status } : null,
+    unlock: gating.unlock,
   });
   if (!gate.ok || !scan) {
     const status = gate.ok ? 404 : gate.status;
@@ -33,6 +54,7 @@ export async function requirePaidScan(scanId: string): Promise<
     finishedAt: scan.finishedAt,
     findings: scan.findings,
     coverage: scan.coverage,
+    unlock: gating.unlock,
   });
   return { ok: true, targetUrl: scan.targetUrl, report };
 }

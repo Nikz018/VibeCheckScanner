@@ -4,6 +4,7 @@ import { PricingCheckout } from "@/components/PricingCheckout";
 import { PublicArticle, QaSection, TaxLine } from "@/components/Marketing";
 import { getCurrentUser } from "@/lib/auth";
 import { tierFromCheckoutParam } from "@/lib/checkout-path";
+import { monitoringActive } from "@/lib/entitlements";
 import { collectsBillingAddress } from "@/lib/payments";
 import { PRICING_SECTIONS } from "@/lib/seo/content";
 import { pageMetadata } from "@/lib/seo/metadata";
@@ -16,7 +17,12 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
   const user = await getCurrentUser();
   return (
     <PublicArticle pageId="pricing" width="wide">
-      <PricingCheckout signedIn={Boolean(user)} collectBilling={collectsBillingAddress()} initialTier={tierFromCheckoutParam(params.checkout)} />
+      <PricingCheckout
+        signedIn={Boolean(user)}
+        collectBilling={collectsBillingAddress()}
+        initialTier={tierFromCheckoutParam(params.checkout)}
+        monitoring={monitoringActive(user?.subscription?.status)}
+      />
       <TaxLine />
       {PRICING_SECTIONS.map((section) => (
         <QaSection key={section.heading} {...section} />

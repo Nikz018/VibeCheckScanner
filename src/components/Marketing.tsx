@@ -1,11 +1,9 @@
 import Link from "next/link";
-import { abuseContactEmail } from "@/lib/scanner-identity";
+import { abuseContactEmail, supportContactEmail } from "@/lib/scanner-identity";
 import {
-  CONTACT_EMAIL_PLACEHOLDER,
   FAQ,
   GUIDES,
   ISSUE_CHECKS,
-  LEGAL_REVIEW_NOTE,
   breadcrumbsFor,
   getPublicPage,
   type CopyBlock,
@@ -17,14 +15,6 @@ import { FREE_TIER, TAX_NOTE, TIERS } from "@/lib/pricing";
 export function JsonLd({ data }: { data: unknown }) {
   const json = JSON.stringify(data).replace(/</g, "\\u003c");
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: json }} />;
-}
-
-export function ReviewNote() {
-  return (
-    <p role="note" className="mt-6 rounded-2xl border border-[#ead98a] bg-[#fff7d4] px-4 py-3 text-sm text-ink">
-      {LEGAL_REVIEW_NOTE}
-    </p>
-  );
 }
 
 export function Breadcrumbs({ id }: { id: PublicPageId }) {
@@ -60,7 +50,6 @@ export function PublicArticle({
   return (
     <article className={`${frame} pb-16`}>
       <Breadcrumbs id={pageId} />
-      {page.review ? <ReviewNote /> : null}
       <h1 className="mt-6 font-display text-5xl leading-[1.05] md:text-6xl">{page.h1}</h1>
       <p className="mt-5 text-lg text-[#ddd6c8]">{page.lede}</p>
       <div className="mt-10 space-y-10">{children}</div>
@@ -166,27 +155,31 @@ export function GuideArticle({ pageId }: { pageId: keyof typeof GUIDES }) {
 }
 
 export function ContactEmail() {
+  const support = supportContactEmail();
   const abuse = abuseContactEmail();
   return (
     <div className="space-y-3">
       <p>
-        Product email:{" "}
-        <a className="text-lime" href={`mailto:${CONTACT_EMAIL_PLACEHOLDER}`}>
-          {CONTACT_EMAIL_PLACEHOLDER}
-        </a>
-      </p>
-      <p>
-        {abuse ? (
+        {support ? (
           <>
-            Abuse reports:{" "}
-            <a className="text-lime" href={`mailto:${abuse}`}>
-              {abuse}
-            </a>
+            Email{" "}
+            <a className="text-lime" href={`mailto:${support}`}>
+              {support}
+            </a>{" "}
+            about a scan, a receipt, a refund, or a privacy request.
           </>
         ) : (
-          <>This server has not published an abuse email yet. Use the product email and put abuse report in the subject.</>
+          <>A support email is not configured on this server yet.</>
         )}
       </p>
+      {abuse && abuse !== support ? (
+        <p>
+          Abuse reports:{" "}
+          <a className="text-lime" href={`mailto:${abuse}`}>
+            {abuse}
+          </a>
+        </p>
+      ) : null}
     </div>
   );
 }

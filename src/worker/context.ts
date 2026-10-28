@@ -47,6 +47,7 @@ export class ScanContext {
   results: RawCheckResult[] = [];
   marked: Record<string, CheckRunState> = {};
   notices: string[] = [];
+  onPagesDiscovered: ((count: number) => void | Promise<void>) | null = null;
   private secretValues: string[] = [];
 
   constructor(targetUrl: string, mode: "full" | "mini", reportAccess?: "teaser" | "full") {

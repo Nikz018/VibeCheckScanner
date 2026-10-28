@@ -23,3 +23,18 @@ export async function resolveReportAccess(userId: string, choice: "teaser" | "cr
 export function monitoringActive(status: string | null | undefined): boolean {
   return status === "active" || status === "trialing";
 }
+
+/** How an owned scan should be delivered. Subscribers and one-time purchases skip the free-tier withhold. */
+export function ownedScanAccess(input: {
+  mode: string;
+  reportAccess: string;
+  subscriber: boolean;
+  purchased: boolean;
+}): { unlock: boolean; upsell: boolean } {
+  const paidFull = input.mode === "full" && input.reportAccess === "full";
+  const entitled = input.subscriber || input.purchased || paidFull;
+  return {
+    unlock: input.subscriber || input.purchased,
+    upsell: !entitled,
+  };
+}

@@ -102,6 +102,7 @@ test("env example documents web, worker, and compose variables", () => {
     "BROWSER_TIMEOUT_MS=",
     "WORKER_CONCURRENCY=",
     "ABUSE_CONTACT_EMAIL=",
+    "SUPPORT_EMAIL=",
     "SCAN_TARGET_CONCURRENCY=",
     "SCAN_TARGET_MIN_INTERVAL_MS=",
     "MONITOR_INTERVAL_HOURS=",

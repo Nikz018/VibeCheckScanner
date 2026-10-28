@@ -6,8 +6,8 @@ import { ScoreGauge } from "@/components/ScoreGauge";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { SEVERITIES } from "@/lib/catalog";
-import { monitoringActive } from "@/lib/entitlements";
-import { formatSeverityBreakdown, readSeverityCounts } from "@/lib/report";
+import { monitoringActive, ownedScanAccess } from "@/lib/entitlements";
+import { formatSeverityBreakdown, readSeverityCounts, reportBadge } from "@/lib/report";
 import { paidScanDashboardAction } from "@/lib/payments/paid-scan-status";
 import { UPGRADE_ACTIONS } from "@/lib/pricing";
 import { privateMetadata } from "@/lib/seo/metadata";
@@ -29,8 +29,11 @@ export default async function DashboardPage() {
     }),
   ]);
   const purchaseByPreview = new Map<string, (typeof purchases)[number]>();
+  const paidScanIds = new Set<string>();
   for (const purchase of purchases) {
     if (purchase.scanId && !purchaseByPreview.has(purchase.scanId)) purchaseByPreview.set(purchase.scanId, purchase);
+    if (purchase.scanId) paidScanIds.add(purchase.scanId);
+    if (purchase.fullScanId) paidScanIds.add(purchase.fullScanId);
   }
   const subscribed = monitoringActive(user.subscription?.status);
 
@@ -87,7 +90,15 @@ export default async function DashboardPage() {
         <ul className="mt-3 space-y-3">
           {scans.length === 0 ? <li className="py-4 text-sm text-[#c5d2e6]">No scans yet.</li> : null}
           {scans.map((scan) => {
-            const action = scan.mode === "mini" ? paidScanDashboardAction(scan.id, purchaseByPreview.get(scan.id) ?? null, UPGRADE_ACTIONS.report) : null;
+            const access = ownedScanAccess({
+              mode: scan.mode,
+              reportAccess: scan.reportAccess,
+              subscriber: subscribed,
+              purchased: paidScanIds.has(scan.id),
+            });
+            const rawAction = scan.mode === "mini" ? paidScanDashboardAction(scan.id, purchaseByPreview.get(scan.id) ?? null, UPGRADE_ACTIONS.report) : null;
+            const pricingAction = rawAction?.label === UPGRADE_ACTIONS.report || rawAction?.label === UPGRADE_ACTIONS.rescan;
+            const action = rawAction && (!pricingAction || access.upsell) ? rawAction : null;
             const counts = readSeverityCounts(scan.severityCounts);
             const total = counts ? SEVERITIES.reduce((sum, severity) => sum + counts[severity], 0) : null;
             const breakdown = counts ? formatSeverityBreakdown(counts) : "";
@@ -100,8 +111,7 @@ export default async function DashboardPage() {
                       {scan.project.url}
                     </Link>
                     <p className="text-[#c5d2e6]">
-                      {scan.mode === "mini" ? "free preview" : scan.mode} · {scan.status}
-                      {scan.mode === "mini" ? "" : ` · ${scan.reportAccess}`}
+                      {reportBadge({ upsell: access.upsell })} · {scan.status}
                       {scan.scheduled ? " · scheduled" : ""}
                     </p>
                     {scan.status === "completed" && total === 0 ? <p className="text-[#c5d2e6]">No findings</p> : null}

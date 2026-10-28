@@ -8,11 +8,14 @@ import { toolBrandPattern } from "./tool-denylist";
 export function downloadAccess(input: {
   userId: string | null;
   scan: { userId: string; reportAccess: string; status: string } | null;
+  /** Active monitoring subscriber, or the one-time purchase that covers this scan. */
+  unlock?: boolean;
 }): { ok: true } | { ok: false; status: 401 | 403 | 404 } {
   if (!input.userId) return { ok: false, status: 401 };
   if (!input.scan) return { ok: false, status: 404 };
   if (input.scan.userId !== input.userId) return { ok: false, status: 403 };
-  if (input.scan.status !== "completed" || input.scan.reportAccess !== "full") return { ok: false, status: 403 };
+  const open = input.scan.reportAccess === "full" || input.unlock === true;
+  if (input.scan.status !== "completed" || !open) return { ok: false, status: 403 };
   return { ok: true };
 }
 

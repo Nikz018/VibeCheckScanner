@@ -45,7 +45,7 @@ export function PaidScanFollowup({ followup }: { followup: PaidScanFollowupState
     return (
       <section className="rounded-3xl border border-lime/40 bg-lime/10 p-5">
         <h2 className="font-display text-3xl">Full report ready</h2>
-        <p className="mt-3 text-sm text-[#d9d3c5]">The paid scan finished. The free preview above is unchanged.</p>
+        <p className="mt-3 text-sm text-[#d9d3c5]">The paid scan finished.</p>
         <a className="btn btn-lime mt-4" href={`/scans/${scan.id}`}>
           {OPEN_FULL_REPORT_LABEL}
         </a>

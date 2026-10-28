@@ -8,8 +8,6 @@ import {
   HOW_TO_STEPS,
   ISSUE_CHECKS,
   ISSUE_CHECKS_ANSWER,
-  LEGAL_REVIEW_NOTE,
-  PUBLIC_PAGES,
   SITE_NAME,
   getPublicPage,
   monitoringPriceWords,
@@ -58,11 +56,11 @@ export function llmsTxt(): string {
     pageLink("guide-rls", "Supabase row level security checklist."),
     pageLink("guide-keys", "How a vibe-coded app leaks an API key and what to do."),
     pageLink("demo-report", "Sample report UI with invented data, not a live scan."),
-    pageLink("terms", "Draft terms. Not final."),
-    pageLink("privacy", "Draft privacy notes. Not final."),
-    pageLink("refund", "Draft refund policy. Not final."),
+    pageLink("terms", "Terms for accounts, ownership proof, and paid plans."),
+    pageLink("privacy", "Account, scan, and payment data the app stores."),
+    pageLink("refund", "Refund and cancellation terms for paid plans."),
     pageLink("scanner-info", "How a scan identifies itself, and how to report abuse."),
-    pageLink("contact", "Placeholder contact email and the abuse mailbox."),
+    pageLink("contact", "Support email and the abuse mailbox."),
     `- [llms-full.txt](${absoluteUrl("/llms-full.txt")}): longer product, pricing, FAQ, and guide text for language models.`,
     "",
   ];
@@ -91,8 +89,9 @@ export function llmsFullTxt(): string {
       if (section.code) lines.push("```", section.code, "```", "");
     }
   }
-  lines.push("## Draft legal pages", "", LEGAL_REVIEW_NOTE, "");
-  for (const page of PUBLIC_PAGES.filter((item) => item.review)) {
+  lines.push("## Legal pages", "");
+  for (const id of ["terms", "privacy", "refund", "contact"] as const) {
+    const page = getPublicPage(id);
     lines.push(`- ${page.h1}: ${absoluteUrl(page.path)} — ${page.lede}`);
   }
   lines.push("");

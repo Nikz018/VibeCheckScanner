@@ -22,3 +22,10 @@ export function abuseContactEmail(raw = process.env.ABUSE_CONTACT_EMAIL): string
   if (!value || value.length > 254 || !EMAIL.test(value)) return "";
   return value;
 }
+
+/** Product support mailbox. SUPPORT_EMAIL wins; otherwise ABUSE_CONTACT_EMAIL. Empty when neither is a valid email. */
+export function supportContactEmail(support = process.env.SUPPORT_EMAIL, abuse = process.env.ABUSE_CONTACT_EMAIL): string {
+  const fromSupport = abuseContactEmail(support ?? "");
+  if (fromSupport) return fromSupport;
+  return abuseContactEmail(abuse ?? "");
+}

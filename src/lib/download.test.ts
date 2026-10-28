@@ -72,6 +72,10 @@ test("downloads require the owner and a paid completed scan", () => {
     downloadAccess({ userId: "user-a", scan: { userId: "user-a", reportAccess: "full", status: "completed" } }),
     { ok: true },
   );
+  assert.deepEqual(
+    downloadAccess({ userId: "user-a", scan: { userId: "user-a", reportAccess: "teaser", status: "completed" }, unlock: true }),
+    { ok: true },
+  );
 });
 
 test("markdown and print html keep location and fix, and drop raw secrets and tool names", () => {
