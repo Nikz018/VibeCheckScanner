@@ -70,26 +70,38 @@ export default function OpenGraphImage() {
               width: 360,
             }}
           >
-            <svg width="240" height="240" viewBox="0 0 200 200">
-              <circle cx="100" cy="100" r="78" fill="none" stroke="#e4dfd2" strokeWidth="12" />
-              <circle
-                cx="100"
-                cy="100"
-                r="78"
-                fill="none"
-                stroke={band.color}
-                strokeWidth="12"
-                strokeLinecap="round"
-                strokeDasharray={`${dash} ${ring}`}
-                transform="rotate(-90 100 100)"
-              />
-              <text x="100" y="96" textAnchor="middle" fill="#14201b" fontSize="28" fontWeight={700}>
-                72/100
-              </text>
-              <text x="100" y="122" textAnchor="middle" fill={band.color} fontSize="14">
-                {band.label}
-              </text>
-            </svg>
+            <div style={{ position: "relative", width: 240, height: 240, display: "flex" }}>
+              <svg width="240" height="240" viewBox="0 0 200 200">
+                <circle cx="100" cy="100" r="78" fill="none" stroke="#e4dfd2" strokeWidth="12" />
+                <circle
+                  cx="100"
+                  cy="100"
+                  r="78"
+                  fill="none"
+                  stroke={band.color}
+                  strokeWidth="12"
+                  strokeLinecap="round"
+                  strokeDasharray={`${dash} ${ring}`}
+                  transform="rotate(-90 100 100)"
+                />
+              </svg>
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: 240,
+                  height: 240,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <div style={{ display: "flex", fontSize: 28, fontWeight: 700, color: "#14201b" }}>72/100</div>
+                <div style={{ display: "flex", marginTop: 6, fontSize: 16, color: band.color }}>{band.label}</div>
+              </div>
+            </div>
             <div style={{ display: "flex", fontSize: 16, color: "#536058", marginTop: 8 }}>Example gauge</div>
           </div>
         </div>
