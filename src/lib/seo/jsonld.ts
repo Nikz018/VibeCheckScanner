@@ -104,7 +104,9 @@ function softwareNode(options: { offers: boolean; features: boolean }): Record<s
     operatingSystem: "Web",
     url: absoluteUrl("/"),
     description: options.features ? DEFINITION : getPublicPage("pricing").lede,
-    brand: { "@id": organizationId() },
+    image: absoluteUrl("/opengraph-image"),
+    brand: { "@type": "Brand", name: SITE_NAME },
+    publisher: { "@id": organizationId() },
     isAccessibleForFree: true,
   };
   if (options.features) node.featureList = ISSUE_CHECKS.map((item) => item.title);

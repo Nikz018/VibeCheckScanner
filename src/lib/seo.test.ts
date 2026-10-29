@@ -20,6 +20,7 @@ import {
   ISSUE_CHECKS,
   ISSUE_CHECKS_ANSWER,
   PUBLIC_PAGES,
+  SITE_NAME,
   allCopyBlocks,
   getPublicPage,
   priceAnswer,
@@ -212,6 +213,9 @@ test("JSON-LD is valid schema.org for each public page", () => {
   const software = findType(home, "SoftwareApplication");
   assert.ok(typesOf(software).includes("Product"));
   assert.equal(software.description, DEFINITION);
+  assert.equal(software.image, absoluteUrl("/opengraph-image"));
+  assert.deepEqual(software.brand, { "@type": "Brand", name: SITE_NAME });
+  assert.deepEqual(software.publisher, { "@id": `${SITE}/#organization` });
   const offers = software.offers as Array<Record<string, unknown>>;
   assert.equal(offers.length, 4);
   assert.deepEqual(
@@ -233,7 +237,10 @@ test("JSON-LD is valid schema.org for each public page", () => {
   assert.deepEqual(software.featureList, ISSUE_CHECKS.map((item) => item.title));
 
   const pricing = graphNodes(jsonLdForPage("pricing"));
-  assert.equal((findType(pricing, "SoftwareApplication").offers as unknown[]).length, 4);
+  const pricingSoftware = findType(pricing, "SoftwareApplication");
+  assert.equal((pricingSoftware.offers as unknown[]).length, 4);
+  assert.equal(pricingSoftware.image, absoluteUrl("/opengraph-image"));
+  assert.deepEqual(pricingSoftware.brand, { "@type": "Brand", name: SITE_NAME });
 
   const faq = findType(graphNodes(jsonLdForPage("faq")), "FAQPage");
   const questions = faq.mainEntity as Array<Record<string, unknown>>;
