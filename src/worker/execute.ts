@@ -8,7 +8,8 @@ import type { AuthScanPayload } from "@/lib/auth-input";
 import { verifyOwnership } from "@/lib/ownership";
 import { paidReportAlertMessage, paidReportNotice } from "@/lib/payments/paid-scan-status";
 import { recordScanAuthorization } from "@/lib/scan-authorization";
-import { buildCustomerReport } from "@/lib/report";
+import { countNewMonitorIssues } from "@/lib/monitor-alerts";
+import { buildCustomerReport, type RawCheckResult } from "@/lib/report";
 import { clampText, sanitizeCode, sanitizeCustomerText } from "@/lib/sanitize";
 import { computeScore, isPassingScore } from "@/lib/score";
 import type { ScanStageId } from "@/lib/scan-progress";
@@ -86,7 +87,7 @@ async function runQueuedScan(scan: Prisma.ScanGetPayload<{ include: { project: t
       onProgress: (update) => recordProgress(scan.id, update.stage, update.pagesDiscovered),
     });
     const finishedAt = new Date();
-    const severities = output.results.map((result) => ({ severity: getCheck(result.checkId).severity }));
+    const severities = output.results.map((result) => ({ severity: result.severity ?? getCheck(result.checkId).severity }));
     const finalScore = computeScore(severities);
     const passed = isPassingScore(finalScore, severities);
     const report = buildCustomerReport({
@@ -104,18 +105,19 @@ async function runQueuedScan(scan: Prisma.ScanGetPayload<{ include: { project: t
     await prisma.finding.deleteMany({ where: { scanId: scan.id } });
     for (const result of output.results) {
       const check = getCheck(result.checkId);
+      const severity = result.severity ?? check.severity;
       await prisma.finding.create({
         data: {
           scanId: scan.id,
           checkId: check.id,
           family: check.family,
-          severity: check.severity,
-          title: sanitizeCustomerText(check.title),
+          severity,
+          title: sanitizeCustomerText(result.title ?? check.title),
           evidence: clampText(result.evidence),
-          impact: sanitizeCustomerText(check.impact),
-          fix: sanitizeCode(check.fix),
+          impact: sanitizeCustomerText(result.impact ?? check.impact),
+          fix: sanitizeCode(result.fix ?? check.fix),
           headlineRank: check.headlineRank,
-          sortOrder: check.headlineRank ?? 50 + ["critical", "high", "medium", "low", "info"].indexOf(check.severity),
+          sortOrder: check.headlineRank ?? 50 + ["critical", "high", "medium", "low", "info"].indexOf(severity),
           raw: JSON.parse(
             JSON.stringify({
               locations: result.locations ?? [],
@@ -123,6 +125,7 @@ async function runQueuedScan(scan: Prisma.ScanGetPayload<{ include: { project: t
               steps: result.steps ?? [],
               confidence: result.confidence ?? null,
               affectedPages: result.affectedPages ?? [],
+              advisories: result.advisories ?? [],
             }),
           ) as Prisma.InputJsonObject,
         },
@@ -143,14 +146,7 @@ async function runQueuedScan(scan: Prisma.ScanGetPayload<{ include: { project: t
     });
 
     if (scan.scheduled) {
-      await maybeAlert(
-        scan.id,
-        scan.projectId,
-        scan.userId,
-        scan.user.email,
-        scan.targetUrl,
-        output.results.map((result) => result.checkId),
-      );
+      await maybeAlert(scan.id, scan.projectId, scan.userId, scan.user.email, scan.targetUrl, output.results);
     }
     await notifyPaidReport(scan.id, scan.userId, scan.user.email, scan.targetUrl);
   } catch (error) {
@@ -165,26 +161,25 @@ async function maybeAlert(
   userId: string,
   email: string,
   targetUrl: string,
-  checkIds: string[],
+  results: RawCheckResult[],
 ): Promise<void> {
   const previous = await prisma.scan.findFirst({
     where: { projectId, status: "completed", id: { not: scanId } },
     orderBy: { finishedAt: "desc" },
     include: { findings: true },
   });
-  const previousSerious = new Set(
-    (previous?.findings ?? [])
-      .filter((finding) => finding.severity === "critical" || finding.severity === "high")
-      .map((finding) => finding.checkId),
+  const fresh = countNewMonitorIssues(
+    previous?.findings ?? [],
+    results.map((result) => ({
+      checkId: result.checkId,
+      severity: result.severity ?? getCheck(result.checkId).severity,
+      advisories: result.advisories,
+    })),
   );
-  const fresh = checkIds.filter((checkId) => {
-    const severity = getCheck(checkId).severity;
-    return (severity === "critical" || severity === "high") && !previousSerious.has(checkId);
-  });
-  if (fresh.length === 0) return;
+  if (fresh === 0) return;
   const host = new URL(targetUrl).host;
   const link = `${process.env.APP_URL || "http://localhost:3000"}/scans/${scanId}`;
-  const alert = renderMonitorAlertEmail(host, fresh.length, link);
+  const alert = renderMonitorAlertEmail(host, fresh, link);
   await prisma.alert.create({ data: { userId, scanId, message: alert.message } });
   await sendEmail({ to: email, subject: alert.subject, text: alert.text, html: alert.html });
 }

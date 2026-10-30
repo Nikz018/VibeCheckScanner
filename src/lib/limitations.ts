@@ -3,7 +3,7 @@ export const SCAN_LIMITATIONS_TITLE = "What this scan does not cover";
 export const SCAN_LIMITATIONS = [
   "Business-logic flaws, such as a workflow that does the wrong thing for a valid user.",
   "Write or delete abuse. Probes are read-only, so a bug that only appears when data is changed is not proven.",
-  "Source code and dependencies, unless a repository is connected or a manifest is already public.",
+  "Private source and lockfiles. Library versions are read only from pages and scripts the site already serves, and from a public package.json when one is present.",
   "Load testing and brute-force testing.",
   "Mobile apps and backends that are not part of this web origin.",
   "Subdomains and other hosts are not crawled. Pages beyond the page limit are not scanned.",
