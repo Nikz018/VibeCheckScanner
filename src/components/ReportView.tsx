@@ -122,8 +122,8 @@ export function ReportView({
             <section className="space-y-4">
               <h2 className="font-display text-3xl">Priority issues</h2>
               <div className="grid gap-4">
-                {report.priority.map((finding) => (
-                  <FindingCard key={finding.checkId} finding={finding} showAffectedPages />
+                {report.priority.map((finding, index) => (
+                  <FindingCard key={`${finding.checkId}-${index}`} finding={finding} showAffectedPages />
                 ))}
               </div>
             </section>
@@ -135,8 +135,8 @@ export function ReportView({
               <h2 className="font-display text-2xl">{group.label}</h2>
               {group.findings
                 .filter((finding) => finding.headlineRank === null)
-                .map((finding) => (
-                  <FindingCard key={finding.checkId} finding={finding} showAffectedPages />
+                .map((finding, index) => (
+                  <FindingCard key={`${finding.checkId}-${index}`} finding={finding} showAffectedPages />
                 ))}
               {group.findings.every((finding) => finding.headlineRank !== null) ? (
                 <p className="text-sm text-[#c5d2e6]">Headline findings for this family are in the priority list above.</p>
@@ -258,8 +258,8 @@ function FreeFindings({
         </p>
       )}
       <div className="grid gap-4">
-        {report.samples.map((finding) => (
-          <FindingCard key={finding.checkId} finding={finding} />
+        {report.samples.map((finding, index) => (
+          <FindingCard key={`${finding.checkId}-${index}`} finding={finding} />
         ))}
       </div>
       {visibleLocked.length > 0 ? (

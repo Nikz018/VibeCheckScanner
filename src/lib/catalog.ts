@@ -1,3 +1,5 @@
+import { SCAN_LIMITATIONS, SCAN_LIMITATIONS_NOTE, SCAN_LIMITATIONS_TITLE } from "./limitations";
+
 export const FAMILIES = [
   {
     id: "secrets",
@@ -37,7 +39,7 @@ export const FAMILIES = [
   {
     id: "dependencies",
     label: "Dependencies",
-    blurb: "Publicly exposed manifests that pin a library to a known-vulnerable version.",
+    blurb: "Library versions visible on public pages and scripts, and in a public package.json when one is present.",
   },
 ] as const;
 
@@ -758,20 +760,19 @@ If you must render HTML, sanitize it with a maintained allow-list on the server 
     id: "vulnerable_dependency",
     module: "dependencies",
     family: "dependencies",
-    title: "Public manifest pins a dependency with a known vulnerability",
+    title: "A served library version has a known vulnerability",
     severity: "high",
     headlineRank: null,
     owaspTop10: "A06:2021 Vulnerable and Outdated Components",
     owaspApiTop10: "API8:2023 Security Misconfiguration",
     asvs: "V10 Malicious Code",
     cwe: "CWE-1395",
-    impact:
-      "The deployed app advertises a library version with a published vulnerability, and the manifest itself is public.",
-    fix: `Upgrade the package past the affected version and redeploy. Then stop publishing the manifest.
+    impact: "The site is serving a library version that the public vulnerability database lists as vulnerable.",
+    fix: `Upgrade the library to the fixed version named in the finding and redeploy.
 
 npm install lodash@4.17.21
 
-Use the fixed version named in the finding. Remove package.json and the lockfile from the public host so version details stay in your repo.`,
+Use the fixed version from the finding, not this example. When a public package.json exposed the version, stop publishing that file.`,
   },
   {
     id: "exposed_package_manifest",
@@ -1087,16 +1088,11 @@ export function renderChecklistMarkdown(): string {
   lines.push("");
   lines.push("Reports group findings by the eight families and include a coverage row for each family: ran, pass, findings, not run, or not completed. A paid finding shows a title, severity, evidence, impact, the exact location that was tested, the request and a short redacted response, steps to reproduce, and a copy-paste fix. The owner of an unlocked scan can download that report as a PDF or as a Markdown file to paste into an AI coding assistant. The free teaser keeps one finding, the lowest severity, in full detail, plus the true total and the count for each severity. Every other finding is left out of the page, the download, and the email. Score, scan date, and the public badge are derived from severities. The badge and share page show the score out of 100 and the date only, and they switch to a rescan-needed state 30 days after the scan.");
   lines.push("");
-  lines.push("## What this scan does not cover");
+  lines.push(`## ${SCAN_LIMITATIONS_TITLE}`);
   lines.push("");
-  lines.push("- Business-logic flaws, such as a workflow that does the wrong thing for a valid user.");
-  lines.push("- Write or delete abuse. Probes are read-only, so a bug that only appears when data is changed is not proven.");
-  lines.push("- Source code and dependencies, unless a repository is connected or a manifest is already public.");
-  lines.push("- Load testing and brute-force testing.");
-  lines.push("- Mobile apps and backends that are not part of this web origin.");
-  lines.push("- Subdomains and other hosts are not crawled. Pages beyond the page limit are not scanned.");
+  for (const item of SCAN_LIMITATIONS) lines.push(`- ${item}`);
   lines.push("");
-  lines.push("A manual pentest is a better fit when you need those covered in depth.");
+  lines.push(SCAN_LIMITATIONS_NOTE);
   lines.push("");
   return lines.join("\n");
 }

@@ -15,6 +15,11 @@ import { computeScore, isPassingScore } from "./score";
 
 export type Confidence = "high" | "medium" | "low";
 
+export interface AdvisoryRef {
+  id: string;
+  severity: Severity;
+}
+
 export interface RawCheckResult {
   checkId: string;
   evidence: string;
@@ -28,6 +33,8 @@ export interface RawCheckResult {
   steps?: string[];
   /** Public page URLs where this finding was observed. Deduped across the crawl. */
   affectedPages?: string[];
+  /** CVE or GHSA ids for monitor diffs. Not copied into the customer report. */
+  advisories?: AdvisoryRef[];
 }
 
 export type CheckRunState = "ok" | "error" | "skipped";
@@ -225,11 +232,13 @@ export function lockedSeverityRows(report: Pick<CustomerReport, "access" | "samp
 /** Findings that may be sent to a browser, file, or email. Free tier returns the one revealed finding. */
 export function visibleCustomerFindings(report: CustomerReport): CustomerFinding[] {
   if (report.access === "teaser") return [...report.samples];
-  const seen = new Set<string>();
+  // Headline rows are the same objects in priority and in their family. Identity keeps one copy
+  // and still keeps every library finding that shares a check id.
+  const seen = new Set<CustomerFinding>();
   const ordered: CustomerFinding[] = [];
   for (const finding of [...report.priority, ...report.families.flatMap((group) => group.findings)]) {
-    if (seen.has(finding.checkId)) continue;
-    seen.add(finding.checkId);
+    if (seen.has(finding)) continue;
+    seen.add(finding);
     ordered.push(finding);
   }
   return ordered;

@@ -6,7 +6,8 @@ import {
 } from "@/lib/finding-detail";
 import { originOf, safeFetch, type ProbeResponse } from "@/lib/http";
 import { scrubCredentialText, stripSensitiveQuery } from "@/lib/mask-secrets";
-import type { CheckRunState, Confidence, RawCheckResult } from "@/lib/report";
+import type { Severity } from "@/lib/catalog";
+import type { AdvisoryRef, CheckRunState, Confidence, RawCheckResult } from "@/lib/report";
 
 export interface DiscoveredConfig {
   supabaseUrl: string | null;
@@ -106,11 +107,45 @@ export class ScanContext {
     }
   }
 
-  add(checkId: string, evidence: string, detail: FindingDetail, confidence?: Confidence, affectedPages?: string[]): void {
+  add(
+    checkId: string,
+    evidence: string,
+    detail: FindingDetail,
+    confidence?: Confidence,
+    affectedPages?: string[],
+    extra?: {
+      separate?: boolean;
+      severity?: Severity;
+      title?: string;
+      impact?: string;
+      fix?: string;
+      advisories?: AdvisoryRef[];
+    },
+  ): void {
     this.mark(checkId);
     const clean = sanitizeDetail(this.applySecrets(detail));
     const cleanEvidence = this.scrub(evidence);
     const pages = this.cleanPages(affectedPages);
+    if (extra?.separate) {
+      const title = extra.title ? this.scrub(extra.title) : undefined;
+      const impact = extra.impact ? this.scrub(extra.impact) : undefined;
+      const fix = extra.fix ? this.scrub(extra.fix) : undefined;
+      this.results.push({
+        checkId,
+        evidence: cleanEvidence,
+        locations: clean.locations,
+        proof: clean.proof,
+        steps: clean.steps,
+        ...(confidence ? { confidence } : {}),
+        ...(pages.length > 0 ? { affectedPages: pages } : {}),
+        ...(extra.severity ? { severity: extra.severity } : {}),
+        ...(title ? { title } : {}),
+        ...(impact ? { impact } : {}),
+        ...(fix ? { fix } : {}),
+        ...(extra.advisories && extra.advisories.length > 0 ? { advisories: extra.advisories } : {}),
+      });
+      return;
+    }
     const existing = this.results.find((result) => result.checkId === checkId);
     if (existing) {
       existing.evidence = this.scrub(`${existing.evidence} ${cleanEvidence}`);
