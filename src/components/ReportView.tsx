@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { CustomerReport } from "@/lib/report";
 import { FREE_PREVIEW_LABEL, FULL_REPORT_PURCHASE_LEDE, RESCAN_PURCHASE_NOTE, formatSeverityBreakdown, freePreviewFacts, freePreviewLines, lockedSeverityRows, reportBadge } from "@/lib/report";
 import type { Severity } from "@/lib/catalog";
@@ -32,6 +33,7 @@ export function ReportView({
   paymentNotice = null,
   paymentTier = "report",
   recheck = false,
+  codeScan = null,
 }: {
   report: CustomerReport;
   targetLabel?: string;
@@ -44,6 +46,7 @@ export function ReportView({
   paymentNotice?: "confirming" | "declined" | null;
   paymentTier?: TierId;
   recheck?: boolean;
+  codeScan?: ReactNode;
 }) {
   const breakdown = formatSeverityBreakdown(report.severityCounts);
   const findingLabel =
@@ -205,6 +208,8 @@ export function ReportView({
         </section>
       ) : null}
 
+      {codeScan}
+
       <section className="panel p-5">
         <h2 className="font-display text-3xl">{report.limitationsTitle}</h2>
         <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-[#d5deee]">
@@ -253,7 +258,7 @@ function FreeFindings({
           {report.totalFindings} finding{report.totalFindings === 1 ? "" : "s"}
           {breakdown ? `: ${breakdown}` : ""}. This preview shows the lowest-severity finding in full.
           {report.hiddenCount > 0
-            ? ` The other ${report.hiddenCount} ${report.hiddenCount === 1 ? "is" : "are"} locked. Unlock them with the ${TIERS.report.priceLabel} report, the ${TIERS.rescan.priceLabel} report plus rescan, or ${TIERS.monitor.priceLabel} monitoring.`
+            ? ` The other ${report.hiddenCount} ${report.hiddenCount === 1 ? "is" : "are"} locked. Unlock them with the ${TIERS.report.priceLabel} report, the ${TIERS.rescan.priceLabel} site plus code scan, or ${TIERS.monitor.priceLabel} monitoring.`
             : " Nothing else was found."}
         </p>
       )}

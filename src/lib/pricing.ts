@@ -14,11 +14,11 @@ export const TIERS = {
     id: "rescan",
     env: "STRIPE_PRICE_RESCAN",
     dodoEnv: "DODO_PRODUCT_RESCAN",
-    name: "Report + rescan",
+    name: "Site + code scan",
     priceLabel: "$99",
     amountUsd: 99,
     cadence: "one-time",
-    blurb: "Full report on this scan, including signed-in checks with throwaway test accounts, plus one credit to rescan after you ship fixes.",
+    blurb: "Full site report plus an in-depth source code scan with AI app security checks, and one credit to rescan after you ship fixes. The repository is cloned only long enough to scan, then deleted. Your code is not stored or used for training.",
     mode: "payment" as const,
   },
   monitor: {
@@ -53,7 +53,7 @@ export const DEFAULT_DODO_PRODUCT_IDS: Record<TierId, string> = {
 
 export const UPGRADE_ACTIONS: Record<TierId, string> = {
   report: "Upgrade to full report",
-  rescan: "Upgrade to report + fix rescan",
+  rescan: "Upgrade to site + code scan",
   monitor: "Start monitoring",
 };
 

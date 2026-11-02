@@ -1,7 +1,7 @@
 import { prisma } from "./db";
 
 export type AuthorizationKind = "ownership" | "consent";
-export type AuthorizationMethod = "well_known" | "dns_txt" | "checkbox" | "monitor_enable" | "monitor_schedule";
+export type AuthorizationMethod = "well_known" | "dns_txt" | "checkbox" | "monitor_enable" | "monitor_schedule" | "github_app";
 
 export interface AuthorizationInput {
   userId: string;

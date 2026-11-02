@@ -149,7 +149,7 @@ Reports group findings by the eight families and include a coverage row for each
 
 - Business-logic flaws, such as a workflow that does the wrong thing for a valid user.
 - Write or delete abuse. Probes are read-only, so a bug that only appears when data is changed is not proven.
-- Private source and lockfiles. Library versions are read only from pages and scripts the site already serves, and from a public package.json when one is present.
+- Private source on a site scan. Library versions there are read only from pages and scripts the site already serves, and from a public package.json when one is present. The site plus code scan plan reads one connected repository, then deletes that copy.
 - Load testing and brute-force testing.
 - Mobile apps and backends that are not part of this web origin.
 - Subdomains and other hosts are not crawled. Pages beyond the page limit are not scanned.

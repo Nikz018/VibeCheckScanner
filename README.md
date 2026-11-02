@@ -12,7 +12,7 @@ This is not a certification, and it is not a promise that an app stays safe afte
 | --- | --- | --- |
 | Free teaser | $0 | Full scan runs and is stored. The page shows the score, severity counts, family coverage, and the lowest-severity finding in full. Every other finding stays off the page, the download, and email. |
 | Full report | $49 once, plus applicable taxes | Every finding on that scan: where it was found, evidence, the request and response, and a copy-paste fix. Download a PDF or a Markdown file for an AI coding assistant. |
-| Report + rescan | $99 once, plus applicable taxes | The full report, plus one credit to run another full-access scan after you fix things. |
+| Site + code scan | $99 once, plus applicable taxes | The full site report, a source code scan with AI app security checks, and one credit to run another scan after you fix things. |
 | Monitoring | $29/month, plus applicable taxes | Full reports while the subscription is active, a scheduled rescan of a verified origin, and an alert when a new high-severity issue appears. |
 
 The mini check is separate and free. It only runs header and public-file checks, and the coverage summary marks every other family as not run.
@@ -148,7 +148,7 @@ Dodo is the default. Create a Dodo Payments account, switch the dashboard to tes
 1. Open [Dodo Payments](https://app.dodopayments.com) and switch the dashboard to **Test mode**.
 2. The test-mode product IDs are already filled in below. They are tax-exclusive: Dodo adds tax at checkout. A different Dodo account needs its own three products, then those IDs replace the defaults.
    - Full report: **$49** once. `pdt_0NqUPK77rA0fd1CknGv8C`
-   - Report + rescan: **$99** once. `pdt_0NqUQCBmdARxCAyoaIRVZ`
+   - Site + code scan: **$99** once. `pdt_0NqUQCBmdARxCAyoaIRVZ`
    - Continuous monitoring: **$29** every month. `pdt_0NqUQeUgIBSIizoXIrkrJ`
 3. Go to **Developer → API Keys**, create a key in test mode, and copy it. That value is `DODO_PAYMENTS_API_KEY`.
 4. Go to **Developer → Webhooks** and add an endpoint. Copy that endpoint's signing secret. That value is `DODO_WEBHOOK_SECRET`.

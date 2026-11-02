@@ -13,14 +13,33 @@ import { buildCustomerReport, type RawCheckResult } from "@/lib/report";
 import { clampText, sanitizeCode, sanitizeCustomerText } from "@/lib/sanitize";
 import { computeScore, isPassingScore } from "@/lib/score";
 import type { ScanStageId } from "@/lib/scan-progress";
+import { shellCodeReport } from "@/lib/code-scan/parse";
+import { runProjectCodeScan } from "./run-code-scan";
 import { runScanPipeline } from "./run-scan";
 
-export async function executeScan(scanId: string): Promise<void> {
+export async function executeScan(scanId: string, options: { codeOnly?: boolean } = {}): Promise<void> {
   const scan = await prisma.scan.findUnique({
     where: { id: scanId },
-    include: { project: true, user: true },
+    include: { project: { include: { repoLink: true } }, user: true },
   });
-  if (!scan || scan.status === "completed") return;
+  if (!scan) return;
+  if (options.codeOnly) {
+    try {
+      await runCodeOnly(scan);
+    } catch (error) {
+      console.error("code scan failed", error instanceof Error ? error.message : "error");
+      await prisma.scan
+        .update({
+          where: { id: scan.id },
+          data: {
+            codeReport: shellCodeReport("failed", ["The code scan could not finish. The site results are still available."]) as unknown as Prisma.InputJsonObject,
+          },
+        })
+        .catch(() => undefined);
+    }
+    return;
+  }
+  if (scan.status === "completed") return;
   try {
     await runQueuedScan(scan);
   } finally {
@@ -30,7 +49,17 @@ export async function executeScan(scanId: string): Promise<void> {
   }
 }
 
-async function runQueuedScan(scan: Prisma.ScanGetPayload<{ include: { project: true; user: true } }>): Promise<void> {
+async function runCodeOnly(scan: Prisma.ScanGetPayload<{ include: { project: { include: { repoLink: true } }; user: true } }>): Promise<void> {
+  if (!scan.codeScanEnabled) return;
+  const proof = await verifyOwnership(scan.targetUrl, scan.project.ownershipToken);
+  const report = await safeCodeReport(scan, proof.ok);
+  await prisma.scan.update({
+    where: { id: scan.id },
+    data: { codeReport: report as unknown as Prisma.InputJsonObject },
+  });
+}
+
+async function runQueuedScan(scan: Prisma.ScanGetPayload<{ include: { project: { include: { repoLink: true } }; user: true } }>): Promise<void> {
   if (!scan.consentAt) {
     await fail(scan.id, "Consent was not recorded for this scan.");
     return;
@@ -90,6 +119,7 @@ async function runQueuedScan(scan: Prisma.ScanGetPayload<{ include: { project: t
     const severities = output.results.map((result) => ({ severity: result.severity ?? getCheck(result.checkId).severity }));
     const finalScore = computeScore(severities);
     const passed = isPassingScore(finalScore, severities);
+    const codeReport = scan.codeScanEnabled ? await safeCodeReport(scan, true) : null;
     const report = buildCustomerReport({
       scanId: scan.id,
       status: "completed",
@@ -142,6 +172,7 @@ async function runQueuedScan(scan: Prisma.ScanGetPayload<{ include: { project: t
         severityCounts: report.severityCounts as unknown as Prisma.InputJsonObject,
         coverage: { marked: output.marked, notices: output.notices, pagesScanned: output.pagesScanned } as unknown as Prisma.InputJsonObject,
         error: null,
+        ...(codeReport ? { codeReport: codeReport as unknown as Prisma.InputJsonObject } : {}),
       },
     });
 
@@ -195,6 +226,31 @@ async function notifyPaidReport(scanId: string, userId: string, email: string, t
     await sendEmail({ to: email, subject: notice.subject, text: notice.text, html: notice.html });
   } catch (error) {
     console.error("full report notice failed", error instanceof Error ? error.message : "error");
+  }
+}
+
+async function safeCodeReport(
+  scan: Prisma.ScanGetPayload<{ include: { project: { include: { repoLink: true } } } }>,
+  ownershipVerified: boolean,
+) {
+  try {
+    const link = scan.project.repoLink;
+    return await runProjectCodeScan({
+      ownershipVerified,
+      codeScanEnabled: scan.codeScanEnabled,
+      repo: link
+        ? {
+            status: link.status,
+            owner: link.owner,
+            name: link.name,
+            defaultBranch: link.defaultBranch,
+            installationId: link.installationId,
+          }
+        : null,
+    });
+  } catch (error) {
+    console.error("code scan failed", error instanceof Error ? error.message : "error");
+    return shellCodeReport("failed", ["The code scan could not finish. The site results are still available."]);
   }
 }
 

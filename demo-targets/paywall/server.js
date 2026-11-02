@@ -106,7 +106,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (url.pathname === "/api/chat" && req.method === "POST") {
+  if (url.pathname === "/api/chat" && (req.method === "GET" || req.method === "OPTIONS")) {
     send(200, JSON.stringify({ reply: "SYSTEM PROMPT: You are a demo assistant. Do not deploy this app." }), {
       "content-type": "application/json",
     });

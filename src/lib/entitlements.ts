@@ -1,23 +1,32 @@
 import { prisma } from "./db";
 
 export async function resolveReportAccess(userId: string, choice: "teaser" | "credit" | "rescan"): Promise<"teaser" | "full"> {
+  const result = await takeReportAccess(userId, choice);
+  return result.access;
+}
+
+/** Same rules as resolveReportAccess, plus whether a $99 rescan credit was spent. */
+export async function takeReportAccess(
+  userId: string,
+  choice: "teaser" | "credit" | "rescan",
+): Promise<{ access: "teaser" | "full"; spentRescanCredit: boolean }> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: { subscription: true },
   });
-  if (!user) return "teaser";
+  if (!user) return { access: "teaser", spentRescanCredit: false };
   if (user.subscription && (user.subscription.status === "active" || user.subscription.status === "trialing")) {
-    return "full";
+    return { access: "full", spentRescanCredit: false };
   }
   if (choice === "credit" && user.reportCredits > 0) {
     await prisma.user.update({ where: { id: userId }, data: { reportCredits: { decrement: 1 } } });
-    return "full";
+    return { access: "full", spentRescanCredit: false };
   }
   if (choice === "rescan" && user.rescanCredits > 0) {
     await prisma.user.update({ where: { id: userId }, data: { rescanCredits: { decrement: 1 } } });
-    return "full";
+    return { access: "full", spentRescanCredit: true };
   }
-  return "teaser";
+  return { access: "teaser", spentRescanCredit: false };
 }
 
 export function monitoringActive(status: string | null | undefined): boolean {
