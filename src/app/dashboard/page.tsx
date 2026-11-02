@@ -3,6 +3,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CancelSubscription } from "@/components/CancelSubscription";
 import { ScoreGauge } from "@/components/ScoreGauge";
+import { ScoreRings } from "@/components/ScoreRings";
+import { combinedScores } from "@/lib/code-scan/score";
+import { parseCodeReport } from "@/lib/code-scan/parse";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { SEVERITIES } from "@/lib/catalog";
@@ -99,13 +102,18 @@ export default async function DashboardPage() {
             const rawAction = scan.mode === "mini" ? paidScanDashboardAction(scan.id, purchaseByPreview.get(scan.id) ?? null, UPGRADE_ACTIONS.report) : null;
             const pricingAction = rawAction?.label === UPGRADE_ACTIONS.report || rawAction?.label === UPGRADE_ACTIONS.rescan;
             const action = rawAction && (!pricingAction || access.upsell) ? rawAction : null;
+            const scores = combinedScores({
+              codeScanEnabled: scan.codeScanEnabled,
+              siteScore: scan.score,
+              codeReport: scan.codeScanEnabled ? parseCodeReport(scan.codeReport) : null,
+            });
             const counts = readSeverityCounts(scan.severityCounts);
             const total = counts ? SEVERITIES.reduce((sum, severity) => sum + counts[severity], 0) : null;
             const breakdown = counts ? formatSeverityBreakdown(counts) : "";
             return (
               <li key={scan.id} className="lift flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm">
                 <div className="flex items-center gap-3">
-                  <ScoreGauge score={scan.score} size="sm" tone="dark" showExplainer={false} />
+                  {scores ? <ScoreRings scores={scores} tone="dark" layout="dashboard" /> : <ScoreGauge score={scan.score} size="sm" tone="dark" showExplainer={false} />}
                   <div>
                     <Link href={`/scans/${scan.id}`} className="font-semibold underline">
                       {scan.project.url}

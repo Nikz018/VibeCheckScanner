@@ -1,3 +1,4 @@
+import { overallScoreExplanation, renderScoreRingsHtml, type CombinedScores } from "./code-scan/score";
 import { POINT_IN_TIME_DISCLAIMER, formatScanDate } from "./badge";
 import { SEVERITIES } from "./catalog";
 import { formatSeverityBreakdown, visibleCustomerFindings, type CustomerFinding, type CustomerReport } from "./report";
@@ -106,7 +107,7 @@ export function renderFixMarkdown(report: CustomerReport, targetUrl: string): st
   return scrubTools(lines.join("\n").trim() + "\n");
 }
 
-export function renderPrintHtml(report: CustomerReport, targetUrl: string): string {
+export function renderPrintHtml(report: CustomerReport, targetUrl: string, scores?: CombinedScores | null): string {
   const when = report.finishedAt ? formatScanDate(new Date(report.finishedAt)) : "Unknown date";
   const findings = orderedFindings(report);
   const counts = SEVERITIES.map(
@@ -160,7 +161,11 @@ export function renderPrintHtml(report: CustomerReport, targetUrl: string): stri
     .cover { padding: 8px 0 12px; }
     .brand { display: flex; align-items: center; gap: 10px; font-family: Georgia, serif; font-size: 22px; font-weight: 700; }
     .mark { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: #dff25b; color: #14201b; font-size: 14px; }
+    .score-rings { display: flex; align-items: flex-end; gap: 18px; margin-top: 12px; }
     .gauge { width: 220px; margin-top: 12px; }
+    .score-rings .gauge { width: 150px; margin-top: 0; }
+    .score-rings .gauge-overall { width: 230px; }
+    .ring-label { margin: 0 0 4px; text-align: center; font-weight: 700; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
     .gauge svg { display: block; width: 100%; height: auto; }
     .explain { margin: 8px 0 0; max-width: 440px; color: #3d453f; font-size: 12px; }
     .label { margin: 8px 0 0; color: #3d453f; }
@@ -194,8 +199,8 @@ export function renderPrintHtml(report: CustomerReport, targetUrl: string): stri
 <body>
   <article class="cover" data-report="vibecheck-print">
     <div class="brand"><span class="mark">VC</span> VibeCheck</div>
-    <div class="gauge">${renderScoreGaugeSvg({ score: report.score, tone: "light" })}</div>
-    <p class="explain">${escapeHtml(SCORE_EXPLAINER)}</p>
+    ${scores ? renderScoreRingsHtml(scores, "light") : `<div class="gauge">${renderScoreGaugeSvg({ score: report.score, tone: "light" })}</div>`}
+    <p class="explain">${escapeHtml(scores ? overallScoreExplanation() : SCORE_EXPLAINER)}</p>
     <p class="label">${report.totalFindings} finding${report.totalFindings === 1 ? "" : "s"}</p>
     <p class="meta-line"><strong>Target.</strong> ${escapeHtml(targetUrl)}</p>
     <p class="meta-line"><strong>Scanned.</strong> ${escapeHtml(when)}</p>

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { CombinedScores } from "@/lib/code-scan/score";
 import type { CustomerReport } from "@/lib/report";
 import { FREE_PREVIEW_LABEL, FULL_REPORT_PURCHASE_LEDE, RESCAN_PURCHASE_NOTE, formatSeverityBreakdown, freePreviewFacts, freePreviewLines, lockedSeverityRows, reportBadge } from "@/lib/report";
 import type { Severity } from "@/lib/catalog";
@@ -9,6 +10,7 @@ import { UpgradePanel } from "./UpgradePanel";
 import { SharePanel } from "./SharePanel";
 import { MonitorToggle } from "./MonitorToggle";
 import { ScoreGauge } from "./ScoreGauge";
+import { ScoreRings } from "./ScoreRings";
 import Link from "next/link";
 
 const SEVERITY_STYLE: Record<Severity, string> = {
@@ -34,6 +36,7 @@ export function ReportView({
   paymentTier = "report",
   recheck = false,
   codeScan = null,
+  scores = null,
 }: {
   report: CustomerReport;
   targetLabel?: string;
@@ -47,6 +50,7 @@ export function ReportView({
   paymentTier?: TierId;
   recheck?: boolean;
   codeScan?: ReactNode;
+  scores?: CombinedScores | null;
 }) {
   const breakdown = formatSeverityBreakdown(report.severityCounts);
   const findingLabel =
@@ -63,7 +67,7 @@ export function ReportView({
               {reportBadge(report, sample)}
             </p>
             <div className="mt-3">
-              <ScoreGauge score={report.score} tone="dark" />
+              {scores ? <ScoreRings scores={scores} tone="dark" /> : <ScoreGauge score={report.score} tone="dark" />}
             </div>
             <p className="mt-3 text-sm text-[#d5deee]">
               {findingLabel}
@@ -96,7 +100,7 @@ export function ReportView({
         {report.stale ? (
           <p className="mt-4 rounded-2xl bg-[#fff1c9] px-4 py-3 text-sm text-ink">This scan is more than 30 days old. The badge reads “rescan needed” until you run it again.</p>
         ) : null}
-        <p className="mt-4 text-sm text-[#c5d2e6]">Score starts at 100. Critical −25, high −12, medium −6, low −2.</p>
+        {scores ? null : <p className="mt-4 text-sm text-[#c5d2e6]">Score starts at 100. Critical −25, high −12, medium −6, low −2.</p>}
         <p className="mt-2 text-sm text-[#c5d2e6]">{report.disclaimer}</p>
         {report.notices.map((notice) => (
           <p key={notice} className="mt-3 rounded-2xl bg-[#fff1c9] px-4 py-3 text-sm text-ink">

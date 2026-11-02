@@ -5,6 +5,7 @@ import { ScanPoller } from "@/components/ScanPoller";
 import { CodeScanPanel } from "@/components/CodeScanPanel";
 import { ReportView } from "@/components/ReportView";
 import { parseCodeReport } from "@/lib/code-scan/parse";
+import { combinedScores } from "@/lib/code-scan/score";
 import { githubAppConfig } from "@/lib/github/app";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -105,6 +106,7 @@ export default async function ScanPage({
     );
   }
   const proof = instructionsFor(scan.project.url, scan.project.ownershipToken);
+  const codeReport = scan.codeScanEnabled ? parseCodeReport(scan.codeReport) : null;
   const report = reportFromStored({
     scanId: scan.id,
     status: scan.status,
@@ -131,12 +133,17 @@ export default async function ScanPage({
         paymentNotice={paymentNotice}
         paymentTier={paymentTier}
         recheck={query.recheck === "1"}
+        scores={
+          !gating.upsell
+            ? combinedScores({ codeScanEnabled: scan.codeScanEnabled, siteScore: report.score, codeReport })
+            : null
+        }
         codeScan={
           scan.codeScanEnabled && scan.reportAccess === "full" && !gating.upsell ? (
             <CodeScanPanel
               scanId={scan.id}
               projectId={scan.projectId}
-              report={parseCodeReport(scan.codeReport)}
+              report={codeReport}
               repo={
                 scan.project.repoLink?.status === "connected" && scan.project.repoLink.owner
                   ? `${scan.project.repoLink.owner}/${scan.project.repoLink.name}`
