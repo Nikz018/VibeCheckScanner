@@ -17,6 +17,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       pagesDiscovered: true,
       startedAt: true,
       createdAt: true,
+      codeReport: true,
     },
   });
   if (!scan) return NextResponse.json({ error: "Scan not found." }, { status: 404 });
@@ -28,7 +29,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     pagesDiscovered: scan.pagesDiscovered,
     startedAt: scan.startedAt?.toISOString() ?? null,
     createdAt: scan.createdAt.toISOString(),
+    codeStatus: readCodeStatus(scan.codeReport),
     progress: progressPercent({ mode: scan.mode, stage: scan.progressStage, status: scan.status }),
     stages: stageState({ mode: scan.mode, stage: scan.progressStage, status: scan.status }),
   });
+}
+
+function readCodeStatus(value: unknown): string | null {
+  if (!value || typeof value !== "object" || !("status" in value)) return null;
+  const status = (value as { status?: unknown }).status;
+  return typeof status === "string" ? status : null;
 }

@@ -27,13 +27,14 @@ const worker = new Worker(
   async (job) => {
     const scanId = String(job.data.scanId || "");
     if (!scanId) return;
-    await executeScan(scanId);
+    await executeScan(scanId, { codeOnly: job.data.codeOnly === true });
   },
   { connection, concurrency },
 );
 
 worker.on("failed", (job, error) => {
   console.error("scan job failed", job?.id, error);
+  if (job?.data?.codeOnly === true) return;
   const scanId = job?.data?.scanId;
   if (!scanId) return;
   void prisma.scan

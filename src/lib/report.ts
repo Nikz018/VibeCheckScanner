@@ -253,7 +253,7 @@ export function reportBadge(report: Pick<CustomerReport, "upsell">, sample = fal
   return FULL_REPORT_LABEL;
 }
 export const FULL_REPORT_PURCHASE_LEDE = "After purchase, the full report runs every check on this origin.";
-export const RESCAN_PURCHASE_NOTE = "The same full scan, plus one credit to run another full scan after you ship fixes.";
+export const RESCAN_PURCHASE_NOTE = "Site scan plus a source code scan with AI app security checks, and one credit to run another scan after you ship fixes.";
 
 export interface FreePreviewFacts {
   findingsShown: number;

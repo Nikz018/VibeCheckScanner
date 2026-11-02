@@ -122,6 +122,7 @@ async function startPaidFullScan(input: {
       status: "queued",
       mode: "full",
       reportAccess: "full",
+      codeScanEnabled: purchase.tier === "rescan",
       targetUrl: preview.project.url,
       consentAt: new Date(),
       consentText: CONSENT_TEXT,

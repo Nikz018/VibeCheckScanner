@@ -34,6 +34,11 @@ export async function enqueueScan(scanId: string): Promise<void> {
 }
 
 /** One queue job per paid scan id. A second webhook or a retry reuses the same job id. */
+/** A later code scan for a paid $99 report. It does not repeat the site probes. */
+export async function enqueueCodeScan(scanId: string): Promise<void> {
+  await getScanQueue().add("code-scan", { scanId, codeOnly: true }, { removeOnComplete: 200, removeOnFail: 100, attempts: 1 });
+}
+
 export async function enqueuePaidScan(scanId: string): Promise<void> {
   const queue = getScanQueue();
   const jobId = `paid-${scanId}`;

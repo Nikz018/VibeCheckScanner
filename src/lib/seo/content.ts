@@ -83,7 +83,7 @@ export function monitoringPriceWords(): string {
 }
 
 export function priceAnswer(): string {
-  return `A VibeCheck scan costs ${FREE_TIER.priceLabel} for a teaser, ${TIERS.report.priceLabel} for a full report, ${TIERS.rescan.priceLabel} for that report plus one fix rescan, or ${monitoringPriceWords()} for monitoring, plus applicable taxes.`;
+  return `A VibeCheck scan costs ${FREE_TIER.priceLabel} for a teaser, ${TIERS.report.priceLabel} for a full report, ${TIERS.rescan.priceLabel} for a site plus code scan with AI app security checks, or ${monitoringPriceWords()} for monitoring, plus applicable taxes.`;
 }
 
 export function scoreAnswer(): string {
@@ -120,7 +120,7 @@ export const FAQ: FaqItem[] = [
   },
   {
     question: `What is the difference between the ${TIERS.report.priceLabel} report and the ${TIERS.rescan.priceLabel} plan?`,
-    answer: `The ${TIERS.report.priceLabel} plan unlocks the full report for one finished scan, and the ${TIERS.rescan.priceLabel} plan unlocks that report plus one credit to rescan after you ship fixes. Both include signed-in checks when you provide throwaway test accounts.`,
+    answer: `The ${TIERS.report.priceLabel} plan unlocks the full site report for one finished scan. The ${TIERS.rescan.priceLabel} plan is a site plus code scan: that site report, an in-depth source code scan with AI app security checks, and one credit to rescan after you ship fixes. The code scan deletes the repository copy when it finishes and does not use your code for training. Both include signed-in checks when you provide throwaway test accounts.`,
   },
   {
     question: "What this scan does not cover?",
@@ -175,7 +175,7 @@ export const HOW_TO_STEPS: CopyBlock[] = [
   {
     heading: "What does the scan actually request?",
     paragraphs: [
-      "VibeCheck requests pages and public files, and it may send a few tiny unauthenticated POST requests to see whether a login, webhook, or AI route rejects bad input. It does not send PUT, PATCH, or DELETE. A paid full report can also sign in with up to two throwaway test accounts and then send only GET and HEAD, plus that login request.",
+      "VibeCheck requests pages and public files. It may send a few tiny unauthenticated POST requests to see whether a login or webhook rejects bad input. AI routes are checked with OPTIONS and GET only, and those requests do not send a prompt. It does not send PUT, PATCH, or DELETE. A paid full report can also sign in with up to two throwaway test accounts and then send only GET and HEAD, plus that login request.",
     ],
   },
   {
@@ -187,7 +187,7 @@ export const HOW_TO_STEPS: CopyBlock[] = [
   {
     heading: "How do I unlock the full report?",
     paragraphs: [
-      `The ${TIERS.report.priceLabel} plan unlocks every finding on that scan, with location, redacted evidence, and a copy-paste fix. The ${TIERS.rescan.priceLabel} plan adds one credit to rescan after you ship fixes. ${monitoringPriceWords()} monitoring schedules rescans and alerts you when a new high-severity issue appears. Listed prices are ${TAX_NOTE}.`,
+      `The ${TIERS.report.priceLabel} plan unlocks every finding on that scan, with location, redacted evidence, and a copy-paste fix. The ${TIERS.rescan.priceLabel} plan adds a source code scan with AI app security checks and one credit to rescan after you ship fixes. ${monitoringPriceWords()} monitoring schedules rescans and alerts you when a new high-severity issue appears. Listed prices are ${TAX_NOTE}.`,
     ],
   },
 ];
@@ -240,8 +240,8 @@ export const PRICING_SECTIONS: CopyBlock[] = [
   {
     heading: `What does the ${TIERS.rescan.priceLabel} plan add?`,
     paragraphs: [
-      `The ${TIERS.rescan.priceLabel} one-time plan unlocks the same full report and adds one credit to run another scan after you ship fixes.`,
-      "The rescan still requires ownership proof and consent. The price excludes applicable taxes.",
+      `The ${TIERS.rescan.priceLabel} one-time plan is a site plus code scan. It unlocks the full site report, runs AI app security checks on one connected repository, and adds one credit to scan again after you ship fixes.`,
+      "The repository is cloned into a temporary folder and deleted when the scan finishes. Short redacted excerpts may appear in the report. Your code is not stored and is not used for training. The price excludes applicable taxes.",
     ],
   },
   {
@@ -505,6 +505,12 @@ export const LEGAL_SECTIONS: Record<"terms" | "privacy" | "refund" | "contact", 
       ],
     },
     {
+      heading: "Do you keep a copy of my repository?",
+      paragraphs: [
+        "The site plus code scan clones one repository you connect into a temporary folder, scans it, and deletes that copy before the job finishes. The report keeps short excerpts with secrets masked. Your code is not stored and is not used for training.",
+      ],
+    },
+    {
       heading: "What does the payment provider receive?",
       paragraphs: [
         "Paid checkout is handled by the payment provider configured for this site. That provider processes the card. VibeCheck stores the customer id, checkout session id, and payment status the provider returns, not the full card number.",
@@ -541,7 +547,7 @@ export const LEGAL_SECTIONS: Record<"terms" | "privacy" | "refund" | "contact", 
     {
       heading: "Which purchases does this cover?",
       paragraphs: [
-        `This covers the ${TIERS.report.priceLabel} full report, the ${TIERS.rescan.priceLabel} report plus rescan, and ${monitoringPriceWords()} monitoring, each plus applicable taxes.`,
+        `This covers the ${TIERS.report.priceLabel} full report, the ${TIERS.rescan.priceLabel} site plus code scan, and ${monitoringPriceWords()} monitoring, each plus applicable taxes.`,
         "The free teaser has no charge.",
       ],
     },
@@ -630,7 +636,7 @@ export const PUBLIC_PAGES: PublicPage[] = [
     id: "pricing",
     path: "/pricing",
     title: "Pricing",
-    description: `Free teaser, ${TIERS.report.priceLabel} full report, ${TIERS.rescan.priceLabel} report plus rescan, and ${monitoringPriceWords()} monitoring, plus applicable taxes.`,
+    description: `Free teaser, ${TIERS.report.priceLabel} full report, ${TIERS.rescan.priceLabel} site plus code scan with AI app security checks, and ${monitoringPriceWords()} monitoring, plus applicable taxes.`,
     h1: "How much does VibeCheck cost?",
     lede: priceAnswer(),
     crumb: "Pricing",
@@ -748,7 +754,7 @@ export const PUBLIC_PAGES: PublicPage[] = [
     title: "Refunds",
     description: `Refund terms for the ${TIERS.report.priceLabel} report, the ${TIERS.rescan.priceLabel} plan, and ${monitoringPriceWords()} monitoring.`,
     h1: "What is the VibeCheck refund policy?",
-    lede: `Paid plans are the ${TIERS.report.priceLabel} report, the ${TIERS.rescan.priceLabel} report plus rescan, and ${monitoringPriceWords()} monitoring, plus applicable taxes.`,
+    lede: `Paid plans are the ${TIERS.report.priceLabel} report, the ${TIERS.rescan.priceLabel} site plus code scan, and ${monitoringPriceWords()} monitoring, plus applicable taxes.`,
     crumb: "Refunds",
     changeFrequency: "yearly",
     priority: 0.3,

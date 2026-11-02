@@ -5,7 +5,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { CredentialsKeyError, credentialsKey } from "@/lib/credentials";
 import { deleteScanCredentials, saveScanCredentials } from "@/lib/credential-store";
 import { prisma } from "@/lib/db";
-import { resolveReportAccess } from "@/lib/entitlements";
+import { codeScanEnabledForCredit } from "@/lib/code-scan/gate";
+import { takeReportAccess } from "@/lib/entitlements";
 import { LOGIN_AVAILABLE_NOTICE } from "@/lib/limitations";
 import { ACTIVE_SCAN_LIMIT } from "@/lib/payments/paid-scan-status";
 import { enqueueScan } from "@/lib/queue";
@@ -68,7 +69,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ error: message }, { status: 400 });
     }
   }
-  const reportAccess = mode === "mini" ? "full" : await resolveReportAccess(user.id, parsed.data.use);
+  const access = mode === "mini" ? { access: "full" as const, spentRescanCredit: false } : await takeReportAccess(user.id, parsed.data.use);
+  const reportAccess = access.access;
   if (auth && reportAccess !== "full") {
     return NextResponse.json({ error: LOGIN_AVAILABLE_NOTICE }, { status: 400 });
   }
@@ -79,6 +81,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       status: "queued",
       mode,
       reportAccess,
+      codeScanEnabled: codeScanEnabledForCredit({ mode, use: parsed.data.use, spentRescanCredit: access.spentRescanCredit }),
       targetUrl: project.url,
       consentAt: new Date(),
       consentText: CONSENT_TEXT,

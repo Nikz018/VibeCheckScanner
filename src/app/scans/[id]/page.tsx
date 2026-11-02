@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { OwnershipProof, RetryFullScanButton } from "@/components/PaidScanFollowup";
 import { ScanPoller } from "@/components/ScanPoller";
+import { CodeScanPanel } from "@/components/CodeScanPanel";
 import { ReportView } from "@/components/ReportView";
+import { parseCodeReport } from "@/lib/code-scan/parse";
+import { combinedScores } from "@/lib/code-scan/score";
+import { githubAppConfig } from "@/lib/github/app";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { monitoringActive, ownedScanAccess } from "@/lib/entitlements";
@@ -30,7 +34,7 @@ export default async function ScanPage({
   if (!user) redirect(signInPath(`/scans/${id}`));
   const scan = await prisma.scan.findFirst({
     where: { id, userId: user.id },
-    include: { findings: true, project: true },
+    include: { findings: true, project: { include: { repoLink: true } } },
   });
   if (!scan) notFound();
   const purchases = await prisma.purchase.findMany({
@@ -102,6 +106,7 @@ export default async function ScanPage({
     );
   }
   const proof = instructionsFor(scan.project.url, scan.project.ownershipToken);
+  const codeReport = scan.codeScanEnabled ? parseCodeReport(scan.codeReport) : null;
   const report = reportFromStored({
     scanId: scan.id,
     status: scan.status,
@@ -128,6 +133,27 @@ export default async function ScanPage({
         paymentNotice={paymentNotice}
         paymentTier={paymentTier}
         recheck={query.recheck === "1"}
+        scores={
+          !gating.upsell
+            ? combinedScores({ codeScanEnabled: scan.codeScanEnabled, siteScore: report.score, codeReport })
+            : null
+        }
+        codeScan={
+          scan.codeScanEnabled && scan.reportAccess === "full" && !gating.upsell ? (
+            <CodeScanPanel
+              scanId={scan.id}
+              projectId={scan.projectId}
+              report={codeReport}
+              repo={
+                scan.project.repoLink?.status === "connected" && scan.project.repoLink.owner
+                  ? `${scan.project.repoLink.owner}/${scan.project.repoLink.name}`
+                  : null
+              }
+              ownershipVerified={Boolean(scan.project.ownershipVerifiedAt)}
+              githubReady={githubAppConfig() !== null}
+            />
+          ) : null
+        }
         paidFollowup={
           scan.mode === "mini" && purchase
             ? {
