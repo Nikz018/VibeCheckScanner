@@ -12,11 +12,13 @@ import {
 
 export function CodeScanConnectStep({
   purchaseId,
+  scanId,
   projectId,
   repo,
   returnPath,
 }: {
-  purchaseId: string;
+  purchaseId?: string;
+  scanId?: string;
   projectId: string;
   repo: string | null;
   returnPath: string;
@@ -25,11 +27,12 @@ export function CodeScanConnectStep({
   const [busy, setBusy] = useState<"skip" | "connect" | null>(null);
   const [error, setError] = useState("");
   const connectHref = `/api/github/connect?projectId=${encodeURIComponent(projectId)}&next=${encodeURIComponent(returnPath)}`;
+  const endpoint = scanId ? `/api/scans/${scanId}/code-choice` : `/api/purchases/${purchaseId}/retry`;
 
   async function choose(choice: "skip" | "connect") {
     setBusy(choice);
     setError("");
-    const response = await fetch(`/api/purchases/${purchaseId}/retry`, {
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ choice }),
@@ -37,7 +40,7 @@ export function CodeScanConnectStep({
     const data = (await response.json().catch(() => null)) as { error?: string; scanId?: string } | null;
     setBusy(null);
     if (!response.ok || !data?.scanId) {
-      setError(data?.error || "The paid scan could not start.");
+      setError(data?.error || "The scan could not start.");
       router.refresh();
       return;
     }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { projectHasPaidCodeScan, queueCodeScanForProject, saveConnectedRepo } from "@/lib/code-scan/connect";
+import { resumeHeldCreditScanAfterRepo } from "@/lib/code-scan/held-scan";
 import { resumeAfterRepoChoice } from "@/lib/payments/paid-full-scan";
 import { canConnectRepository } from "@/lib/code-scan/gate";
 import { prisma } from "@/lib/db";
@@ -71,9 +72,11 @@ function githubReturn(origin: string, projectId: string, params: Record<string, 
 
 async function redirectAfterRepoSave(origin: string, userId: string, projectId: string, next: string | null): Promise<string> {
   const resume = await resumeAfterRepoChoice(userId, projectId, next);
-  if (resume.kind === "later") {
-    await queueCodeScanForProject(userId, projectId).catch(() => undefined);
-    return `${origin}/projects/${projectId}/github?connected=1`;
+  if (resume.kind !== "later") {
+    return `${origin}${resume.redirect.startsWith("/") ? resume.redirect : `/${resume.redirect}`}`;
   }
-  return `${origin}${resume.redirect.startsWith("/") ? resume.redirect : `/${resume.redirect}`}`;
+  const held = await resumeHeldCreditScanAfterRepo(userId, projectId);
+  if (held) return `${origin}/scans/${held.scanId}`;
+  await queueCodeScanForProject(userId, projectId).catch(() => undefined);
+  return `${origin}/projects/${projectId}/github?connected=1`;
 }

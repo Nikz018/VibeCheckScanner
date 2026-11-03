@@ -84,6 +84,7 @@ model Scan {
   progressStage   String?
   pagesDiscovered Int       @default(0)
   codeScanEnabled Boolean   @default(false)
+  codeScanChoice  String?
   codeReport      Json?
   createdAt       DateTime  @default(now())
   project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)

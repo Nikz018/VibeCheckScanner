@@ -6,10 +6,11 @@ import { CredentialsKeyError, credentialsKey } from "@/lib/credentials";
 import { deleteScanCredentials, saveScanCredentials } from "@/lib/credential-store";
 import { prisma } from "@/lib/db";
 import { codeScanEnabledForCredit } from "@/lib/code-scan/gate";
+import { openHeldOrQueuedScan, repoIsConnected, settleVerifiedScan } from "@/lib/code-scan/held-scan";
 import { takeReportAccess } from "@/lib/entitlements";
+import { githubAppConfig } from "@/lib/github/app";
 import { LOGIN_AVAILABLE_NOTICE } from "@/lib/limitations";
 import { ACTIVE_SCAN_LIMIT } from "@/lib/payments/paid-scan-status";
-import { enqueueScan } from "@/lib/queue";
 import { CONSENT_TEXT, assertConsent, verifyOwnership } from "@/lib/ownership";
 import { recordScanAuthorization } from "@/lib/scan-authorization";
 
@@ -24,7 +25,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   const { id } = await context.params;
-  const project = await prisma.project.findFirst({ where: { id, userId: user.id } });
+  const project = await prisma.project.findFirst({
+    where: { id, userId: user.id },
+    include: { repoLink: true },
+  });
   if (!project) return NextResponse.json({ error: "Project not found." }, { status: 404 });
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Consent is required." }, { status: 400 });
@@ -74,24 +78,22 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (auth && reportAccess !== "full") {
     return NextResponse.json({ error: LOGIN_AVAILABLE_NOTICE }, { status: 400 });
   }
-  const scan = await prisma.scan.create({
-    data: {
-      projectId: project.id,
-      userId: user.id,
-      status: "queued",
-      mode,
-      reportAccess,
-      codeScanEnabled: codeScanEnabledForCredit({ mode, use: parsed.data.use, spentRescanCredit: access.spentRescanCredit }),
-      targetUrl: project.url,
-      consentAt: new Date(),
-      consentText: CONSENT_TEXT,
-    },
+  const codeScanEnabled = codeScanEnabledForCredit({ mode, use: parsed.data.use, spentRescanCredit: access.spentRescanCredit });
+  const opened = await openHeldOrQueuedScan({
+    userId: user.id,
+    projectId: project.id,
+    mode,
+    reportAccess,
+    codeScanEnabled,
+    targetUrl: project.url,
+    githubConfigured: githubAppConfig() !== null,
+    repoConnected: repoIsConnected(project.repoLink),
   });
   await recordScanAuthorization({
     userId: user.id,
     userEmail: user.email,
     projectId: project.id,
-    scanId: scan.id,
+    scanId: opened.scanId,
     targetUrl: project.url,
     kind: "consent",
     method: "checkbox",
@@ -99,26 +101,21 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   });
   if (auth) {
     try {
-      await saveScanCredentials(scan.id, auth);
+      await saveScanCredentials(opened.scanId, auth);
     } catch (error) {
       await prisma.scan.update({
-        where: { id: scan.id },
+        where: { id: opened.scanId },
         data: { status: "failed", error: "Credential storage is not configured.", finishedAt: new Date() },
       });
       const message = error instanceof CredentialsKeyError ? "Credential storage is not configured." : "Test-account credentials could not be stored.";
       return NextResponse.json({ error: message }, { status: 503 });
     }
   }
-  try {
-    await enqueueScan(scan.id);
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : "queue unavailable");
-    await deleteScanCredentials(scan.id).catch(() => undefined);
-    await prisma.scan.update({
-      where: { id: scan.id },
-      data: { status: "failed", error: "The scan queue is unavailable." },
-    });
-    return NextResponse.json({ error: "The scan queue is unavailable. Check Redis and try again." }, { status: 503 });
+  const settled = await settleVerifiedScan({ scanId: opened.scanId, needsRepo: opened.needsRepo });
+  if (settled.needsRepo) return NextResponse.json({ scanId: settled.scanId, needsRepo: true });
+  if (settled.outcome === "queue_unavailable") {
+    await deleteScanCredentials(settled.scanId).catch(() => undefined);
+    return NextResponse.json({ error: settled.reason }, { status: 503 });
   }
-  return NextResponse.json({ scanId: scan.id });
+  return NextResponse.json({ scanId: settled.scanId });
 }

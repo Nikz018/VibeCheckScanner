@@ -27,6 +27,39 @@ export function canConnectRepository(input: {
 
 export type CodeScanChoice = "skip" | "connect";
 
+/** A credit-funded code scan exists, but it is not queued until the repository step is decided. */
+export const AWAITING_REPO_STATUS = "awaiting_repo";
+
+/**
+ * A rescan credit is spent when the scan row is created. Hold that scan when the code scan is
+ * included, this server can connect a repository, and the project does not have one yet.
+ * A connected repository, or a server without GitHub, starts immediately.
+ */
+export function creditScanShouldWaitForRepo(input: {
+  codeScanEnabled: boolean;
+  githubConfigured: boolean;
+  repoConnected: boolean;
+}): boolean {
+  return input.codeScanEnabled && input.githubConfigured && !input.repoConnected;
+}
+
+/**
+ * The connect step for a credit-funded full scan that has not been queued yet.
+ * A saved skip or connect choice means the scan was already released.
+ */
+export function shouldOfferCreditCodeStep(input: {
+  mode: string;
+  codeScanEnabled: boolean;
+  codeScanChoice: string | null | undefined;
+  status: string;
+  githubConfigured: boolean;
+}): boolean {
+  if (input.mode !== "full" || !input.codeScanEnabled || !input.githubConfigured) return false;
+  if (input.status !== AWAITING_REPO_STATUS) return false;
+  if (input.codeScanChoice === "skip" || input.codeScanChoice === "connect") return false;
+  return true;
+}
+
 /**
  * The connect step is only for a paid $99 scan that has not started, after ownership is verified,
  * and only when this server can actually connect a repository. A saved choice means they already

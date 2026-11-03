@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { projectHasPaidCodeScan, queueCodeScanForProject, saveConnectedRepo } from "@/lib/code-scan/connect";
+import { resumeHeldCreditScanAfterRepo } from "@/lib/code-scan/held-scan";
 import { resumeAfterRepoChoice } from "@/lib/payments/paid-full-scan";
 import { canConnectRepository } from "@/lib/code-scan/gate";
 import { prisma } from "@/lib/db";
@@ -58,6 +59,15 @@ export async function POST(request: Request) {
   const returnTo = safeAppPath(parsed.data.returnTo);
   const resume = await resumeAfterRepoChoice(user.id, project.id, returnTo);
   if (resume.kind === "later") {
+    const held = await resumeHeldCreditScanAfterRepo(user.id, project.id);
+    if (held) {
+      return NextResponse.json({
+        ok: true,
+        repo: `${repo.owner}/${repo.name}`,
+        scanId: held.scanId,
+        redirect: `/scans/${held.scanId}`,
+      });
+    }
     const queued = await queueCodeScanForProject(user.id, project.id);
     return NextResponse.json({ ok: true, repo: `${repo.owner}/${repo.name}`, scanId: queued.ok ? queued.scanId : null });
   }

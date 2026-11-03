@@ -116,8 +116,12 @@ export function NewScanForm({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ consent, mode, use: mode === "mini" ? "teaser" : use, ...(auth ? { auth } : {}) }),
     });
-    const data = (await response.json()) as { error?: string; scanId?: string };
+    const data = (await response.json()) as { error?: string; scanId?: string; needsRepo?: boolean };
     setBusy(false);
+    if (data.needsRepo && data.scanId) {
+      router.push(`/scans/${data.scanId}`);
+      return;
+    }
     if (!response.ok || !data.scanId) {
       setError(data.error || "Ownership was not confirmed.");
       return;
