@@ -5,6 +5,7 @@ import { FREE_PREVIEW_LABEL, FULL_REPORT_PURCHASE_LEDE, RESCAN_PURCHASE_NOTE, fo
 import type { Severity } from "@/lib/catalog";
 import { TAX_NOTE, TIERS, type TierId } from "@/lib/pricing";
 import { PAYMENT_DECLINED_COPY, PAYMENT_TRY_AGAIN_LABEL } from "@/lib/payments/checkout-return";
+import { RESCAN_CONFIRMING_DETAIL } from "@/lib/payments/paid-scan-status";
 import { PaidScanFollowup, PaymentConfirming, type PaidScanFollowupState } from "./PaidScanFollowup";
 import { UpgradePanel } from "./UpgradePanel";
 import { SharePanel } from "./SharePanel";
@@ -179,7 +180,7 @@ export function ReportView({
           {paidFollowup ? (
             <PaidScanFollowup followup={paidFollowup} />
           ) : paymentNotice === "confirming" ? (
-            <PaymentConfirming recheck={recheck} />
+            <PaymentConfirming recheck={recheck} detail={paymentTier === "rescan" ? RESCAN_CONFIRMING_DETAIL : undefined} />
           ) : paymentNotice === "declined" && scanId ? (
             <div className="space-y-4">
               <section className="rounded-3xl border border-[#f3c7bc]/50 bg-[#f3c7bc]/10 p-5">
@@ -202,7 +203,7 @@ export function ReportView({
       ) : !report.upsell && (paidFollowup || paymentNotice) && !sample ? (
         <section className="space-y-4">
           {paidFollowup ? <PaidScanFollowup followup={paidFollowup} /> : null}
-          {paymentNotice === "confirming" ? <PaymentConfirming recheck={recheck} /> : null}
+          {paymentNotice === "confirming" ? <PaymentConfirming recheck={recheck} detail={paymentTier === "rescan" ? RESCAN_CONFIRMING_DETAIL : undefined} /> : null}
           {paymentNotice === "declined" ? (
             <section className="rounded-3xl border border-[#f3c7bc]/50 bg-[#f3c7bc]/10 p-5">
               <h2 className="font-display text-3xl">Payment didn't go through</h2>

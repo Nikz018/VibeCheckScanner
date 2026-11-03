@@ -12,6 +12,7 @@ interface ProgressPayload {
   pagesDiscovered?: number;
   startedAt?: string | null;
   createdAt?: string | null;
+  codeScan?: boolean;
   progress?: number;
   stages?: Array<{ id: ScanStageId; label: string; state: "done" | "current" | "pending" }>;
 }
@@ -25,6 +26,7 @@ export function ScanPoller({
   initialPages = 0,
   initialStartedAt = null,
   initialCreatedAt = null,
+  codeScan = false,
   progressTitle = "Scan in progress",
   stoppedTitle = "Scan stopped",
 }: {
@@ -36,6 +38,7 @@ export function ScanPoller({
   initialPages?: number;
   initialStartedAt?: string | null;
   initialCreatedAt?: string | null;
+  codeScan?: boolean;
   progressTitle?: string;
   stoppedTitle?: string;
 }) {
@@ -46,6 +49,7 @@ export function ScanPoller({
   const [pages, setPages] = useState(initialPages);
   const [startedAt, setStartedAt] = useState(initialStartedAt);
   const [scanMode, setScanMode] = useState(mode);
+  const [includeCode, setIncludeCode] = useState(codeScan);
   const [elapsed, setElapsed] = useState(0);
   const [retryError, setRetryError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -62,6 +66,7 @@ export function ScanPoller({
       if (typeof data.pagesDiscovered === "number") setPages(data.pagesDiscovered);
       if (data.startedAt) setStartedAt(data.startedAt);
       if (data.mode) setScanMode(data.mode);
+      if (typeof data.codeScan === "boolean") setIncludeCode(data.codeScan);
       if (data.status === "completed" || data.status === "failed") router.refresh();
     }, 2000);
     return () => clearInterval(timer);
@@ -94,8 +99,8 @@ export function ScanPoller({
   }
 
   const failed = status === "failed";
-  const stages = stageState({ mode: scanMode, stage, status });
-  const percent = progressPercent({ mode: scanMode, stage, status });
+  const stages = stageState({ mode: scanMode, stage, status, codeScan: includeCode });
+  const percent = progressPercent({ mode: scanMode, stage, status, codeScan: includeCode });
   const showPages = pages > 0 || stages.some((item) => item.id === "discover" && item.state !== "pending");
 
   return (

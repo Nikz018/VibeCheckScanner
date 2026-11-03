@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { canConnectRepository } from "@/lib/code-scan/gate";
 import { projectHasPaidCodeScan } from "@/lib/code-scan/connect";
 import { prisma } from "@/lib/db";
-import { githubAppConfig, githubInstallUrl, signGithubState } from "@/lib/github/app";
+import { githubAppConfig, githubInstallUrl, safeAppPath, signGithubState } from "@/lib/github/app";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +21,7 @@ export async function GET(request: Request) {
   if (!config || secret.length < 16) {
     return NextResponse.json({ error: "Repository connection is not available on this server yet." }, { status: 503 });
   }
-  const state = signGithubState({ projectId: project.id, userId: user.id }, secret);
+  const next = safeAppPath(new URL(request.url).searchParams.get("next"));
+  const state = signGithubState({ projectId: project.id, userId: user.id, next }, secret);
   return NextResponse.redirect(githubInstallUrl(config.slug, state));
 }

@@ -177,6 +177,7 @@ model Purchase {
   fullScanId            String?  @unique
   ownershipBlock        String?
   startNote             String?
+  codeScanChoice        String?
   status                String   @default("pending")
   createdAt             DateTime @default(now())
   user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -6,9 +6,14 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   const { id } = await context.params;
-  const result = await retryPaidFullScan(user.id, id);
+  const body = (await _request.json().catch(() => null)) as { choice?: unknown } | null;
+  const choice = body?.choice === "skip" || body?.choice === "connect" ? body.choice : undefined;
+  const result = await retryPaidFullScan(user.id, id, choice ? { codeChoice: choice } : undefined);
   if (result.outcome === "not_found") return NextResponse.json({ error: "Purchase not found." }, { status: 404 });
   if (result.outcome === "not_applicable") return NextResponse.json({ error: "This purchase does not start a full scan." }, { status: 400 });
+  if (result.outcome === "needs_repo") {
+    return NextResponse.json({ error: "Connect a repository or skip the code scan before the paid scan starts.", needsRepo: true }, { status: 409 });
+  }
   if (result.outcome === "needs_ownership") {
     return NextResponse.json({ error: result.reason, needsOwnership: true }, { status: 409 });
   }

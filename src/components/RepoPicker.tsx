@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 export function RepoPicker({
   projectId,
   repos,
+  returnTo,
 }: {
   projectId: string;
   repos: Array<{ id: string; owner: string; name: string }>;
+  returnTo?: string;
 }) {
   const router = useRouter();
   const [repoId, setRepoId] = useState(repos[0]?.id ?? "");
@@ -21,12 +23,17 @@ export function RepoPicker({
     const response = await fetch("/api/github/select", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ projectId, repoId }),
+      body: JSON.stringify({ projectId, repoId, returnTo }),
     });
-    const body = (await response.json().catch(() => null)) as { error?: string } | null;
+    const body = (await response.json().catch(() => null)) as { error?: string; redirect?: string } | null;
     setBusy(false);
     if (!response.ok) {
       setError(body?.error || "That repository could not be saved.");
+      return;
+    }
+    if (body?.redirect?.startsWith("/")) {
+      router.push(body.redirect);
+      router.refresh();
       return;
     }
     router.refresh();

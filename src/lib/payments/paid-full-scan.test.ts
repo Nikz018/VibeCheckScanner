@@ -8,11 +8,15 @@ import { UPGRADE_ACTIONS } from "../pricing";
 import { FULL_REPORT_PURCHASE_LEDE } from "../report";
 import { containsToolBrand } from "../sanitize";
 import {
+  CODE_REPO_STEP_TITLE,
+  CONNECT_GITHUB_CODE_SCAN_LABEL,
   FULL_SCAN_PROGRESS_LABEL,
   FULL_SCAN_STOPPED_LABEL,
   OPEN_FULL_REPORT_LABEL,
   REVERIFY_OWNERSHIP_LABEL,
+  SKIP_CODE_SCAN_LABEL,
   START_FULL_SCAN_LABEL,
+  codeScanDashboardPrompt,
   paidReportNotice,
   paidScanDashboardAction,
 } from "./paid-scan-status";
@@ -55,8 +59,44 @@ test("paid scan status copy runs the full report after purchase", () => {
     paidScanDashboardAction("preview", { status: "paid", ownershipBlock: null, startNote: "Wait for a running scan to finish before starting another.", fullScan: null }, UPGRADE_ACTIONS.report),
     { href: "/scans/preview#upgrade", label: START_FULL_SCAN_LABEL },
   );
+  assert.deepEqual(
+    paidScanDashboardAction(
+      "preview",
+      { status: "paid", ownershipBlock: null, startNote: null, fullScan: null, tier: "rescan", repoConnected: false, githubConfigured: true },
+      UPGRADE_ACTIONS.report,
+    ),
+    { href: "/scans/preview#code-scan-step", label: CONNECT_GITHUB_CODE_SCAN_LABEL },
+  );
+  assert.equal(codeScanDashboardPrompt({ tier: "report", repoConnected: false, githubConfigured: true, previewId: "p", projectId: "proj", fullScan: null }), null);
+  assert.equal(codeScanDashboardPrompt({ tier: "monitor", repoConnected: false, githubConfigured: true, previewId: "p", projectId: "proj", fullScan: null }), null);
+  assert.equal(codeScanDashboardPrompt({ tier: "rescan", repoConnected: true, githubConfigured: true, previewId: "p", projectId: "proj", fullScan: null }), null);
+  assert.equal(codeScanDashboardPrompt({ tier: "rescan", repoConnected: false, githubConfigured: false, previewId: "p", projectId: "proj", fullScan: null }), null);
+  assert.deepEqual(codeScanDashboardPrompt({ tier: "rescan", repoConnected: false, githubConfigured: true, previewId: "p", projectId: "proj", fullScan: null }), {
+    href: "/scans/p#code-scan-step",
+    label: CONNECT_GITHUB_CODE_SCAN_LABEL,
+  });
+  assert.deepEqual(
+    codeScanDashboardPrompt({ tier: "rescan", repoConnected: false, githubConfigured: true, previewId: "p", projectId: "proj", fullScan: { id: "full", status: "completed" } }),
+    { href: "/scans/full#code-scan", label: CONNECT_GITHUB_CODE_SCAN_LABEL },
+  );
+  assert.equal(CODE_REPO_STEP_TITLE, "Step 1: Connect your GitHub repo (read-only, one repo, deleted after scan)");
+  assert.equal(SKIP_CODE_SCAN_LABEL, "Skip code scan, scan site only");
+  assert.equal(CONNECT_GITHUB_CODE_SCAN_LABEL, "Connect GitHub to run your code scan");
+  const step = readFileSync(path.join(process.cwd(), "src/components/CodeScanConnectStep.tsx"), "utf8");
+  assert.match(step, /CODE_REPO_STEP_TITLE/);
+  assert.match(step, /SKIP_CODE_SCAN_LABEL/);
+  assert.match(step, /CODE_PRIVACY_PROMISE/);
+  assert.match(step, /USE_THIS_REPO_LABEL/);
+  assert.match(step, /CHANGE_REPO_LABEL/);
+  assert.match(step, /Connect GitHub/);
+  const dashboard = readFileSync(path.join(process.cwd(), "src/app/dashboard/page.tsx"), "utf8");
+  assert.match(dashboard, /codeScanDashboardPrompt/);
+  assert.match(dashboard, /CONNECT_GITHUB_CODE_SCAN_LABEL|codeScanDashboardPrompt/);
+  const progress = readFileSync(path.join(process.cwd(), "src/lib/scan-progress.ts"), "utf8");
+  assert.match(progress, /Scanning your code/);
 
   const execute = readFileSync(path.join(process.cwd(), "src/worker/execute.ts"), "utf8");
+  assert.match(execute, /"code"/);
   assert.match(execute, /notifyPaidReport/);
   assert.match(execute, /paidReportNotice/);
   assert.match(execute, /full report notice failed/);
@@ -154,6 +194,7 @@ test("the $99 mini purchase adds one rescan credit and still one full scan", { s
   let ownershipOk = false;
   const enqueued: string[] = [];
   const deps: PaidFullScanDeps = {
+    githubConfigured: false,
     verifyOwnership: async () => (ownershipOk ? { ok: true, method: "well_known" } : { ok: false, reason: "Ownership proof was not found." }),
     enqueueScan: async (scanId) => {
       enqueued.push(scanId);
@@ -242,6 +283,105 @@ test("a paid mini scan waits for a free slot and survives a queue outage without
   if (retried.outcome !== "started") assert.fail(retried.outcome);
   assert.equal(retried.scanId, failed.fullScanId);
   assert.deepEqual(enqueued, [failed.fullScanId]);
+  await cleanup(prisma, user.id);
+});
+
+test("a $99 purchase waits to connect a repository when GitHub is configured, then one scan covers the site and the code", { skip }, async () => {
+  const { prisma } = await import("../db");
+  const { applyPaidAccess } = await import("./fulfill");
+  const { choosePaidCodeScan } = await import("./paid-full-scan");
+  const { settlePreviewCheckout } = await import("./confirm-purchase");
+  const { user, project, scan, session, purchase } = await seed(prisma, "rescan");
+  const enqueued: string[] = [];
+  const deps: PaidFullScanDeps = {
+    githubConfigured: true,
+    verifyOwnership: async () => ({ ok: true, method: "dns_txt" }),
+    enqueueScan: async (scanId) => {
+      enqueued.push(scanId);
+    },
+  };
+
+  const waiting = await settlePreviewCheckout({
+    purchase: { ...purchase, status: "pending" },
+    query: { checkout: "success" },
+    deps,
+  });
+  assert.equal(waiting.kind, "confirming");
+  assert.equal(enqueued.length, 0);
+  assert.equal((await prisma.purchase.findUniqueOrThrow({ where: { id: purchase.id } })).status, "pending");
+
+  await applyPaidAccess("dodo", paidEvent(user.id, "rescan", scan.id, session), deps);
+  const held = await prisma.purchase.findUniqueOrThrow({ where: { id: purchase.id } });
+  assert.equal(held.status, "paid");
+  assert.equal(held.fullScanId, null);
+  assert.equal(held.codeScanChoice, null);
+  assert.equal(enqueued.length, 0);
+  assert.equal(await prisma.scan.count({ where: { userId: user.id, mode: "full" } }), 0);
+  assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).rescanCredits, 1);
+  const stamped = await prisma.project.findUniqueOrThrow({ where: { id: project.id } });
+  assert.equal(stamped.ownershipMethod, "dns_txt");
+  assert.ok(stamped.ownershipVerifiedAt);
+
+  const blocked = await choosePaidCodeScan({ userId: user.id, purchaseId: purchase.id, choice: "connect", deps });
+  assert.equal(blocked.outcome, "needs_repo");
+  assert.equal(enqueued.length, 0);
+
+  await prisma.repoLink.create({
+    data: { projectId: project.id, userId: user.id, installationId: "77", repoId: "88", owner: "acme", name: "app", status: "connected" },
+  });
+  const started = await choosePaidCodeScan({ userId: user.id, purchaseId: purchase.id, choice: "connect", deps });
+  if (started.outcome !== "started") assert.fail(started.outcome);
+  assert.deepEqual(enqueued, [started.scanId]);
+  const full = await prisma.scan.findUniqueOrThrow({ where: { id: started.scanId } });
+  assert.equal(full.codeScanEnabled, true);
+  assert.equal(full.mode, "full");
+  assert.equal((await prisma.purchase.findUniqueOrThrow({ where: { id: purchase.id } })).codeScanChoice, "connect");
+  await applyPaidAccess("dodo", paidEvent(user.id, "rescan", scan.id, session, "pay_again"), deps);
+  assert.equal(await prisma.scan.count({ where: { userId: user.id, mode: "full" } }), 1);
+  assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).rescanCredits, 1);
+  await cleanup(prisma, user.id);
+});
+
+test("skipping the code step still runs the paid site scan and keeps the code scan on the same purchase", { skip }, async () => {
+  const { prisma } = await import("../db");
+  const { applyPaidAccess } = await import("./fulfill");
+  const { choosePaidCodeScan } = await import("./paid-full-scan");
+  const { user, scan, session, purchase } = await seed(prisma, "rescan");
+  const enqueued: string[] = [];
+  const deps: PaidFullScanDeps = {
+    githubConfigured: true,
+    verifyOwnership: async () => ({ ok: true, method: "well_known" }),
+    enqueueScan: async (scanId) => {
+      enqueued.push(scanId);
+    },
+  };
+  await applyPaidAccess("dodo", paidEvent(user.id, "rescan", scan.id, session), deps);
+  assert.equal(enqueued.length, 0);
+  const skipped = await choosePaidCodeScan({ userId: user.id, purchaseId: purchase.id, choice: "skip", deps });
+  if (skipped.outcome !== "started") assert.fail(skipped.outcome);
+  const full = await prisma.scan.findUniqueOrThrow({ where: { id: skipped.scanId } });
+  assert.equal(full.codeScanEnabled, true);
+  assert.equal((await prisma.purchase.findUniqueOrThrow({ where: { id: purchase.id } })).codeScanChoice, "skip");
+  assert.equal(await prisma.purchase.count({ where: { userId: user.id } }), 1);
+  assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).rescanCredits, 1);
+  await cleanup(prisma, user.id);
+});
+
+test("a $49 purchase still starts immediately when GitHub is configured", { skip }, async () => {
+  const { prisma } = await import("../db");
+  const { applyPaidAccess } = await import("./fulfill");
+  const { user, scan, session } = await seed(prisma, "report");
+  const enqueued: string[] = [];
+  await applyPaidAccess("dodo", paidEvent(user.id, "report", scan.id, session), {
+    githubConfigured: true,
+    verifyOwnership: async () => ({ ok: true, method: "dns_txt" }),
+    enqueueScan: async (scanId) => {
+      enqueued.push(scanId);
+    },
+  });
+  assert.equal(enqueued.length, 1);
+  const full = await prisma.scan.findFirstOrThrow({ where: { userId: user.id, mode: "full" } });
+  assert.equal(full.codeScanEnabled, false);
   await cleanup(prisma, user.id);
 });
 

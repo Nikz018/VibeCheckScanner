@@ -25,13 +25,23 @@ export function githubAppConfig(): GithubAppConfig | null {
   return { appId, privateKey, webhookSecret, slug };
 }
 
-export function signGithubState(input: { projectId: string; userId: string }, secret: string, now = Date.now()): string {
-  const body = Buffer.from(JSON.stringify({ projectId: input.projectId, userId: input.userId, exp: now + 15 * 60 * 1000 })).toString("base64url");
+/** A same-origin path the GitHub install flow is allowed to return to. */
+export function safeAppPath(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const path = value.trim();
+  if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\") || path.includes("://")) return null;
+  if (/[\u0000-\u001f]/.test(path)) return null;
+  return path;
+}
+
+export function signGithubState(input: { projectId: string; userId: string; next?: string | null }, secret: string, now = Date.now()): string {
+  const next = safeAppPath(input.next);
+  const body = Buffer.from(JSON.stringify({ projectId: input.projectId, userId: input.userId, exp: now + 15 * 60 * 1000, ...(next ? { next } : {}) })).toString("base64url");
   const sig = crypto.createHmac("sha256", secret).update(body).digest("base64url");
   return `${body}.${sig}`;
 }
 
-export function readGithubState(state: string, secret: string, now = Date.now()): { projectId: string; userId: string } | null {
+export function readGithubState(state: string, secret: string, now = Date.now()): { projectId: string; userId: string; next: string | null } | null {
   const [body, sig] = state.split(".");
   if (!body || !sig) return null;
   const expected = crypto.createHmac("sha256", secret).update(body).digest("base64url");
@@ -39,10 +49,11 @@ export function readGithubState(state: string, secret: string, now = Date.now())
   const right = Buffer.from(expected);
   if (left.length !== right.length || !crypto.timingSafeEqual(left, right)) return null;
   try {
-    const parsed = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as { projectId?: unknown; userId?: unknown; exp?: unknown };
+    const parsed = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as { projectId?: unknown; userId?: unknown; exp?: unknown; next?: unknown };
     if (typeof parsed.projectId !== "string" || typeof parsed.userId !== "string" || typeof parsed.exp !== "number") return null;
     if (parsed.exp < now) return null;
-    return { projectId: parsed.projectId, userId: parsed.userId };
+    const next = typeof parsed.next === "string" ? safeAppPath(parsed.next) : null;
+    return { projectId: parsed.projectId, userId: parsed.userId, next };
   } catch {
     return null;
   }

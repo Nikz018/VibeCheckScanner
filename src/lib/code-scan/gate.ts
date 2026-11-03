@@ -25,6 +25,26 @@ export function canConnectRepository(input: {
   return { ok: true };
 }
 
+export type CodeScanChoice = "skip" | "connect";
+
+/**
+ * The connect step is only for a paid $99 scan that has not started, after ownership is verified,
+ * and only when this server can actually connect a repository. A saved choice means they already
+ * decided, so a later retry starts the scan they asked for.
+ */
+export function shouldOfferCodeRepoStep(input: {
+  tier: string | null | undefined;
+  ownershipVerified: boolean;
+  githubConfigured: boolean;
+  fullScanStarted: boolean;
+  codeScanChoice: string | null | undefined;
+}): boolean {
+  if (!codeScanEnabledForTier(input.tier)) return false;
+  if (!input.ownershipVerified || !input.githubConfigured || input.fullScanStarted) return false;
+  if (input.codeScanChoice === "skip" || input.codeScanChoice === "connect") return false;
+  return true;
+}
+
 export function canRunCodeScan(input: { ownershipVerified: boolean; codeScanEnabled: boolean; repoConnected: boolean }): { ok: true } | { ok: false; reason: string } {
   if (!input.codeScanEnabled) {
     return { ok: false, reason: "Code scan is included with the $99 site + code scan plan." };

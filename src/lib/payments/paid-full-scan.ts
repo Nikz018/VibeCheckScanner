@@ -1,4 +1,5 @@
 import { prisma } from "../db";
+import { githubAppConfig } from "../github/app";
 import { CONSENT_TEXT, verifyOwnership } from "../ownership";
 import { enqueuePaidScan } from "../queue";
 import { recordScanAuthorization } from "../scan-authorization";
@@ -15,9 +16,14 @@ export type OwnershipVerifier = (
   token: string,
 ) => Promise<{ ok: boolean; method?: "well_known" | "dns_txt"; reason?: string }>;
 
+export type CodeRepoChoice = "skip" | "connect";
+
 export interface PaidFullScanDeps {
   verifyOwnership?: OwnershipVerifier;
   enqueueScan?: (scanId: string) => Promise<void>;
+  /** Overrides the live GitHub App check. Unset uses the server environment. */
+  githubConfigured?: boolean;
+  codeChoice?: CodeRepoChoice;
 }
 
 export type PaidFullScanOutcome =
@@ -26,6 +32,7 @@ export type PaidFullScanOutcome =
   | { outcome: "needs_ownership"; reason: string }
   | { outcome: "limited"; reason: string }
   | { outcome: "queue_unavailable"; scanId: string; reason: string }
+  | { outcome: "needs_repo" }
   | { outcome: "not_applicable" }
   | { outcome: "not_found" };
 
@@ -39,6 +46,57 @@ export async function fulfillPaidMiniScan(input: {
 
 export async function retryPaidFullScan(userId: string, purchaseId: string, deps?: PaidFullScanDeps): Promise<PaidFullScanOutcome> {
   return startPaidFullScan({ userId, purchaseId, retry: true, deps });
+}
+
+export async function choosePaidCodeScan(input: {
+  userId: string;
+  purchaseId: string;
+  choice: CodeRepoChoice;
+  deps?: PaidFullScanDeps;
+}): Promise<PaidFullScanOutcome> {
+  return startPaidFullScan({
+    userId: input.userId,
+    purchaseId: input.purchaseId,
+    retry: false,
+    deps: { ...input.deps, codeChoice: input.choice },
+  });
+}
+
+/** After a repository is saved, start a waiting $99 scan so the site and code scans share one job. */
+export async function resumeAfterRepoChoice(
+  userId: string,
+  projectId: string,
+  returnTo: string | null,
+  deps?: PaidFullScanDeps,
+): Promise<{ kind: "progress"; redirect: string; scanId: string } | { kind: "step"; redirect: string } | { kind: "later" }> {
+  const purchases = await prisma.purchase.findMany({
+    where: { userId, status: "paid", tier: "rescan", fullScanId: null },
+    orderBy: { createdAt: "desc" },
+  });
+  for (const purchase of purchases) {
+    if (!purchase.scanId) continue;
+    const preview = await prisma.scan.findFirst({
+      where: { id: purchase.scanId, userId, projectId, mode: "mini" },
+      select: { id: true },
+    });
+    if (!preview) continue;
+    const outcome = await startPaidFullScan({
+      userId,
+      purchaseId: purchase.id,
+      retry: false,
+      deps: { ...deps, codeChoice: "connect" },
+    });
+    const scanId = paidScanId(outcome);
+    if (scanId) return { kind: "progress", redirect: `/scans/${scanId}`, scanId };
+    return { kind: "step", redirect: returnTo || `/scans/${preview.id}?checkout=success` };
+  }
+  if (returnTo) return { kind: "step", redirect: returnTo };
+  return { kind: "later" };
+}
+
+export function paidScanId(outcome: PaidFullScanOutcome): string | null {
+  if (outcome.outcome === "started" || outcome.outcome === "already_started" || outcome.outcome === "queue_unavailable") return outcome.scanId;
+  return null;
 }
 
 async function startPaidFullScan(input: {
@@ -59,7 +117,7 @@ async function startPaidFullScan(input: {
   }
   const preview = await prisma.scan.findFirst({
     where: { id: purchase.scanId, userId: purchase.userId },
-    include: { project: true },
+    include: { project: { include: { repoLink: true } } },
   });
   if (!preview) return { outcome: "not_found" };
   if (preview.mode !== "mini") return { outcome: "not_applicable" };
@@ -102,6 +160,28 @@ async function startPaidFullScan(input: {
       data: { ownershipBlock: reason, startNote: null },
     });
     return { outcome: "needs_ownership", reason };
+  }
+
+  const choice = resolveCodeChoice(input.deps?.codeChoice, purchase.codeScanChoice);
+  const githubReady = isGithubConfigured(input.deps);
+  const connected = repoIsConnected(preview.project.repoLink);
+  if (purchase.tier === "rescan" && githubReady && !choice) {
+    await prisma.purchase.update({
+      where: { id: purchase.id },
+      data: { ownershipBlock: null, startNote: null },
+    });
+    await stampProjectOwnership(preview.projectId, proof.method);
+    return { outcome: "needs_repo" };
+  }
+  if (purchase.tier === "rescan" && choice === "connect" && !connected) {
+    await stampProjectOwnership(preview.projectId, proof.method);
+    return { outcome: "needs_repo" };
+  }
+  if (input.deps?.codeChoice && purchase.codeScanChoice !== input.deps.codeChoice) {
+    await prisma.purchase.update({
+      where: { id: purchase.id },
+      data: { codeScanChoice: input.deps.codeChoice },
+    });
   }
 
   const active = await prisma.scan.count({
@@ -148,14 +228,7 @@ async function startPaidFullScan(input: {
     targetUrl: preview.project.url,
     method: proof.method,
   });
-  await prisma.project
-    .update({
-      where: { id: preview.projectId },
-      data: { ownershipVerifiedAt: new Date(), ownershipMethod: proof.method },
-    })
-    .catch((error) => {
-      console.error(error instanceof Error ? error.message : "ownership stamp failed");
-    });
+  await stampProjectOwnership(preview.projectId, proof.method);
   return queued;
 }
 
@@ -211,14 +284,7 @@ async function requeueFailedScan(input: {
     targetUrl: input.scan.targetUrl,
     method: proof.method,
   });
-  await prisma.project
-    .update({
-      where: { id: input.project.id },
-      data: { ownershipVerifiedAt: new Date(), ownershipMethod: proof.method },
-    })
-    .catch((error) => {
-      console.error(error instanceof Error ? error.message : "ownership stamp failed");
-    });
+  await stampProjectOwnership(input.project.id, proof.method);
   return queued;
 }
 
@@ -285,6 +351,32 @@ async function ensureAuthorizations(input: {
       method: input.method,
     });
   }
+}
+
+function isGithubConfigured(deps?: PaidFullScanDeps): boolean {
+  if (typeof deps?.githubConfigured === "boolean") return deps.githubConfigured;
+  return githubAppConfig() !== null;
+}
+
+function resolveCodeChoice(explicit: CodeRepoChoice | undefined, stored: string | null): CodeRepoChoice | null {
+  if (explicit === "skip" || explicit === "connect") return explicit;
+  if (stored === "skip" || stored === "connect") return stored;
+  return null;
+}
+
+function repoIsConnected(link: { status: string; owner: string; name: string } | null | undefined): boolean {
+  return Boolean(link && link.status === "connected" && link.owner && link.name);
+}
+
+async function stampProjectOwnership(projectId: string, method: "well_known" | "dns_txt"): Promise<void> {
+  await prisma.project
+    .update({
+      where: { id: projectId },
+      data: { ownershipVerifiedAt: new Date(), ownershipMethod: method },
+    })
+    .catch((error) => {
+      console.error(error instanceof Error ? error.message : "ownership stamp failed");
+    });
 }
 
 function ownershipMethod(method: string | null): "well_known" | "dns_txt" | null {

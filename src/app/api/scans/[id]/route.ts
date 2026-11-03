@@ -18,9 +18,12 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       startedAt: true,
       createdAt: true,
       codeReport: true,
+      codeScanEnabled: true,
+      project: { select: { repoLink: { select: { status: true, owner: true, name: true } } } },
     },
   });
   if (!scan) return NextResponse.json({ error: "Scan not found." }, { status: 404 });
+  const codeScan = Boolean(scan.codeScanEnabled && scan.project.repoLink?.status === "connected" && scan.project.repoLink.owner && scan.project.repoLink.name);
   return NextResponse.json({
     status: scan.status,
     error: scan.error,
@@ -29,9 +32,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     pagesDiscovered: scan.pagesDiscovered,
     startedAt: scan.startedAt?.toISOString() ?? null,
     createdAt: scan.createdAt.toISOString(),
+    codeScan,
     codeStatus: readCodeStatus(scan.codeReport),
-    progress: progressPercent({ mode: scan.mode, stage: scan.progressStage, status: scan.status }),
-    stages: stageState({ mode: scan.mode, stage: scan.progressStage, status: scan.status }),
+    progress: progressPercent({ mode: scan.mode, stage: scan.progressStage, status: scan.status, codeScan }),
+    stages: stageState({ mode: scan.mode, stage: scan.progressStage, status: scan.status, codeScan }),
   });
 }
 

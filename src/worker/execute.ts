@@ -106,6 +106,7 @@ async function runQueuedScan(scan: Prisma.ScanGetPayload<{ include: { project: {
         authError = "Logged-in checks skipped: stored test-account credentials could not be read. Unauthenticated checks still ran.";
       }
     }
+    const willScanCode = scan.codeScanEnabled && repoIsConnected(scan.project.repoLink);
     const output = await runScanPipeline({
       targetUrl: scan.targetUrl,
       mode: scan.mode === "mini" ? "mini" : "full",
@@ -113,13 +114,14 @@ async function runQueuedScan(scan: Prisma.ScanGetPayload<{ include: { project: {
       auth,
       authError,
       reportAccess: scan.reportAccess === "full" ? "full" : "teaser",
-      onProgress: (update) => recordProgress(scan.id, update.stage, update.pagesDiscovered),
+      onProgress: (update) => recordProgress(scan.id, willScanCode && update.stage === "report" ? "code" : update.stage, update.pagesDiscovered),
     });
     const finishedAt = new Date();
     const severities = output.results.map((result) => ({ severity: result.severity ?? getCheck(result.checkId).severity }));
     const finalScore = computeScore(severities);
     const passed = isPassingScore(finalScore, severities);
     const codeReport = scan.codeScanEnabled ? await safeCodeReport(scan, true) : null;
+    if (willScanCode) await recordProgress(scan.id, "report");
     const report = buildCustomerReport({
       scanId: scan.id,
       status: "completed",
@@ -252,6 +254,10 @@ async function safeCodeReport(
     console.error("code scan failed", error instanceof Error ? error.message : "error");
     return shellCodeReport("failed", ["The code scan could not finish. The site results are still available."]);
   }
+}
+
+function repoIsConnected(link: { status: string; owner: string; name: string } | null): boolean {
+  return Boolean(link && link.status === "connected" && link.owner && link.name);
 }
 
 async function recordProgress(scanId: string, stage: ScanStageId, pagesDiscovered?: number): Promise<void> {

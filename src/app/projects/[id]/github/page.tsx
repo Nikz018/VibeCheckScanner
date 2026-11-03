@@ -6,7 +6,7 @@ import { RunCodeScanButton } from "@/components/RunCodeScanButton";
 import { getCurrentUser } from "@/lib/auth";
 import { CODE_PRIVACY_PROMISE } from "@/lib/code-scan/privacy";
 import { prisma } from "@/lib/db";
-import { fetchInstallationRepos, githubAppConfig } from "@/lib/github/app";
+import { fetchInstallationRepos, githubAppConfig, safeAppPath } from "@/lib/github/app";
 import { signInPath } from "@/lib/checkout-path";
 import { privateMetadata } from "@/lib/seo/metadata";
 
@@ -18,10 +18,11 @@ export default async function GithubProjectPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ connected?: string; github?: string }>;
+  searchParams: Promise<{ connected?: string; github?: string; next?: string }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
+  const next = safeAppPath(query.next);
   const user = await getCurrentUser();
   if (!user) redirect(signInPath(`/projects/${id}/github`));
   const project = await prisma.project.findFirst({
@@ -45,6 +46,7 @@ export default async function GithubProjectPage({
     }
   }
   const connected = project.repoLink?.status === "connected" && project.repoLink.owner && project.repoLink.name ? `${project.repoLink.owner}/${project.repoLink.name}` : null;
+  const connectHref = `/api/github/connect?projectId=${project.id}${next ? `&next=${encodeURIComponent(next)}` : ""}`;
   return (
     <div className="py-8">
       <section className="panel p-6">
@@ -66,23 +68,29 @@ export default async function GithubProjectPage({
             <p className="text-sm text-[#d5deee]">Repository: {connected}</p>
             <RunCodeScanButton projectId={project.id} />
             {config ? (
-              <a className="btn btn-ghost" href={`/api/github/connect?projectId=${project.id}`}>
+              <a className="btn btn-ghost" href={connectHref}>
                 Choose a different repository
               </a>
             ) : null}
           </div>
         ) : config ? (
           <div className="mt-4">
-            <a className="btn btn-lime" href={`/api/github/connect?projectId=${project.id}`}>
+            <a className="btn btn-lime" href={connectHref}>
               Connect GitHub
             </a>
-            <RepoPicker projectId={project.id} repos={repos} />
+            <RepoPicker projectId={project.id} repos={repos} returnTo={next ?? undefined} />
           </div>
         ) : null}
         <p className="mt-6 text-sm">
-          <Link className="underline" href="/dashboard">
-            Back to the dashboard
-          </Link>
+          {next ? (
+            <Link className="underline" href={next}>
+              Back to the scan step
+            </Link>
+          ) : (
+            <Link className="underline" href="/dashboard">
+              Back to the dashboard
+            </Link>
+          )}
         </p>
       </section>
     </div>

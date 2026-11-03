@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
+import { CodeScanConnectStep } from "@/components/CodeScanConnectStep";
 import { OwnershipProof, RetryFullScanButton } from "@/components/PaidScanFollowup";
 import { ScanPoller } from "@/components/ScanPoller";
 import { CodeScanPanel } from "@/components/CodeScanPanel";
+import { shouldOfferCodeRepoStep } from "@/lib/code-scan/gate";
 import { ReportView } from "@/components/ReportView";
 import { parseCodeReport } from "@/lib/code-scan/parse";
 import { combinedScores } from "@/lib/code-scan/score";
@@ -68,6 +70,22 @@ export default async function ScanPage({
       paymentNotice = settled.kind;
     }
   }
+  const githubReady = githubAppConfig() !== null;
+  const connectedRepo =
+    scan.project.repoLink?.status === "connected" && scan.project.repoLink.owner && scan.project.repoLink.name
+      ? `${scan.project.repoLink.owner}/${scan.project.repoLink.name}`
+      : null;
+  const offerCodeStep = Boolean(
+    purchase &&
+      scan.mode === "mini" &&
+      shouldOfferCodeRepoStep({
+        tier: purchase.tier,
+        ownershipVerified: Boolean(scan.project.ownershipVerifiedAt),
+        githubConfigured: githubReady,
+        fullScanStarted: Boolean(purchase.fullScanId),
+        codeScanChoice: purchase.codeScanChoice,
+      }),
+  );
   const paidFullScan = purchase?.fullScanId === scan.id;
   const purchased =
     purchase?.status === "paid" ||
@@ -91,6 +109,7 @@ export default async function ScanPage({
           initialPages={scan.pagesDiscovered}
           initialStartedAt={scan.startedAt?.toISOString() ?? null}
           initialCreatedAt={scan.createdAt.toISOString()}
+          codeScan={Boolean(scan.codeScanEnabled && connectedRepo)}
           progressTitle={paidFullScan ? FULL_SCAN_PROGRESS_LABEL : undefined}
           stoppedTitle={paidFullScan ? FULL_SCAN_STOPPED_LABEL : undefined}
         />
@@ -118,7 +137,10 @@ export default async function ScanPage({
     unlock: gating.unlock,
   });
   return (
-    <div className="py-6">
+    <div className="space-y-6 py-6">
+      {offerCodeStep && purchase ? (
+        <CodeScanConnectStep purchaseId={purchase.id} projectId={scan.projectId} repo={connectedRepo} returnPath={`/scans/${scan.id}?checkout=success`} />
+      ) : null}
       <ReportView
         report={report}
         targetLabel={scan.targetUrl}
@@ -150,12 +172,12 @@ export default async function ScanPage({
                   : null
               }
               ownershipVerified={Boolean(scan.project.ownershipVerifiedAt)}
-              githubReady={githubAppConfig() !== null}
+              githubReady={githubReady}
             />
           ) : null
         }
         paidFollowup={
-          scan.mode === "mini" && purchase
+          scan.mode === "mini" && purchase && !offerCodeStep
             ? {
                 purchaseId: purchase.id,
                 ownershipBlock: purchase.ownershipBlock,
