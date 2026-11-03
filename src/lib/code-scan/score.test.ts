@@ -4,7 +4,10 @@ import { CHECK_CATALOG } from "@/lib/catalog";
 import { renderPrintHtml } from "@/lib/download";
 import { buildCustomerReport } from "@/lib/report";
 import { computeScore } from "@/lib/score";
-import { combinedScores, computeCodeScore, computeOverallScore, HIGH_CONFIDENCE_RULES, LOW_CONFIDENCE_PENALTY_FACTOR, OVERALL_SCORE_WEIGHTS, overallScoreExplanation } from "./score";
+import { CODE_SCAN_EMPTY_NOTICE, CODE_SCAN_FAILED_NOTICE, CODE_SCAN_FAILED_TITLE, CODE_SCAN_SCORE_UNAVAILABLE } from "./messages";
+import { shellCodeReport } from "./parse";
+import { renderCodeScanMarkdown } from "./format";
+import { codeScoreGap, combinedScores, computeCodeScore, computeOverallScore, HIGH_CONFIDENCE_RULES, LOW_CONFIDENCE_PENALTY_FACTOR, OVERALL_SCORE_WEIGHTS, overallScoreExplanation } from "./score";
 
 test("code score uses site weights and halves low-confidence pattern findings", () => {
   assert.equal(computeCodeScore([]), 100);
@@ -50,6 +53,27 @@ test("combined scores appear only for a finished $99 code scan", () => {
   assert.equal(combinedScores({ codeScanEnabled: true, siteScore: null, codeReport: completed }), null);
   assert.equal(combinedScores({ codeScanEnabled: true, siteScore: 80, codeReport: { status: "queued", findings } }), null);
   assert.equal(combinedScores({ codeScanEnabled: true, siteScore: 80, codeReport: null }), null);
+  assert.equal(combinedScores({ codeScanEnabled: true, siteScore: 80, codeReport: { status: "failed", findings: [] } }), null);
+  assert.equal(combinedScores({ codeScanEnabled: true, siteScore: 80, codeReport: { status: "completed", findings: [], empty: true } }), null);
+  assert.deepEqual(codeScoreGap({ codeScanEnabled: true, siteScore: 80, codeReport: { status: "failed", findings: [] }, scanStatus: "completed" }), {
+    site: 80,
+    reason: CODE_SCAN_SCORE_UNAVAILABLE,
+  });
+  assert.equal(codeScoreGap({ codeScanEnabled: true, siteScore: 80, codeReport: { status: "failed", findings: [] }, scanStatus: "running" }), null);
+  assert.equal(codeScoreGap({ codeScanEnabled: true, siteScore: 80, codeReport: { status: "queued", findings: [] }, scanStatus: "completed" }), null);
+  assert.deepEqual(
+    codeScoreGap({ codeScanEnabled: true, siteScore: 80.4, codeReport: { status: "completed", findings: [], empty: true }, scanStatus: "completed" }),
+    { site: 80, reason: CODE_SCAN_EMPTY_NOTICE },
+  );
+  assert.deepEqual(codeScoreGap({ codeScanEnabled: true, siteScore: 80, codeReport: null, repoConnected: true, scanStatus: "completed" }), {
+    site: 80,
+    reason: CODE_SCAN_SCORE_UNAVAILABLE,
+  });
+  const failed = shellCodeReport("failed", [CODE_SCAN_FAILED_NOTICE], "Nikz018/VulnAsp");
+  const markdown = renderCodeScanMarkdown(failed);
+  assert.match(markdown, new RegExp(CODE_SCAN_FAILED_TITLE.replace("'", "\\'")));
+  assert.match(markdown, /Nikz018\/VulnAsp/);
+  assert.equal(markdown.includes("### OWASP"), false);
 });
 
 test("the PDF cover shows three rings only when a code score exists", () => {
@@ -79,4 +103,13 @@ test("the PDF cover shows three rings only when a code score exists", () => {
   assert.match(withCode, /60% the live site score/);
   assert.match(withCode, />80\/100</);
   assert.match(withCode, />78\/100</);
+
+  const unavailable = renderPrintHtml(report, "http://127.0.0.1:4010", null, { site: 80, reason: CODE_SCAN_SCORE_UNAVAILABLE });
+  assert.equal(unavailable.match(/data-score-gauge=/g)?.length, 1);
+  assert.match(unavailable, /data-score-gauge="80"/);
+  assert.match(unavailable, /data-score-role="site"/);
+  assert.match(unavailable, /data-score-unavailable="code"/);
+  assert.match(unavailable, /data-score-unavailable="overall"/);
+  assert.match(unavailable, /no code score and no overall score/);
+  assert.equal(unavailable.includes('data-score-gauge="100"'), false);
 });

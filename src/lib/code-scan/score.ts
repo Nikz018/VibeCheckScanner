@@ -1,6 +1,7 @@
 import type { Severity } from "@/lib/catalog";
 import { SEVERITY_WEIGHTS } from "@/lib/score";
 import { clampScore, renderScoreGaugeSvg, type GaugeTone } from "@/lib/score-gauge";
+import { CODE_SCAN_EMPTY_NOTICE, CODE_SCAN_SCORE_UNAVAILABLE } from "./messages";
 import type { CodeScanReport } from "./types";
 
 /**
@@ -67,17 +68,59 @@ export interface CombinedScores {
   overall: number;
 }
 
+export interface CodeScoreGap {
+  site: number;
+  reason: string;
+}
+
+type ScoreReport = Pick<CodeScanReport, "status" | "findings"> & { empty?: boolean };
+
 /** Scores for a finished $99 code scan. Other plans, and a code scan that has not finished, stay on the site score alone. */
 export function combinedScores(input: {
   codeScanEnabled: boolean;
   siteScore: number | null;
-  codeReport: Pick<CodeScanReport, "status" | "findings"> | null;
+  codeReport: ScoreReport | null;
 }): CombinedScores | null {
   if (!input.codeScanEnabled || input.siteScore === null) return null;
-  if (!input.codeReport || input.codeReport.status !== "completed") return null;
+  if (!input.codeReport || input.codeReport.status !== "completed" || input.codeReport.empty) return null;
   const site = clampScore(input.siteScore);
   const code = computeCodeScore(input.codeReport.findings);
   return { site, code, overall: computeOverallScore(site, code) };
+}
+
+/**
+ * Site score stays. Code and overall stay blank when the code scan did not
+ * produce a result, so a missing scan is not shown as a perfect code score.
+ */
+export function codeScoreGap(input: {
+  codeScanEnabled: boolean;
+  siteScore: number | null;
+  codeReport: ScoreReport | null;
+  repoConnected?: boolean;
+  scanStatus?: string;
+}): CodeScoreGap | null {
+  if (input.scanStatus && input.scanStatus !== "completed") return null;
+  if (!input.codeScanEnabled || input.siteScore === null) return null;
+  if (combinedScores(input)) return null;
+  const site = clampScore(input.siteScore);
+  if (input.codeReport?.empty) return { site, reason: CODE_SCAN_EMPTY_NOTICE };
+  if (input.codeReport?.status === "failed") return { site, reason: CODE_SCAN_SCORE_UNAVAILABLE };
+  if (!input.codeReport && input.repoConnected) return { site, reason: CODE_SCAN_SCORE_UNAVAILABLE };
+  return null;
+}
+
+export function renderUnavailableScoresHtml(gap: CodeScoreGap, tone: GaugeTone = "light"): string {
+  const blanks = [
+    { role: "code", label: "Code" },
+    { role: "overall", label: "Overall" },
+  ];
+  const blank = blanks
+    .map(
+      (ring) =>
+        `<div class="gauge${ring.role === "overall" ? " gauge-overall" : ""}" data-score-role="${ring.role}" data-score-unavailable="${ring.role}"><p class="ring-label">${ring.label}</p><p class="unavailable-score">—</p></div>`,
+    )
+    .join("");
+  return `<div class="score-rings"><div class="gauge" data-score-role="site"><p class="ring-label">Site</p>${renderScoreGaugeSvg({ score: gap.site, tone })}</div>${blank}</div>`;
 }
 
 export function renderScoreRingsHtml(scores: CombinedScores, tone: GaugeTone = "light"): string {

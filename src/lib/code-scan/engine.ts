@@ -63,6 +63,7 @@ export async function scanRepoDirectory(root: string, options: ScanRepoOptions =
     owasp: buildOwasp(checked, counts),
     notices,
     owaspNote: OWASP_ALIGNMENT,
+    empty: false,
   };
 }
 

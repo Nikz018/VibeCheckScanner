@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import test from "node:test";
-import { githubInstallUrl, normalizePem, readGithubState, safeAppPath, signGithubState, verifyGithubWebhook } from "./app";
+import { fetchRepositoryDefaultBranch, githubInstallUrl, normalizePem, readGithubState, safeAppPath, signGithubState, verifyGithubWebhook } from "./app";
 
 test("GitHub state round-trips and rejects a bad signature", () => {
   const secret = "session-secret-for-tests-32chars";
@@ -27,6 +27,30 @@ test("webhook signatures use the raw body", () => {
   assert.equal(verifyGithubWebhook(body, signature, "other"), false);
   assert.equal(verifyGithubWebhook(`${body} `, signature, secret), false);
   assert.equal(verifyGithubWebhook(body, null, secret), false);
+});
+
+test("default branch lookup uses the installation token and ignores a failed response", async () => {
+  const seen: string[] = [];
+  const branch = await fetchRepositoryDefaultBranch({
+    token: "ghs_lookup_token",
+    owner: "Nikz018",
+    name: "VulnAsp",
+    fetchImpl: async (url, init) => {
+      seen.push(String(url));
+      const headers = new Headers(init?.headers);
+      assert.equal(headers.get("authorization"), "Bearer ghs_lookup_token");
+      return new Response(JSON.stringify({ default_branch: "master" }), { status: 200 });
+    },
+  });
+  assert.equal(branch, "master");
+  assert.deepEqual(seen, ["https://api.github.com/repos/Nikz018/VulnAsp"]);
+  const missing = await fetchRepositoryDefaultBranch({
+    token: "ghs_lookup_token",
+    owner: "Nikz018",
+    name: "VulnAsp",
+    fetchImpl: async () => new Response("no", { status: 404 }),
+  });
+  assert.equal(missing, null);
 });
 
 test("private key newlines are restored from env text", () => {

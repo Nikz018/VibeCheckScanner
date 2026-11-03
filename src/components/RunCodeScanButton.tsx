@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function RunCodeScanButton({ projectId }: { projectId: string }) {
+export function RunCodeScanButton({ projectId, label = "Run code scan" }: { projectId: string; label?: string }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -24,7 +24,7 @@ export function RunCodeScanButton({ projectId }: { projectId: string }) {
   return (
     <div>
       <button className="btn btn-lime" type="button" disabled={busy} onClick={() => void run()}>
-        {busy ? "Starting…" : "Run code scan"}
+        {busy ? "Starting…" : label}
       </button>
       {error ? <p className="mt-2 text-sm text-[#f3c7bc]">{error}</p> : null}
     </div>

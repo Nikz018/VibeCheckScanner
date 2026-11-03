@@ -67,6 +67,8 @@ export interface CodeScanReport {
   owasp: OwaspRow[];
   notices: string[];
   owaspNote: string;
+  /** True when the clone succeeded and the repository has no commits. */
+  empty?: boolean;
 }
 
 export interface SourceFile {

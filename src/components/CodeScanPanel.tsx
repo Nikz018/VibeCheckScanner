@@ -1,4 +1,5 @@
 import type { CodeScanReport } from "@/lib/code-scan/types";
+import { CODE_SCAN_EMPTY_NOTICE, CODE_SCAN_FAILED_TITLE, CODE_SCAN_RETRY_LABEL, CODE_SCAN_RETRY_NOTE } from "@/lib/code-scan/messages";
 import { owaspStatusLabel } from "@/lib/code-scan/owasp";
 import { CODE_PRIVACY_PROMISE, CODE_SCAN_LIMITATIONS, OWASP_ALIGNMENT } from "@/lib/code-scan/privacy";
 import { CodeScanRefresh } from "./CodeScanRefresh";
@@ -27,7 +28,8 @@ export function CodeScanPanel({
   ownershipVerified: boolean;
   githubReady: boolean;
 }) {
-  const status = report?.status ?? "not_connected";
+  const status = report?.status ?? (repo ? "failed" : "not_connected");
+  const empty = Boolean(report?.empty);
   return (
     <section id="code-scan" className="panel p-5">
       <h2 className="font-display text-3xl">Code scan</h2>
@@ -47,18 +49,34 @@ export function CodeScanPanel({
           )}
         </div>
       ) : null}
-      {repo && (status === "failed" || status === "skipped" || status === "not_connected") ? (
+      {status === "failed" ? (
+        <div className="mt-4 space-y-3">
+          <h3 className="font-display text-2xl">{CODE_SCAN_FAILED_TITLE}</h3>
+          <p className="text-sm text-[#d5deee]">{CODE_SCAN_RETRY_NOTE}</p>
+          <RunCodeScanButton projectId={projectId} label={CODE_SCAN_RETRY_LABEL} />
+        </div>
+      ) : null}
+      {empty ? (
+        <div className="mt-4 space-y-3">
+          <h3 className="font-display text-2xl">{CODE_SCAN_EMPTY_NOTICE}</h3>
+          <p className="text-sm text-[#d5deee]">{CODE_SCAN_RETRY_NOTE}</p>
+          <RunCodeScanButton projectId={projectId} label={CODE_SCAN_RETRY_LABEL} />
+        </div>
+      ) : null}
+      {repo && (status === "skipped" || status === "not_connected") ? (
         <div className="mt-4">
           <RunCodeScanButton projectId={projectId} />
         </div>
       ) : null}
       {status === "queued" || status === "running" ? <p className="mt-4 text-sm text-[#d5deee]">The code scan is running. This page refreshes when it finishes.</p> : null}
-      {report?.notices.map((notice) => (
-        <p key={notice} className="mt-3 text-sm text-[#d5deee]">
-          {notice}
-        </p>
-      ))}
-      {status === "completed" && report ? (
+      {report?.notices
+        .filter((notice) => notice !== CODE_SCAN_EMPTY_NOTICE)
+        .map((notice) => (
+          <p key={notice} className="mt-3 text-sm text-[#d5deee]">
+            {notice}
+          </p>
+        ))}
+      {status === "completed" && report && !empty ? (
         <>
           <h3 className="mt-6 font-display text-2xl">OWASP Top 10 coverage</h3>
           <p className="mt-2 text-sm text-[#d5deee]">{OWASP_ALIGNMENT}</p>
