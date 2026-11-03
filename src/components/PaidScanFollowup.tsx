@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { OwnershipNotFoundHint, OwnershipProofFields } from "@/components/OwnershipProofFields";
 import { PAYMENT_CONFIRMING_COPY, PAYMENT_CONFIRM_TIMEOUT_MS } from "@/lib/payments/checkout-return";
 import {
   CHECK_OWNERSHIP_LABEL,
@@ -68,6 +69,7 @@ export function PaidScanFollowup({ followup }: { followup: PaidScanFollowupState
       <section id="upgrade" className="rounded-3xl border border-[#f8d7a8]/50 bg-[#f8d7a8]/10 p-5">
         <h2 className="font-display text-3xl">Re-verify ownership</h2>
         <p className="mt-3 text-sm text-[#d9d3c5]">{followup.ownershipBlock}</p>
+        <OwnershipNotFoundHint message={followup.ownershipBlock} tone="dark" />
         <p className="mt-2 text-sm text-[#d9d3c5]">The paid scan has not started. Publish the proof, then check it again. This does not charge you again.</p>
         {followup.instructions ? <OwnershipProof instructions={followup.instructions} /> : null}
         <RetryFullScanButton purchaseId={followup.purchaseId} label={CHECK_OWNERSHIP_LABEL} />
@@ -83,24 +85,20 @@ export function PaidScanFollowup({ followup }: { followup: PaidScanFollowupState
   );
 }
 
-export function OwnershipProof({ instructions }: { instructions: PaidOwnershipInstructions }) {
+export function OwnershipProof({ instructions, tone = "dark" }: { instructions: PaidOwnershipInstructions; tone?: "light" | "dark" }) {
   return (
-    <div className="mt-4 grid gap-3 md:grid-cols-2">
-      <article className="rounded-2xl bg-white/10 p-4 text-sm">
-        <h3 className="font-semibold">DNS TXT</h3>
-        <p className="mt-2">Host: {instructions.dnsHost}</p>
-        <p className="mt-1 break-all">Value: {instructions.dnsValue}</p>
-      </article>
-      <article className="rounded-2xl bg-white/10 p-4 text-sm">
-        <h3 className="font-semibold">Well-known file</h3>
-        <p className="mt-2 break-all">URL: {instructions.wellKnownUrl}</p>
-        <p className="mt-1 break-all">Body: {instructions.token}</p>
-      </article>
-    </div>
+    <OwnershipProofFields
+      className="mt-4"
+      tone={tone}
+      host={instructions.dnsHost}
+      value={instructions.dnsValue}
+      url={instructions.wellKnownUrl}
+      body={instructions.token}
+    />
   );
 }
 
-export function RetryFullScanButton({ purchaseId, label }: { purchaseId: string; label: string }) {
+export function RetryFullScanButton({ purchaseId, label, tone = "dark" }: { purchaseId: string; label: string; tone?: "light" | "dark" }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -125,7 +123,12 @@ export function RetryFullScanButton({ purchaseId, label }: { purchaseId: string;
       <button className="btn btn-lime" type="button" disabled={busy} onClick={() => void retry()}>
         {busy ? "Checking…" : label}
       </button>
-      {error ? <p className="mt-3 text-sm font-semibold">{error}</p> : null}
+      {error ? (
+        <div className="mt-3">
+          <p className="text-sm font-semibold">{error}</p>
+          <OwnershipNotFoundHint message={error} tone={tone} />
+        </div>
+      ) : null}
     </div>
   );
 }
