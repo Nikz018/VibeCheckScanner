@@ -14,6 +14,14 @@ test("scan progress follows the stages the worker records", () => {
   ]);
   assert.equal(stagesForMode("full").some((stage) => stage.id === "routes"), true);
   assert.equal(stagesForMode("mini").some((stage) => stage.id === "routes"), false);
+  assert.equal(stagesForMode("full").some((stage) => stage.id === "code"), false);
+  const withCode = stagesForMode("full", { codeScan: true });
+  assert.equal(withCode.some((stage) => stage.label === "Scanning your code"), true);
+  assert.ok(withCode.findIndex((stage) => stage.id === "code") < withCode.findIndex((stage) => stage.id === "report"));
+  const coding = stageState({ mode: "full", stage: "code", status: "running", codeScan: true });
+  assert.equal(coding.find((stage) => stage.id === "code")?.state, "current");
+  assert.equal(coding.find((stage) => stage.id === "routes")?.state, "done");
+  assert.equal(coding.find((stage) => stage.id === "report")?.state, "pending");
 
   const running = stageState({ mode: "full", stage: "discover", status: "running" });
   assert.equal(running.find((stage) => stage.id === "ownership")?.state, "done");

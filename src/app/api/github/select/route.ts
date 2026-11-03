@@ -2,15 +2,17 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { projectHasPaidCodeScan, queueCodeScanForProject, saveConnectedRepo } from "@/lib/code-scan/connect";
+import { resumeAfterRepoChoice } from "@/lib/payments/paid-full-scan";
 import { canConnectRepository } from "@/lib/code-scan/gate";
 import { prisma } from "@/lib/db";
-import { fetchInstallationRepos, githubAppConfig } from "@/lib/github/app";
+import { fetchInstallationRepos, githubAppConfig, safeAppPath } from "@/lib/github/app";
 
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
   projectId: z.string().min(1),
   repoId: z.string().min(1),
+  returnTo: z.string().optional(),
 });
 
 export async function POST(request: Request) {
@@ -53,6 +55,16 @@ export async function POST(request: Request) {
     defaultBranch: repo.defaultBranch,
   });
   if (!saved.ok) return NextResponse.json({ error: saved.error }, { status: 409 });
-  const queued = await queueCodeScanForProject(user.id, project.id);
-  return NextResponse.json({ ok: true, repo: `${repo.owner}/${repo.name}`, scanId: queued.ok ? queued.scanId : null });
+  const returnTo = safeAppPath(parsed.data.returnTo);
+  const resume = await resumeAfterRepoChoice(user.id, project.id, returnTo);
+  if (resume.kind === "later") {
+    const queued = await queueCodeScanForProject(user.id, project.id);
+    return NextResponse.json({ ok: true, repo: `${repo.owner}/${repo.name}`, scanId: queued.ok ? queued.scanId : null });
+  }
+  return NextResponse.json({
+    ok: true,
+    repo: `${repo.owner}/${repo.name}`,
+    scanId: resume.kind === "progress" ? resume.scanId : null,
+    redirect: resume.redirect,
+  });
 }

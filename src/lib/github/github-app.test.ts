@@ -1,12 +1,18 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import test from "node:test";
-import { githubInstallUrl, normalizePem, readGithubState, signGithubState, verifyGithubWebhook } from "./app";
+import { githubInstallUrl, normalizePem, readGithubState, safeAppPath, signGithubState, verifyGithubWebhook } from "./app";
 
 test("GitHub state round-trips and rejects a bad signature", () => {
   const secret = "session-secret-for-tests-32chars";
   const state = signGithubState({ projectId: "proj_1", userId: "user_1" }, secret, 1_700_000_000_000);
-  assert.deepEqual(readGithubState(state, secret, 1_700_000_000_000), { projectId: "proj_1", userId: "user_1" });
+  assert.deepEqual(readGithubState(state, secret, 1_700_000_000_000), { projectId: "proj_1", userId: "user_1", next: null });
+  const back = signGithubState({ projectId: "proj_1", userId: "user_1", next: "/scans/scan_1?checkout=success" }, secret, 1_700_000_000_000);
+  assert.equal(readGithubState(back, secret, 1_700_000_000_000)?.next, "/scans/scan_1?checkout=success");
+  const dropped = signGithubState({ projectId: "proj_1", userId: "user_1", next: "https://evil.example/scans" }, secret, 1_700_000_000_000);
+  assert.equal(readGithubState(dropped, secret, 1_700_000_000_000)?.next, null);
+  assert.equal(safeAppPath("//evil.example"), null);
+  assert.equal(safeAppPath("/scans/scan_1?checkout=success"), "/scans/scan_1?checkout=success");
   assert.equal(readGithubState(state, "other-secret-for-tests-32chars", 1_700_000_000_000), null);
   assert.equal(readGithubState(state, secret, 1_700_000_000_000 + 20 * 60 * 1000), null);
   const url = githubInstallUrl("vibecheck", state);

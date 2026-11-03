@@ -11,7 +11,8 @@ import { prisma } from "@/lib/db";
 import { SEVERITIES } from "@/lib/catalog";
 import { monitoringActive, ownedScanAccess } from "@/lib/entitlements";
 import { formatSeverityBreakdown, readSeverityCounts, reportBadge } from "@/lib/report";
-import { paidScanDashboardAction } from "@/lib/payments/paid-scan-status";
+import { codeScanDashboardPrompt, paidScanDashboardAction } from "@/lib/payments/paid-scan-status";
+import { githubAppConfig } from "@/lib/github/app";
 import { UPGRADE_ACTIONS } from "@/lib/pricing";
 import { privateMetadata } from "@/lib/seo/metadata";
 
@@ -23,7 +24,7 @@ export default async function DashboardPage() {
   if (!user) redirect("/login?next=/dashboard");
   const [projects, scans, alerts, purchases] = await Promise.all([
     prisma.project.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" } }),
-    prisma.scan.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 20, include: { project: true } }),
+    prisma.scan.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 20, include: { project: { include: { repoLink: true } } } }),
     prisma.alert.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 10 }),
     prisma.purchase.findMany({
       where: { userId: user.id, status: "paid", tier: { in: ["report", "rescan"] }, scanId: { not: null } },
@@ -39,6 +40,7 @@ export default async function DashboardPage() {
     if (purchase.fullScanId) paidScanIds.add(purchase.fullScanId);
   }
   const subscribed = monitoringActive(user.subscription?.status);
+  const githubReady = githubAppConfig() !== null;
 
   return (
     <div className="space-y-8 py-6">
@@ -99,7 +101,35 @@ export default async function DashboardPage() {
               subscriber: subscribed,
               purchased: paidScanIds.has(scan.id),
             });
-            const rawAction = scan.mode === "mini" ? paidScanDashboardAction(scan.id, purchaseByPreview.get(scan.id) ?? null, UPGRADE_ACTIONS.report) : null;
+            const previewPurchase = scan.mode === "mini" ? purchaseByPreview.get(scan.id) ?? null : null;
+            const linkedPurchase = previewPurchase ?? purchases.find((row) => row.fullScanId === scan.id) ?? null;
+            const repoConnected = Boolean(scan.project.repoLink?.status === "connected" && scan.project.repoLink.owner && scan.project.repoLink.name);
+            const rawAction = scan.mode === "mini"
+              ? paidScanDashboardAction(
+                  scan.id,
+                  previewPurchase
+                    ? {
+                        status: previewPurchase.status,
+                        ownershipBlock: previewPurchase.ownershipBlock,
+                        startNote: previewPurchase.startNote,
+                        fullScan: previewPurchase.fullScan,
+                        tier: previewPurchase.tier,
+                        repoConnected,
+                        githubConfigured: githubReady,
+                      }
+                    : null,
+                  UPGRADE_ACTIONS.report,
+                )
+              : null;
+            const prompt = codeScanDashboardPrompt({
+              tier: linkedPurchase?.tier,
+              repoConnected,
+              githubConfigured: githubReady,
+              previewId: linkedPurchase?.scanId ?? (scan.mode === "mini" ? scan.id : null),
+              projectId: scan.projectId,
+              fullScan: linkedPurchase?.fullScan ?? (linkedPurchase && scan.mode === "full" ? { id: scan.id, status: scan.status } : null),
+            });
+            const showPrompt = Boolean(prompt && prompt.label !== rawAction?.label);
             const pricingAction = rawAction?.label === UPGRADE_ACTIONS.report || rawAction?.label === UPGRADE_ACTIONS.rescan;
             const action = rawAction && (!pricingAction || access.upsell) ? rawAction : null;
             const scores = combinedScores({
@@ -132,6 +162,11 @@ export default async function DashboardPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
+                  {showPrompt && prompt ? (
+                    <Link href={prompt.href} className="font-semibold text-lime underline">
+                      {prompt.label}
+                    </Link>
+                  ) : null}
                   {action ? (
                     <Link href={action.href} className="btn btn-lime px-3 py-1.5 text-sm">
                       {action.label}

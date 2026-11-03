@@ -130,7 +130,7 @@ export function RetryFullScanButton({ purchaseId, label }: { purchaseId: string;
   );
 }
 
-export function PaymentConfirming({ recheck }: { recheck: boolean }) {
+export function PaymentConfirming({ recheck, detail }: { recheck: boolean; detail?: string }) {
   const router = useRouter();
   useEffect(() => {
     const started = Date.now();
@@ -148,7 +148,7 @@ export function PaymentConfirming({ recheck }: { recheck: boolean }) {
   return (
     <section className="rounded-3xl border border-white/15 bg-white/5 p-5">
       <h2 className="font-display text-3xl">{PAYMENT_CONFIRMING_COPY}</h2>
-      <p className="mt-3 text-sm text-[#d9d3c5]">This page checks again on its own. The full scan starts after the payment is confirmed.</p>
+      <p className="mt-3 text-sm text-[#d9d3c5]">{detail || "This page checks again on its own. The full scan starts after the payment is confirmed."}</p>
     </section>
   );
 }
