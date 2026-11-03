@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CODE_PRIVACY_PROMISE } from "@/lib/code-scan/privacy";
+import { CODE_SCAN_REPO_LOCK_NOTE, codeScanRepoLabel } from "@/lib/code-scan/messages";
 import {
   CHANGE_REPO_LABEL,
   CODE_REPO_STEP_TITLE,
@@ -52,7 +53,8 @@ export function CodeScanConnectStep({
     <section id="code-scan-step" className="rounded-3xl border border-lime/40 bg-lime/10 p-5">
       <h2 className="font-display text-3xl">{CODE_REPO_STEP_TITLE}</h2>
       <p className="mt-3 rounded-2xl bg-[#dff25b]/15 px-4 py-3 text-sm text-[#e7f6c8]">{CODE_PRIVACY_PROMISE}</p>
-      {repo ? <p className="mt-3 text-sm text-[#d9d3c5]">Repository: {repo}</p> : null}
+      {repo ? <p className="mt-3 text-sm text-[#d9d3c5]">{codeScanRepoLabel(repo)}</p> : null}
+      {repo ? <p className="mt-2 text-sm text-[#d9d3c5]">{CODE_SCAN_REPO_LOCK_NOTE}</p> : null}
       <div className="mt-4 flex flex-wrap gap-3">
         {repo ? (
           <>

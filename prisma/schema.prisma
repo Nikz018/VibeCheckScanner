@@ -85,6 +85,11 @@ model Scan {
   pagesDiscovered Int       @default(0)
   codeScanEnabled Boolean   @default(false)
   codeScanChoice  String?
+  codeRepoOwner          String?
+  codeRepoName           String?
+  codeRepoBranch         String?
+  codeRepoInstallationId String?
+  codeRepoId             String?
   codeReport      Json?
   createdAt       DateTime  @default(now())
   project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)

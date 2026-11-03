@@ -7,6 +7,13 @@ export const CODE_SCAN_FAILED_NOTICE = "The code scan could not finish. The site
 export const CODE_SCAN_EMPTY_NOTICE = "This repository has no commits yet, so there was no code to scan.";
 export const CODE_SCAN_SCORE_UNAVAILABLE = "There is no code score and no overall score until a code scan finishes.";
 
+export function codeScanRepoLabel(repo: string): string {
+  return `Code scan repo: ${repo}`;
+}
+
+export const CODE_SCAN_REPO_LOCK_NOTE =
+  "This scan keeps the repository you confirm, including a free retry. A different repository needs a new site + code scan.";
+
 /** Dashboard link when a finished site scan has no code results to show. */
 export function codeScanFailurePrompt(input: {
   scanId: string;

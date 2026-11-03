@@ -21,7 +21,9 @@ import {
   shouldOfferCodeRepoStep,
   shouldOfferCreditCodeStep,
 } from "./gate";
+import { codeScanRepoLabel } from "./messages";
 import { parseHistory } from "./history";
+import { repoForCodeScan, repoSnapshotData } from "./repo-lock";
 import { looksLikeTyposquat } from "./dependencies";
 import { PYTHON_RULES } from "./rules";
 import type { CodeScanReport } from "./types";
@@ -354,7 +356,7 @@ test("masking and gating", () => {
   assert.equal(shouldOfferCodeRepoStep({ ...offer, codeScanChoice: "skip" }), false);
   assert.equal(shouldOfferCodeRepoStep({ ...offer, codeScanChoice: "connect" }), false);
   assert.equal(creditScanShouldWaitForRepo({ codeScanEnabled: true, githubConfigured: true, repoConnected: false }), true);
-  assert.equal(creditScanShouldWaitForRepo({ codeScanEnabled: true, githubConfigured: true, repoConnected: true }), false);
+  assert.equal(creditScanShouldWaitForRepo({ codeScanEnabled: true, githubConfigured: true, repoConnected: true }), true);
   assert.equal(creditScanShouldWaitForRepo({ codeScanEnabled: true, githubConfigured: false, repoConnected: false }), false);
   assert.equal(creditScanShouldWaitForRepo({ codeScanEnabled: false, githubConfigured: true, repoConnected: false }), false);
   const creditOffer = {
@@ -419,4 +421,36 @@ test("shallow clone stays inside an isolated directory and the token is not a gi
   } finally {
     await rm(source, { recursive: true, force: true });
   }
+});
+
+test("a confirmed repository stays on the scan when the project later points somewhere else", () => {
+  const link = {
+    status: "connected",
+    owner: "Nikz018",
+    name: "VulnAsp",
+    defaultBranch: "main",
+    installationId: "77",
+    repoId: "88",
+  };
+  assert.deepEqual(repoSnapshotData(link), {
+    codeRepoOwner: "Nikz018",
+    codeRepoName: "VulnAsp",
+    codeRepoBranch: "main",
+    codeRepoInstallationId: "77",
+    codeRepoId: "88",
+  });
+  assert.equal(codeScanRepoLabel("Nikz018/VulnAsp"), "Code scan repo: Nikz018/VulnAsp");
+  const locked = repoForCodeScan({
+    codeRepoOwner: "Nikz018",
+    codeRepoName: "VulnAsp",
+    codeRepoBranch: "main",
+    codeRepoInstallationId: "77",
+    project: {
+      repoLink: { ...link, owner: "other", name: "later" },
+    },
+  });
+  assert.equal(locked?.owner, "Nikz018");
+  assert.equal(locked?.name, "VulnAsp");
+  assert.equal(repoForCodeScan({ codeScanChoice: "skip", project: { repoLink: link } }), null);
+  assert.equal(repoForCodeScan({ project: { repoLink: link } })?.name, "VulnAsp");
 });

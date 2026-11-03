@@ -24,7 +24,8 @@ test("credit scan wiring holds a missing repository and shows the connect step",
   assert.match(page, /shouldOfferCreditCodeStep/);
   assert.match(page, /creditCodeStep/);
   assert.match(page, /scanId=\{scan\.id\}/);
-  assert.match(page, /codeScan=\{Boolean\(scan\.codeScanEnabled && connectedRepo\)\}/);
+  assert.match(page, /codeScan=\{Boolean\(scan\.codeScanEnabled && scan\.codeScanChoice !== "skip" && connectedRepo\)\}/);
+  assert.match(page, /codeScanRepoLabel\(connectedRepo\)/);
 
   const form = readFileSync(path.join(process.cwd(), "src/components/NewScanForm.tsx"), "utf8");
   assert.match(form, /needsRepo/);
@@ -212,7 +213,7 @@ test("two skip requests queue one held credit scan", { skip }, async () => {
   }
 });
 
-test("a connected repository or a server without GitHub queues the credit scan immediately", { skip }, async () => {
+test("a connected repository still waits for confirmation, and a server without GitHub queues immediately", { skip }, async () => {
   const { prisma } = await import("../db");
   const { takeReportAccess } = await import("../entitlements");
   const { codeScanEnabledForCredit } = await import("./gate");
@@ -240,17 +241,20 @@ test("a connected repository or a server without GitHub queues the credit scan i
       repoConnected: true,
       enqueue: enqueueScan,
     });
-    assert.equal(connected.settled.needsRepo, false);
-    if (connected.settled.needsRepo) assert.fail("held");
-    assert.equal(connected.settled.outcome, "started");
-    assert.equal((await prisma.scan.findUniqueOrThrow({ where: { id: connected.scanId } })).status, "queued");
-    const repeat = await chooseHeldCreditScan({
+    assert.equal(connected.settled.needsRepo, true);
+    assert.equal((await prisma.scan.findUniqueOrThrow({ where: { id: connected.scanId } })).status, "awaiting_repo");
+    const released = await chooseHeldCreditScan({
       userId: user.id,
       scanId: connected.scanId,
       choice: "connect",
       deps: { enqueueScan },
     });
-    assert.equal(repeat.outcome, "already_started");
+    assert.equal(released.outcome, "started");
+    const locked = await prisma.scan.findUniqueOrThrow({ where: { id: connected.scanId } });
+    assert.equal(locked.codeRepoOwner, "acme");
+    assert.equal(locked.codeRepoName, "app");
+    assert.equal(locked.codeRepoInstallationId, "77");
+    assert.equal(locked.status, "queued");
 
     await prisma.repoLink.delete({ where: { projectId: project.id } });
     const unconfigured = await startCreditScan({

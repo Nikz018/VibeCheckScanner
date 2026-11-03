@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { RepoPicker } from "@/components/RepoPicker";
 import { RunCodeScanButton } from "@/components/RunCodeScanButton";
 import { getCurrentUser } from "@/lib/auth";
+import { CODE_SCAN_REPO_LOCK_NOTE, codeScanRepoLabel } from "@/lib/code-scan/messages";
 import { CODE_PRIVACY_PROMISE } from "@/lib/code-scan/privacy";
 import { prisma } from "@/lib/db";
 import { fetchInstallationRepos, githubAppConfig, safeAppPath } from "@/lib/github/app";
@@ -65,7 +66,8 @@ export default async function GithubProjectPage({
         {listError ? <p className="mt-4 text-sm text-[#f3c7bc]">{listError}</p> : null}
         {connected ? (
           <div className="mt-4 space-y-3">
-            <p className="text-sm text-[#d5deee]">Repository: {connected}</p>
+            <p className="text-sm text-[#d5deee]">{codeScanRepoLabel(connected)}</p>
+            <p className="text-sm text-[#d5deee]">{CODE_SCAN_REPO_LOCK_NOTE}</p>
             <RunCodeScanButton projectId={project.id} />
             {config ? (
               <a className="btn btn-ghost" href={connectHref}>

@@ -15,6 +15,7 @@ import { computeScore, isPassingScore } from "@/lib/score";
 import type { ScanStageId } from "@/lib/scan-progress";
 import { CODE_SCAN_FAILED_NOTICE } from "@/lib/code-scan/messages";
 import { shellCodeReport } from "@/lib/code-scan/parse";
+import { repoForCodeScan } from "@/lib/code-scan/repo-lock";
 import { runProjectCodeScan } from "./run-code-scan";
 import { runScanPipeline } from "./run-scan";
 
@@ -107,7 +108,7 @@ async function runQueuedScan(scan: Prisma.ScanGetPayload<{ include: { project: {
         authError = "Logged-in checks skipped: stored test-account credentials could not be read. Unauthenticated checks still ran.";
       }
     }
-    const willScanCode = scan.codeScanEnabled && repoIsConnected(scan.project.repoLink);
+    const willScanCode = scan.codeScanEnabled && scan.codeScanChoice !== "skip" && Boolean(repoForCodeScan(scan));
     const output = await runScanPipeline({
       targetUrl: scan.targetUrl,
       mode: scan.mode === "mini" ? "mini" : "full",
@@ -236,29 +237,20 @@ async function safeCodeReport(
   scan: Prisma.ScanGetPayload<{ include: { project: { include: { repoLink: true } } } }>,
   ownershipVerified: boolean,
 ) {
+  if (scan.codeScanChoice === "skip") {
+    return shellCodeReport("skipped", ["The code scan was skipped for this purchase. The site results are saved."]);
+  }
   try {
-    const link = scan.project.repoLink;
+    const repo = repoForCodeScan(scan);
     return await runProjectCodeScan({
       ownershipVerified,
       codeScanEnabled: scan.codeScanEnabled,
-      repo: link
-        ? {
-            status: link.status,
-            owner: link.owner,
-            name: link.name,
-            defaultBranch: link.defaultBranch,
-            installationId: link.installationId,
-          }
-        : null,
+      repo,
     });
   } catch (error) {
     console.error("code scan failed", error instanceof Error ? error.message : "error");
     return shellCodeReport("failed", [CODE_SCAN_FAILED_NOTICE]);
   }
-}
-
-function repoIsConnected(link: { status: string; owner: string; name: string } | null): boolean {
-  return Boolean(link && link.status === "connected" && link.owner && link.name);
 }
 
 async function recordProgress(scanId: string, stage: ScanStageId, pagesDiscovered?: number): Promise<void> {

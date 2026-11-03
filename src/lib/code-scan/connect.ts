@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { enqueueCodeScan } from "@/lib/queue";
 import { recordScanAuthorization } from "@/lib/scan-authorization";
 import { parseCodeReport, shellCodeReport } from "./parse";
+import { repoSnapshotData } from "./repo-lock";
 
 export async function projectHasPaidCodeScan(userId: string, projectId: string): Promise<boolean> {
   const enabled = await prisma.scan.findFirst({
@@ -78,16 +79,26 @@ export async function queueCodeScanForProject(userId: string, projectId: string)
   const scan = await prisma.scan.findFirst({
     where: { userId, projectId, codeScanEnabled: true, status: "completed" },
     orderBy: { finishedAt: "desc" },
+    include: { project: { include: { repoLink: true } } },
   });
   if (!scan) return { ok: false, status: 400, error: "Finish a site scan on the $99 plan before running the code scan." };
   const current = parseCodeReport(scan.codeReport);
   if (current && (current.status === "running" || current.status === "queued")) {
     return { ok: false, status: 429, error: "A code scan is already running." };
   }
+  const locked = Boolean(scan.codeRepoOwner && scan.codeRepoName && scan.codeRepoInstallationId);
+  const snapshot = locked ? {} : repoSnapshotData(scan.project.repoLink?.status === "connected" ? scan.project.repoLink : null);
+  if (!locked && !("codeRepoOwner" in snapshot)) {
+    return { ok: false, status: 400, error: "Connect one repository before running the code scan." };
+  }
   const queued = shellCodeReport("queued", ["The code scan is queued. This page will refresh when it finishes."]);
   await prisma.scan.update({
     where: { id: scan.id },
-    data: { codeReport: queued as unknown as Prisma.InputJsonObject },
+    data: {
+      codeReport: queued as unknown as Prisma.InputJsonObject,
+      codeScanChoice: "connect",
+      ...snapshot,
+    },
   });
   try {
     await enqueueCodeScan(scan.id);

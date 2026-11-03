@@ -19,11 +19,16 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       createdAt: true,
       codeReport: true,
       codeScanEnabled: true,
+      codeScanChoice: true,
+      codeRepoOwner: true,
+      codeRepoName: true,
       project: { select: { repoLink: { select: { status: true, owner: true, name: true } } } },
     },
   });
   if (!scan) return NextResponse.json({ error: "Scan not found." }, { status: 404 });
-  const codeScan = Boolean(scan.codeScanEnabled && scan.project.repoLink?.status === "connected" && scan.project.repoLink.owner && scan.project.repoLink.name);
+  const lockedRepo = Boolean(scan.codeRepoOwner && scan.codeRepoName);
+  const linkedRepo = Boolean(scan.project.repoLink?.status === "connected" && scan.project.repoLink.owner && scan.project.repoLink.name);
+  const codeScan = Boolean(scan.codeScanEnabled && scan.codeScanChoice !== "skip" && (lockedRepo || linkedRepo));
   return NextResponse.json({
     status: scan.status,
     error: scan.error,

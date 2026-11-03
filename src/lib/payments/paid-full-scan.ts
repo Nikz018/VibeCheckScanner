@@ -8,6 +8,7 @@ import {
   ACTIVE_SCAN_LIMIT_MESSAGE,
   QUEUE_UNAVAILABLE_MESSAGE,
 } from "./paid-scan-status";
+import { repoSnapshotData } from "../code-scan/repo-lock";
 
 const OWNERSHIP_FALLBACK = "Ownership proof was not found. Publish the token in DNS TXT or at /.well-known/vibecheck-verify.txt and try again.";
 
@@ -203,6 +204,8 @@ async function startPaidFullScan(input: {
       mode: "full",
       reportAccess: "full",
       codeScanEnabled: purchase.tier === "rescan",
+      codeScanChoice: choice,
+      ...(choice === "connect" ? repoSnapshotData(preview.project.repoLink) : {}),
       targetUrl: preview.project.url,
       consentAt: new Date(),
       consentText: CONSENT_TEXT,

@@ -31,16 +31,17 @@ export type CodeScanChoice = "skip" | "connect";
 export const AWAITING_REPO_STATUS = "awaiting_repo";
 
 /**
- * A rescan credit is spent when the scan row is created. Hold that scan when the code scan is
- * included, this server can connect a repository, and the project does not have one yet.
- * A connected repository, or a server without GitHub, starts immediately.
+ * A rescan credit is spent when the scan row is created. Hold that scan whenever the code scan
+ * is included and this server can connect a repository, even if one is already connected.
+ * The customer confirms that repository, or picks another, before the scan starts.
+ * A server without GitHub starts immediately.
  */
 export function creditScanShouldWaitForRepo(input: {
   codeScanEnabled: boolean;
   githubConfigured: boolean;
   repoConnected: boolean;
 }): boolean {
-  return input.codeScanEnabled && input.githubConfigured && !input.repoConnected;
+  return input.codeScanEnabled && input.githubConfigured;
 }
 
 /**

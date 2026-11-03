@@ -1,7 +1,19 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import test from "node:test";
-import { fetchRepositoryDefaultBranch, githubInstallUrl, normalizePem, readGithubState, safeAppPath, signGithubState, verifyGithubWebhook } from "./app";
+import {
+  GITHUB_CONTENTS_READ_DENIED,
+  GITHUB_REPO_READ_DENIED,
+  confirmRepositoryReadable,
+  fetchRepositoryDefaultBranch,
+  interpretRepoReadToken,
+  githubInstallUrl,
+  normalizePem,
+  readGithubState,
+  safeAppPath,
+  signGithubState,
+  verifyGithubWebhook,
+} from "./app";
 
 test("GitHub state round-trips and rejects a bad signature", () => {
   const secret = "session-secret-for-tests-32chars";
@@ -51,6 +63,37 @@ test("default branch lookup uses the installation token and ignores a failed res
     fetchImpl: async () => new Response("no", { status: 404 }),
   });
   assert.equal(missing, null);
+});
+
+test("a code-scan token must include the repository and contents read", async () => {
+  assert.deepEqual(interpretRepoReadToken(422, {}), { ok: false, reason: GITHUB_REPO_READ_DENIED });
+  assert.deepEqual(interpretRepoReadToken(404, {}), { ok: false, reason: GITHUB_REPO_READ_DENIED });
+  assert.deepEqual(interpretRepoReadToken(201, { token: "ghs_scoped", permissions: { contents: "none" } }), {
+    ok: false,
+    reason: GITHUB_CONTENTS_READ_DENIED,
+  });
+  assert.deepEqual(interpretRepoReadToken(201, { token: "ghs_scoped", permissions: { contents: "read" } }), {
+    ok: true,
+    token: "ghs_scoped",
+  });
+  const readable = await confirmRepositoryReadable({
+    token: "ghs_lookup_token",
+    owner: "Nikz018",
+    name: "VulnAsp",
+    fetchImpl: async (url, init) => {
+      assert.equal(String(url), "https://api.github.com/repos/Nikz018/VulnAsp");
+      assert.equal(new Headers(init?.headers).get("authorization"), "Bearer ghs_lookup_token");
+      return new Response(JSON.stringify({ default_branch: "main" }), { status: 200 });
+    },
+  });
+  assert.deepEqual(readable, { ok: true, defaultBranch: "main" });
+  const missing = await confirmRepositoryReadable({
+    token: "ghs_lookup_token",
+    owner: "Nikz018",
+    name: "VulnAsp",
+    fetchImpl: async () => new Response("missing", { status: 404 }),
+  });
+  assert.deepEqual(missing, { ok: false, reason: GITHUB_REPO_READ_DENIED });
 });
 
 test("private key newlines are restored from env text", () => {

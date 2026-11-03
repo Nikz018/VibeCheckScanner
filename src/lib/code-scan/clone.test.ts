@@ -11,7 +11,7 @@ import {
   describeGitFailure,
   gitArgs,
   gitCloneArgs,
-  installationCloneUrl,
+  gitCloneAuthArgs,
   normalizeGitBranch,
   redactGitText,
   verifyGitAvailable,
@@ -32,18 +32,38 @@ async function gitRepo(branch: string, commit: boolean): Promise<string> {
   return dir;
 }
 
-test("git commands set safe.directory and never receive the token", () => {
-  const args = gitCloneArgs({ repoUrl: "https://github.com/Nikz018/VulnAsp.git", dest: "/tmp/example", depth: 25, branch: "main" });
-  assert.deepEqual(args.slice(0, 4), ["-c", "safe.directory=*", "-c", "credential.helper="]);
-  assert.ok(args.includes("--branch"));
-  assert.equal(args.includes(TOKEN), false);
-  assert.equal(args.some((arg) => arg.includes(TOKEN)), false);
+test("git commands set safe.directory and the clone header hides the token", () => {
+  const plain = gitCloneArgs({ repoUrl: "https://github.com/Nikz018/VulnAsp.git", dest: "/tmp/example", depth: 25, branch: "main" });
+  assert.deepEqual(plain.slice(0, 2), ["-c", "safe.directory=*"]);
+  assert.equal(plain.some((arg) => arg.includes("extraHeader")), false);
+  assert.ok(plain.includes("--branch"));
+  const authed = gitCloneArgs({ repoUrl: "https://github.com/Nikz018/VulnAsp.git", dest: "/tmp/example", depth: 25, branch: "main", token: TOKEN });
+  const header = authed.find((arg) => arg.startsWith("http.extraHeader="));
+  assert.ok(header);
+  assert.equal(header.includes(TOKEN), false);
+  const basic = header.slice("http.extraHeader=Authorization: Basic ".length);
+  assert.equal(Buffer.from(basic, "base64").toString("utf8"), `x-access-token:${TOKEN}`);
+  assert.deepEqual(gitCloneAuthArgs(TOKEN), ["-c", header]);
+  const logged = describeGitFailure(
+    {
+      message: `Command failed: git -c safe.directory=* -c ${header} clone -- https://github.com/Nikz018/VulnAsp.git /tmp/repo`,
+      stderr: "Cloning into '/tmp/repo'...\nfatal: Authentication failed for 'https://github.com/Nikz018/VulnAsp.git'",
+      code: 128,
+    },
+    [TOKEN, basic],
+  );
+  assert.equal(logged.includes(TOKEN), false);
+  assert.equal(logged.includes(basic), false);
+  assert.match(logged, /exit 128/);
+  assert.match(logged, /Cloning into '\/tmp\/repo'/);
+  assert.match(logged, /fatal: Authentication failed/);
+  const redactedWithoutSecretList = redactGitText(`Authorization: Basic ${basic} ${TOKEN}`, []);
+  assert.equal(redactedWithoutSecretList.includes(basic), false);
+  assert.equal(redactedWithoutSecretList.includes(TOKEN), false);
   const head = gitArgs(["-C", "/tmp/vibecheck-code/repo", "rev-parse", "HEAD"]);
   assert.ok(head.indexOf("safe.directory=*") < head.indexOf("-C"));
+  assert.equal(head.some((arg) => arg.includes("extraHeader")), false);
   assert.deepEqual(head.slice(-4), ["-C", "/tmp/vibecheck-code/repo", "rev-parse", "HEAD"]);
-  assert.equal(installationCloneUrl("https://github.com/Nikz018/VulnAsp.git"), "https://x-access-token@github.com/Nikz018/VulnAsp.git");
-  assert.equal(installationCloneUrl("https://github.com/Nikz018/VulnAsp.git").includes(TOKEN), false);
-  assert.equal(installationCloneUrl("/tmp/local-repo"), "/tmp/local-repo");
   assert.equal(normalizeGitBranch("  trunk  "), "trunk");
   assert.equal(normalizeGitBranch("-rf"), undefined);
   assert.equal(normalizeGitBranch("main..origin"), undefined);
@@ -95,6 +115,8 @@ test("a missing branch falls back to the GitHub default branch and logs stderr w
     assert.equal(lookups, 1);
     assert.match(logs.join("\n"), /missing-branch/i);
     assert.equal(logs.join("\n").includes(TOKEN), false);
+    assert.equal(logs.join("\n").includes(Buffer.from(`x-access-token:${TOKEN}`, "utf8").toString("base64")), false);
+    assert.match(logs.join("\n"), /Authorization: Basic \[redacted\]/);
   } finally {
     await rm(source, { recursive: true, force: true });
   }

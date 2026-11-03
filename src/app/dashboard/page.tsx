@@ -13,7 +13,8 @@ import { monitoringActive, ownedScanAccess } from "@/lib/entitlements";
 import { formatSeverityBreakdown, readSeverityCounts, reportBadge } from "@/lib/report";
 import { AWAITING_REPO_STATUS } from "@/lib/code-scan/gate";
 import { CONNECT_GITHUB_CODE_SCAN_LABEL, codeScanDashboardPrompt, paidScanDashboardAction } from "@/lib/payments/paid-scan-status";
-import { codeScanFailurePrompt } from "@/lib/code-scan/messages";
+import { codeScanFailurePrompt, codeScanRepoLabel } from "@/lib/code-scan/messages";
+import { codeScanRepoName } from "@/lib/code-scan/repo-lock";
 import { githubAppConfig } from "@/lib/github/app";
 import { UPGRADE_ACTIONS } from "@/lib/pricing";
 import { privateMetadata } from "@/lib/seo/metadata";
@@ -106,6 +107,11 @@ export default async function DashboardPage() {
             const previewPurchase = scan.mode === "mini" ? purchaseByPreview.get(scan.id) ?? null : null;
             const linkedPurchase = previewPurchase ?? purchases.find((row) => row.fullScanId === scan.id) ?? null;
             const repoConnected = Boolean(scan.project.repoLink?.status === "connected" && scan.project.repoLink.owner && scan.project.repoLink.name);
+            const codeRepo =
+              codeScanRepoName(scan.codeRepoOwner, scan.codeRepoName) ??
+              (scan.codeScanEnabled && scan.codeScanChoice !== "skip" && repoConnected && scan.project.repoLink
+                ? `${scan.project.repoLink.owner}/${scan.project.repoLink.name}`
+                : null);
             const rawAction = scan.mode === "mini"
               ? paidScanDashboardAction(
                   scan.id,
@@ -171,6 +177,7 @@ export default async function DashboardPage() {
                       {reportBadge({ upsell: access.upsell })} · {scan.status === AWAITING_REPO_STATUS ? "waiting for a repository" : scan.status}
                       {scan.scheduled ? " · scheduled" : ""}
                     </p>
+                    {codeRepo ? <p className="text-[#c5d2e6]">{codeScanRepoLabel(codeRepo)}</p> : null}
                     {scan.status === "completed" && total === 0 ? <p className="text-[#c5d2e6]">No findings</p> : null}
                     {scan.status === "completed" && total !== null && total > 0 ? (
                       <p className="text-[#c5d2e6]">
@@ -183,7 +190,7 @@ export default async function DashboardPage() {
                 <div className="flex flex-wrap items-center gap-3">
                   {scan.status === AWAITING_REPO_STATUS ? (
                     <Link href={`/scans/${scan.id}#code-scan-step`} className="font-semibold text-lime underline">
-                      {CONNECT_GITHUB_CODE_SCAN_LABEL}
+                      {codeRepo ? "Choose the code scan repo" : CONNECT_GITHUB_CODE_SCAN_LABEL}
                     </Link>
                   ) : null}
                   {codeFailure ? (
