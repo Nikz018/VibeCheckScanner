@@ -1,5 +1,6 @@
 import { DEFAULT_STALE_DAYS } from "../badge";
 import { limitationsParagraph } from "../limitations";
+import { OWNERSHIP_GUIDE_LINK_LABEL, OWNERSHIP_GUIDE_PATH } from "../ownership-guide";
 import { FREE_TIER, TAX_NOTE, TIERS } from "../pricing";
 import { SEVERITY_WEIGHTS } from "../score";
 
@@ -93,6 +94,7 @@ export function scoreAnswer(): string {
 export interface FaqItem {
   question: string;
   answer: string;
+  link?: { href: string; label: string };
 }
 
 export const FAQ: FaqItem[] = [
@@ -133,7 +135,8 @@ export const FAQ: FaqItem[] = [
   {
     question: "Do I have to prove I own the app?",
     answer:
-      "Yes. VibeCheck does not start active probes until you serve a one-time token over DNS TXT or /.well-known/vibecheck-verify.txt and check the consent box.",
+      "Yes. VibeCheck does not start active probes until you serve a one-time token over DNS TXT or /.well-known/vibecheck-verify.txt and check the consent box. A step-by-step guide at /docs/verify-ownership covers DNS providers, the well-known file, and what to try when the proof is not found.",
+    link: { href: OWNERSHIP_GUIDE_PATH, label: OWNERSHIP_GUIDE_LINK_LABEL },
   },
   {
     question: "Is a VibeCheck report a security certification?",
@@ -272,7 +275,8 @@ export type PublicPageId =
   | "privacy"
   | "refund"
   | "contact"
-  | "scanner-info";
+  | "scanner-info"
+  | "verify-ownership";
 
 export const GUIDES: Record<"guide-lovable" | "guide-rls" | "guide-keys", GuideDoc> = {
   "guide-lovable": {
@@ -656,6 +660,18 @@ export const PUBLIC_PAGES: PublicPage[] = [
     priority: 0.8,
   },
   {
+    id: "verify-ownership",
+    path: OWNERSHIP_GUIDE_PATH,
+    title: "Prove ownership",
+    description:
+      "Step-by-step help to prove you own an app with a DNS TXT record or a well-known file, including provider steps and what to try when the proof is not found.",
+    h1: "How do I prove I own the app?",
+    lede: "Publish a one-time token as a DNS TXT record or as a text file on the app. VibeCheck starts a scan only after that token matches and you consent. One option is enough.",
+    crumb: "Prove ownership",
+    changeFrequency: "monthly",
+    priority: 0.6,
+  },
+  {
     id: "how-it-works",
     path: "/how-it-works",
     title: "How a scan works",
@@ -815,6 +831,7 @@ export const FOOTER_GROUPS = [
     title: "Product",
     links: [
       { href: "/how-it-works", label: "How it works" },
+      { href: OWNERSHIP_GUIDE_PATH, label: "Prove ownership" },
       { href: "/pricing", label: "Pricing" },
       { href: "/faq", label: "FAQ" },
       { href: "/guides", label: "Guides" },

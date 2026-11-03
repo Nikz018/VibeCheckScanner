@@ -352,6 +352,7 @@ test("pages, layout, and image routes are wired to the SEO helpers", () => {
     "src/app/pricing/page.tsx": "pricing",
     "src/app/faq/page.tsx": "faq",
     "src/app/how-it-works/page.tsx": "how-it-works",
+    "src/app/docs/verify-ownership/page.tsx": "verify-ownership",
     "src/app/guides/page.tsx": "guides",
     "src/app/guides/is-my-lovable-app-secure/page.tsx": "guide-lovable",
     "src/app/guides/supabase-rls-checklist/page.tsx": "guide-rls",

@@ -1,3 +1,4 @@
+import { ownershipGuidePlainText } from "../ownership-guide";
 import { FAQ, ISSUE_CHECKS, PUBLIC_PAGES, allCopyBlocks, type PublicPageId } from "./content";
 import { jsonLdForPage } from "./jsonld";
 import { llmsFullTxt, llmsTxt } from "./llms";
@@ -11,5 +12,5 @@ export function publicCopyCorpus(): string {
     .join("\n");
   const ids = PUBLIC_PAGES.map((page) => page.id as PublicPageId);
   const structured = ids.map((id) => JSON.stringify(jsonLdForPage(id))).join("\n");
-  return [pages, faqs, issues, blocks, structured, llmsTxt(), llmsFullTxt()].join("\n");
+  return [pages, faqs, issues, blocks, structured, llmsTxt(), llmsFullTxt(), ownershipGuidePlainText()].join("\n");
 }

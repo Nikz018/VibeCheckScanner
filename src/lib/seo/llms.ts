@@ -51,6 +51,7 @@ export function llmsTxt(): string {
     pageLink("pricing", "Free teaser, full report, rescan, and monitoring."),
     pageLink("faq", "Short questions and direct answers."),
     pageLink("how-it-works", "Ownership proof, consent, and what the scan requests."),
+    pageLink("verify-ownership", "Step-by-step DNS TXT and well-known file help for the ownership proof."),
     pageLink("guides", "Index of the security guides."),
     pageLink("guide-lovable", "What to verify on a Lovable app before launch."),
     pageLink("guide-rls", "Supabase row level security checklist."),
