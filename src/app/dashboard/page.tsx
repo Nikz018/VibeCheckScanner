@@ -11,7 +11,8 @@ import { prisma } from "@/lib/db";
 import { SEVERITIES } from "@/lib/catalog";
 import { monitoringActive, ownedScanAccess } from "@/lib/entitlements";
 import { formatSeverityBreakdown, readSeverityCounts, reportBadge } from "@/lib/report";
-import { codeScanDashboardPrompt, paidScanDashboardAction } from "@/lib/payments/paid-scan-status";
+import { AWAITING_REPO_STATUS } from "@/lib/code-scan/gate";
+import { CONNECT_GITHUB_CODE_SCAN_LABEL, codeScanDashboardPrompt, paidScanDashboardAction } from "@/lib/payments/paid-scan-status";
 import { githubAppConfig } from "@/lib/github/app";
 import { UPGRADE_ACTIONS } from "@/lib/pricing";
 import { privateMetadata } from "@/lib/seo/metadata";
@@ -129,7 +130,7 @@ export default async function DashboardPage() {
               projectId: scan.projectId,
               fullScan: linkedPurchase?.fullScan ?? (linkedPurchase && scan.mode === "full" ? { id: scan.id, status: scan.status } : null),
             });
-            const showPrompt = Boolean(prompt && prompt.label !== rawAction?.label);
+            const showPrompt = Boolean(prompt && prompt.label !== rawAction?.label && scan.status !== AWAITING_REPO_STATUS);
             const pricingAction = rawAction?.label === UPGRADE_ACTIONS.report || rawAction?.label === UPGRADE_ACTIONS.rescan;
             const action = rawAction && (!pricingAction || access.upsell) ? rawAction : null;
             const scores = combinedScores({
@@ -149,7 +150,7 @@ export default async function DashboardPage() {
                       {scan.project.url}
                     </Link>
                     <p className="text-[#c5d2e6]">
-                      {reportBadge({ upsell: access.upsell })} · {scan.status}
+                      {reportBadge({ upsell: access.upsell })} · {scan.status === AWAITING_REPO_STATUS ? "waiting for a repository" : scan.status}
                       {scan.scheduled ? " · scheduled" : ""}
                     </p>
                     {scan.status === "completed" && total === 0 ? <p className="text-[#c5d2e6]">No findings</p> : null}
@@ -162,6 +163,11 @@ export default async function DashboardPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
+                  {scan.status === AWAITING_REPO_STATUS ? (
+                    <Link href={`/scans/${scan.id}#code-scan-step`} className="font-semibold text-lime underline">
+                      {CONNECT_GITHUB_CODE_SCAN_LABEL}
+                    </Link>
+                  ) : null}
                   {showPrompt && prompt ? (
                     <Link href={prompt.href} className="font-semibold text-lime underline">
                       {prompt.label}

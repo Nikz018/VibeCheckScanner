@@ -11,7 +11,16 @@ import { packageAdvisoryKey } from "@/lib/osv";
 import { cloneShallow, gitCloneArgs, withIsolatedDir } from "./clone";
 import { scanRepoDirectory } from "./engine";
 import { languageFor } from "./files";
-import { canConnectRepository, canRunCodeScan, codeScanEnabledForCredit, codeScanEnabledForTier, shouldOfferCodeRepoStep } from "./gate";
+import {
+  AWAITING_REPO_STATUS,
+  canConnectRepository,
+  canRunCodeScan,
+  codeScanEnabledForCredit,
+  codeScanEnabledForTier,
+  creditScanShouldWaitForRepo,
+  shouldOfferCodeRepoStep,
+  shouldOfferCreditCodeStep,
+} from "./gate";
 import { parseHistory } from "./history";
 import { looksLikeTyposquat } from "./dependencies";
 import { PYTHON_RULES } from "./rules";
@@ -344,6 +353,24 @@ test("masking and gating", () => {
   assert.equal(shouldOfferCodeRepoStep({ ...offer, fullScanStarted: true }), false);
   assert.equal(shouldOfferCodeRepoStep({ ...offer, codeScanChoice: "skip" }), false);
   assert.equal(shouldOfferCodeRepoStep({ ...offer, codeScanChoice: "connect" }), false);
+  assert.equal(creditScanShouldWaitForRepo({ codeScanEnabled: true, githubConfigured: true, repoConnected: false }), true);
+  assert.equal(creditScanShouldWaitForRepo({ codeScanEnabled: true, githubConfigured: true, repoConnected: true }), false);
+  assert.equal(creditScanShouldWaitForRepo({ codeScanEnabled: true, githubConfigured: false, repoConnected: false }), false);
+  assert.equal(creditScanShouldWaitForRepo({ codeScanEnabled: false, githubConfigured: true, repoConnected: false }), false);
+  const creditOffer = {
+    mode: "full",
+    codeScanEnabled: true,
+    codeScanChoice: null as string | null,
+    status: AWAITING_REPO_STATUS,
+    githubConfigured: true,
+  };
+  assert.equal(shouldOfferCreditCodeStep(creditOffer), true);
+  assert.equal(shouldOfferCreditCodeStep({ ...creditOffer, mode: "mini" }), false);
+  assert.equal(shouldOfferCreditCodeStep({ ...creditOffer, codeScanEnabled: false }), false);
+  assert.equal(shouldOfferCreditCodeStep({ ...creditOffer, githubConfigured: false }), false);
+  assert.equal(shouldOfferCreditCodeStep({ ...creditOffer, status: "queued" }), false);
+  assert.equal(shouldOfferCreditCodeStep({ ...creditOffer, codeScanChoice: "skip" }), false);
+  assert.equal(shouldOfferCreditCodeStep({ ...creditOffer, codeScanChoice: "connect" }), false);
   const history = parseHistory("COMMIT:abc123456789\n+++ b/.env\n+TOKEN=sk_live_abcdefghijklmnopqrstuv\n");
   assert.equal(history.some((hit) => hit.path === ".env"), true);
 });

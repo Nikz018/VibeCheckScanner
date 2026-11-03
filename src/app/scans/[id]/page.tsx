@@ -4,7 +4,7 @@ import { CodeScanConnectStep } from "@/components/CodeScanConnectStep";
 import { OwnershipProof, RetryFullScanButton } from "@/components/PaidScanFollowup";
 import { ScanPoller } from "@/components/ScanPoller";
 import { CodeScanPanel } from "@/components/CodeScanPanel";
-import { shouldOfferCodeRepoStep } from "@/lib/code-scan/gate";
+import { shouldOfferCodeRepoStep, shouldOfferCreditCodeStep } from "@/lib/code-scan/gate";
 import { ReportView } from "@/components/ReportView";
 import { parseCodeReport } from "@/lib/code-scan/parse";
 import { combinedScores } from "@/lib/code-scan/score";
@@ -75,16 +75,24 @@ export default async function ScanPage({
     scan.project.repoLink?.status === "connected" && scan.project.repoLink.owner && scan.project.repoLink.name
       ? `${scan.project.repoLink.owner}/${scan.project.repoLink.name}`
       : null;
+  const creditCodeStep = shouldOfferCreditCodeStep({
+    mode: scan.mode,
+    codeScanEnabled: scan.codeScanEnabled,
+    codeScanChoice: scan.codeScanChoice,
+    status: scan.status,
+    githubConfigured: githubReady,
+  });
   const offerCodeStep = Boolean(
-    purchase &&
-      scan.mode === "mini" &&
-      shouldOfferCodeRepoStep({
-        tier: purchase.tier,
-        ownershipVerified: Boolean(scan.project.ownershipVerifiedAt),
-        githubConfigured: githubReady,
-        fullScanStarted: Boolean(purchase.fullScanId),
-        codeScanChoice: purchase.codeScanChoice,
-      }),
+    creditCodeStep ||
+      (purchase &&
+        scan.mode === "mini" &&
+        shouldOfferCodeRepoStep({
+          tier: purchase.tier,
+          ownershipVerified: Boolean(scan.project.ownershipVerifiedAt),
+          githubConfigured: githubReady,
+          fullScanStarted: Boolean(purchase.fullScanId),
+          codeScanChoice: purchase.codeScanChoice,
+        })),
   );
   const paidFullScan = purchase?.fullScanId === scan.id;
   const purchased =
@@ -97,6 +105,13 @@ export default async function ScanPage({
     purchased,
   });
   if (scan.status !== "completed") {
+    if (creditCodeStep) {
+      return (
+        <div className="space-y-4 py-8">
+          <CodeScanConnectStep scanId={scan.id} projectId={scan.projectId} repo={connectedRepo} returnPath={`/scans/${scan.id}`} />
+        </div>
+      );
+    }
     const proof = instructionsFor(scan.project.url, scan.project.ownershipToken);
     return (
       <div className="space-y-4 py-8">
