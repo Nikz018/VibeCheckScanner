@@ -7,7 +7,7 @@ import { CodeScanPanel } from "@/components/CodeScanPanel";
 import { shouldOfferCodeRepoStep, shouldOfferCreditCodeStep } from "@/lib/code-scan/gate";
 import { ReportView } from "@/components/ReportView";
 import { parseCodeReport } from "@/lib/code-scan/parse";
-import { combinedScores } from "@/lib/code-scan/score";
+import { codeScoreGap, combinedScores } from "@/lib/code-scan/score";
 import { githubAppConfig } from "@/lib/github/app";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -173,6 +173,17 @@ export default async function ScanPage({
         scores={
           !gating.upsell
             ? combinedScores({ codeScanEnabled: scan.codeScanEnabled, siteScore: report.score, codeReport })
+            : null
+        }
+        codeGap={
+          !gating.upsell
+            ? codeScoreGap({
+                codeScanEnabled: scan.codeScanEnabled,
+                siteScore: report.score,
+                codeReport,
+                repoConnected: Boolean(connectedRepo),
+                scanStatus: scan.status,
+              })
             : null
         }
         codeScan={

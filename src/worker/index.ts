@@ -4,9 +4,17 @@ import IORedis from "ioredis";
 import { prisma } from "@/lib/db";
 import { SCAN_QUEUE_NAME } from "@/lib/queue";
 import { purgeFinishedCredentials } from "@/lib/credential-store";
+import { verifyGitAvailable } from "@/lib/code-scan/clone";
 import { workerConcurrency } from "./concurrency";
 import { executeScan } from "./execute";
 import { scheduleMonitors } from "./schedule";
+
+const git = verifyGitAvailable();
+if (!git.ok) {
+  console.error("git is not available to the worker", git.error);
+  process.exit(1);
+}
+console.log(`git ready (${git.version})`);
 
 function markWorkerAlive(): void {
   try {

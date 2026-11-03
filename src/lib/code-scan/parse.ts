@@ -39,6 +39,7 @@ export function parseCodeReport(value: unknown): CodeScanReport | null {
     owasp,
     notices: notices.map((notice) => maskSecretsInText(notice).slice(0, 400)),
     owaspNote: OWASP_ALIGNMENT,
+    empty: record.empty === true,
   };
 }
 

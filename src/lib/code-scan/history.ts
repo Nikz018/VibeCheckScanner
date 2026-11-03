@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
+import { describeGitFailure, gitArgs, gitCommandEnv } from "./clone";
 import type { HistoryHit } from "./types";
 
 const exec = promisify(execFile);
@@ -13,15 +14,17 @@ export async function readRecentHistory(root: string): Promise<{ hits: HistoryHi
   try {
     const { stdout } = await exec(
       "git",
-      ["-C", root, "log", "-n", String(HISTORY_COMMITS), "-p", "--pretty=format:COMMIT:%H", "--unified=0"],
+      gitArgs(["-C", root, "log", "-n", String(HISTORY_COMMITS), "-p", "--pretty=format:COMMIT:%H", "--unified=0"]),
       {
         timeout: 20_000,
         maxBuffer: 2_000_000,
-        env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+        encoding: "utf8",
+        env: gitCommandEnv(),
       },
     );
     return { hits: parseHistory(stdout).slice(0, MAX_HITS), notice: null };
-  } catch {
+  } catch (error) {
+    console.error("code scan git history failed", describeGitFailure(error));
     return { hits: [], notice: "Recent commit history could not be read. Checks on the current files still ran." };
   }
 }

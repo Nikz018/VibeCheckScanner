@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { renderCodeScanMarkdown } from "@/lib/code-scan/format";
 import { parseCodeReport } from "@/lib/code-scan/parse";
-import { combinedScores } from "@/lib/code-scan/score";
+import { codeScoreGap, combinedScores } from "@/lib/code-scan/score";
 import { prisma } from "@/lib/db";
 import { downloadBasename, renderPrintHtml } from "@/lib/download";
 import { requirePaidScan } from "@/lib/paid-scan";
@@ -14,13 +14,17 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   if (!loaded.ok) return loaded.response;
   const stored = await prisma.scan.findUnique({ where: { id }, select: { codeScanEnabled: true, codeReport: true } });
   const code = stored?.codeScanEnabled ? parseCodeReport(stored.codeReport) : null;
-  const scores = combinedScores({
+  const scoreInput = {
     codeScanEnabled: Boolean(stored?.codeScanEnabled),
     siteScore: loaded.report.score,
     codeReport: code,
-  });
+    repoConnected: Boolean(code?.repo) || !code,
+    scanStatus: "completed" as const,
+  };
+  const scores = combinedScores(scoreInput);
+  const codeGap = codeScoreGap(scoreInput);
   const extra = renderCodeScanMarkdown(code);
-  const html = renderPrintHtml(loaded.report, loaded.targetUrl, scores).replace(
+  const html = renderPrintHtml(loaded.report, loaded.targetUrl, scores, codeGap).replace(
     "</body>",
     extra ? `<section class="finding"><pre>${escapePrint(extra)}</pre></section></body>` : "</body>",
   );

@@ -121,6 +121,26 @@ export async function fetchInstallationRepos(input: {
     }));
 }
 
+/** The branch GitHub currently treats as the default. Null when the API does not answer. */
+export async function fetchRepositoryDefaultBranch(input: {
+  token: string;
+  owner: string;
+  name: string;
+  fetchImpl?: typeof fetch;
+}): Promise<string | null> {
+  const response = await (input.fetchImpl ?? fetch)(
+    `https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.name)}`,
+    { headers: githubHeaders(input.token) },
+  );
+  if (!response.ok) {
+    console.error("github default branch lookup failed", response.status);
+    return null;
+  }
+  const body = (await response.json()) as { default_branch?: string };
+  const branch = body.default_branch?.trim();
+  return branch || null;
+}
+
 export async function fetchInstallationToken(input: {
   appId: string;
   privateKey: string;

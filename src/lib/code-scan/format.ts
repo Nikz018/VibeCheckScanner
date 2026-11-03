@@ -1,4 +1,5 @@
 import type { CodeScanReport } from "./types";
+import { CODE_SCAN_EMPTY_NOTICE, CODE_SCAN_FAILED_NOTICE, CODE_SCAN_FAILED_TITLE } from "./messages";
 import { owaspStatusLabel } from "./owasp";
 import { CODE_SCAN_LIMITATIONS } from "./privacy";
 
@@ -6,8 +7,13 @@ export function renderCodeScanMarkdown(report: CodeScanReport | null): string {
   if (!report || report.status === "skipped") return "";
   const lines: string[] = ["## Code scan", "", report.privacy, "", report.owaspNote, ""];
   if (report.repo) lines.push(`Repository: ${report.repo}`, "");
+  if (report.empty) {
+    lines.push(CODE_SCAN_EMPTY_NOTICE, "");
+    return `${lines.join("\n")}\n`;
+  }
   if (report.status !== "completed") {
-    lines.push(report.notices[0] || "The code scan did not finish.", "");
+    if (report.status === "failed") lines.push(CODE_SCAN_FAILED_TITLE, "");
+    lines.push(report.notices[0] || (report.status === "failed" ? CODE_SCAN_FAILED_NOTICE : "The code scan did not finish."), "");
     return `${lines.join("\n")}\n`;
   }
   lines.push("### OWASP Top 10 coverage", "");

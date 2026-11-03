@@ -1,10 +1,11 @@
 import path from "node:path";
 import { scanRepoDirectory } from "@/lib/code-scan/engine";
-import { cloneShallow, withIsolatedDir } from "@/lib/code-scan/clone";
+import { cloneShallow, verifyGitAvailable, withIsolatedDir } from "@/lib/code-scan/clone";
 import { canRunCodeScan } from "@/lib/code-scan/gate";
+import { CODE_SCAN_EMPTY_NOTICE, CODE_SCAN_FAILED_NOTICE } from "@/lib/code-scan/messages";
 import { shellCodeReport } from "@/lib/code-scan/parse";
 import type { CodeScanReport } from "@/lib/code-scan/types";
-import { githubAppConfig, fetchInstallationToken } from "@/lib/github/app";
+import { githubAppConfig, fetchInstallationToken, fetchRepositoryDefaultBranch } from "@/lib/github/app";
 import { explainCodeFindings } from "./modules/llm";
 
 export interface CodeScanTarget {
@@ -30,8 +31,15 @@ export async function runProjectCodeScan(target: CodeScanTarget): Promise<CodeSc
   if (!target.ownershipVerified) return shellCodeReport("failed", [gate.ok ? "Ownership was not verified." : gate.reason]);
   if (!connected || !target.repo) return shellCodeReport("not_connected", ["Connect one repository to run the code scan. The site results are already saved."]);
 
+  const repoName = `${target.repo.owner}/${target.repo.name}`;
+  const git = verifyGitAvailable();
+  if (!git.ok) {
+    console.error("code scan git missing", git.error);
+    return shellCodeReport("failed", [CODE_SCAN_FAILED_NOTICE], repoName);
+  }
+
   const config = githubAppConfig();
-  if (!config) return shellCodeReport("failed", ["Repository connection is not available on this server yet."], `${target.repo.owner}/${target.repo.name}`);
+  if (!config) return shellCodeReport("failed", ["Repository connection is not available on this server yet."], repoName);
 
   try {
     const token = await fetchInstallationToken({
@@ -39,7 +47,8 @@ export async function runProjectCodeScan(target: CodeScanTarget): Promise<CodeSc
       privateKey: config.privateKey,
       installationId: target.repo.installationId,
     });
-    const repoName = `${target.repo.owner}/${target.repo.name}`;
+    const owner = target.repo.owner;
+    const name = target.repo.name;
     const report = await withIsolatedDir(async (dir) => {
       const dest = path.join(dir, "repo");
       const cloned = await cloneShallow({
@@ -47,7 +56,13 @@ export async function runProjectCodeScan(target: CodeScanTarget): Promise<CodeSc
         dest,
         branch: target.repo?.defaultBranch || undefined,
         token,
+        resolveDefaultBranch: () => fetchRepositoryDefaultBranch({ token, owner, name }),
       });
+      if (cloned.empty) {
+        const empty = shellCodeReport("completed", [CODE_SCAN_EMPTY_NOTICE], repoName);
+        empty.empty = true;
+        return empty;
+      }
       const scanned = await scanRepoDirectory(dest);
       scanned.repo = repoName;
       scanned.commit = cloned.commit;
@@ -61,6 +76,6 @@ export async function runProjectCodeScan(target: CodeScanTarget): Promise<CodeSc
     return report;
   } catch (error) {
     console.error("code scan failed", error instanceof Error ? error.message : "error");
-    return shellCodeReport("failed", ["The code scan could not finish. The site results are still available."], `${target.repo.owner}/${target.repo.name}`);
+    return shellCodeReport("failed", [CODE_SCAN_FAILED_NOTICE], repoName);
   }
 }

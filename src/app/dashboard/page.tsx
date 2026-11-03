@@ -3,8 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CancelSubscription } from "@/components/CancelSubscription";
 import { ScoreGauge } from "@/components/ScoreGauge";
-import { ScoreRings } from "@/components/ScoreRings";
-import { combinedScores } from "@/lib/code-scan/score";
+import { ScoreRings, UnavailableScoreRings } from "@/components/ScoreRings";
+import { codeScoreGap, combinedScores } from "@/lib/code-scan/score";
 import { parseCodeReport } from "@/lib/code-scan/parse";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -13,6 +13,7 @@ import { monitoringActive, ownedScanAccess } from "@/lib/entitlements";
 import { formatSeverityBreakdown, readSeverityCounts, reportBadge } from "@/lib/report";
 import { AWAITING_REPO_STATUS } from "@/lib/code-scan/gate";
 import { CONNECT_GITHUB_CODE_SCAN_LABEL, codeScanDashboardPrompt, paidScanDashboardAction } from "@/lib/payments/paid-scan-status";
+import { codeScanFailurePrompt } from "@/lib/code-scan/messages";
 import { githubAppConfig } from "@/lib/github/app";
 import { UPGRADE_ACTIONS } from "@/lib/pricing";
 import { privateMetadata } from "@/lib/seo/metadata";
@@ -133,10 +134,21 @@ export default async function DashboardPage() {
             const showPrompt = Boolean(prompt && prompt.label !== rawAction?.label && scan.status !== AWAITING_REPO_STATUS);
             const pricingAction = rawAction?.label === UPGRADE_ACTIONS.report || rawAction?.label === UPGRADE_ACTIONS.rescan;
             const action = rawAction && (!pricingAction || access.upsell) ? rawAction : null;
-            const scores = combinedScores({
+            const codeReport = scan.codeScanEnabled ? parseCodeReport(scan.codeReport) : null;
+            const scoreInput = {
               codeScanEnabled: scan.codeScanEnabled,
               siteScore: scan.score,
-              codeReport: scan.codeScanEnabled ? parseCodeReport(scan.codeReport) : null,
+              codeReport,
+              repoConnected,
+              scanStatus: scan.status,
+            };
+            const scores = combinedScores(scoreInput);
+            const codeGap = codeScoreGap(scoreInput);
+            const codeFailure = codeScanFailurePrompt({
+              scanId: scan.id,
+              scanStatus: scan.status,
+              repoConnected,
+              report: codeReport,
             });
             const counts = readSeverityCounts(scan.severityCounts);
             const total = counts ? SEVERITIES.reduce((sum, severity) => sum + counts[severity], 0) : null;
@@ -144,7 +156,13 @@ export default async function DashboardPage() {
             return (
               <li key={scan.id} className="lift flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm">
                 <div className="flex items-center gap-3">
-                  {scores ? <ScoreRings scores={scores} tone="dark" layout="dashboard" /> : <ScoreGauge score={scan.score} size="sm" tone="dark" showExplainer={false} />}
+                  {scores ? (
+                    <ScoreRings scores={scores} tone="dark" layout="dashboard" />
+                  ) : codeGap ? (
+                    <UnavailableScoreRings gap={codeGap} tone="dark" layout="dashboard" />
+                  ) : (
+                    <ScoreGauge score={scan.score} size="sm" tone="dark" showExplainer={false} />
+                  )}
                   <div>
                     <Link href={`/scans/${scan.id}`} className="font-semibold underline">
                       {scan.project.url}
@@ -166,6 +184,11 @@ export default async function DashboardPage() {
                   {scan.status === AWAITING_REPO_STATUS ? (
                     <Link href={`/scans/${scan.id}#code-scan-step`} className="font-semibold text-lime underline">
                       {CONNECT_GITHUB_CODE_SCAN_LABEL}
+                    </Link>
+                  ) : null}
+                  {codeFailure ? (
+                    <Link href={codeFailure.href} className="font-semibold text-lime underline">
+                      {codeFailure.label}
                     </Link>
                   ) : null}
                   {showPrompt && prompt ? (

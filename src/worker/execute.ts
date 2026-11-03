@@ -13,6 +13,7 @@ import { buildCustomerReport, type RawCheckResult } from "@/lib/report";
 import { clampText, sanitizeCode, sanitizeCustomerText } from "@/lib/sanitize";
 import { computeScore, isPassingScore } from "@/lib/score";
 import type { ScanStageId } from "@/lib/scan-progress";
+import { CODE_SCAN_FAILED_NOTICE } from "@/lib/code-scan/messages";
 import { shellCodeReport } from "@/lib/code-scan/parse";
 import { runProjectCodeScan } from "./run-code-scan";
 import { runScanPipeline } from "./run-scan";
@@ -32,7 +33,7 @@ export async function executeScan(scanId: string, options: { codeOnly?: boolean 
         .update({
           where: { id: scan.id },
           data: {
-            codeReport: shellCodeReport("failed", ["The code scan could not finish. The site results are still available."]) as unknown as Prisma.InputJsonObject,
+            codeReport: shellCodeReport("failed", [CODE_SCAN_FAILED_NOTICE]) as unknown as Prisma.InputJsonObject,
           },
         })
         .catch(() => undefined);
@@ -252,7 +253,7 @@ async function safeCodeReport(
     });
   } catch (error) {
     console.error("code scan failed", error instanceof Error ? error.message : "error");
-    return shellCodeReport("failed", ["The code scan could not finish. The site results are still available."]);
+    return shellCodeReport("failed", [CODE_SCAN_FAILED_NOTICE]);
   }
 }
 
