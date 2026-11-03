@@ -5,7 +5,7 @@ import { canRunCodeScan } from "@/lib/code-scan/gate";
 import { CODE_SCAN_EMPTY_NOTICE, CODE_SCAN_FAILED_NOTICE } from "@/lib/code-scan/messages";
 import { shellCodeReport } from "@/lib/code-scan/parse";
 import type { CodeScanReport } from "@/lib/code-scan/types";
-import { githubAppConfig, fetchInstallationToken, fetchRepositoryDefaultBranch } from "@/lib/github/app";
+import { githubAppConfig, confirmRepositoryReadable, createRepoReadToken } from "@/lib/github/app";
 import { explainCodeFindings } from "./modules/llm";
 
 export interface CodeScanTarget {
@@ -42,13 +42,18 @@ export async function runProjectCodeScan(target: CodeScanTarget): Promise<CodeSc
   if (!config) return shellCodeReport("failed", ["Repository connection is not available on this server yet."], repoName);
 
   try {
-    const token = await fetchInstallationToken({
+    const owner = target.repo.owner;
+    const name = target.repo.name;
+    const minted = await createRepoReadToken({
       appId: config.appId,
       privateKey: config.privateKey,
       installationId: target.repo.installationId,
+      repoName: name,
     });
-    const owner = target.repo.owner;
-    const name = target.repo.name;
+    if (!minted.ok) return shellCodeReport("failed", [minted.reason], repoName);
+    const readable = await confirmRepositoryReadable({ token: minted.token, owner, name });
+    if (!readable.ok) return shellCodeReport("failed", [readable.reason], repoName);
+    const token = minted.token;
     const report = await withIsolatedDir(async (dir) => {
       const dest = path.join(dir, "repo");
       const cloned = await cloneShallow({
@@ -56,7 +61,7 @@ export async function runProjectCodeScan(target: CodeScanTarget): Promise<CodeSc
         dest,
         branch: target.repo?.defaultBranch || undefined,
         token,
-        resolveDefaultBranch: () => fetchRepositoryDefaultBranch({ token, owner, name }),
+        resolveDefaultBranch: async () => readable.defaultBranch,
       });
       if (cloned.empty) {
         const empty = shellCodeReport("completed", [CODE_SCAN_EMPTY_NOTICE], repoName);

@@ -1,5 +1,5 @@
 import type { CodeScanReport } from "@/lib/code-scan/types";
-import { CODE_SCAN_EMPTY_NOTICE, CODE_SCAN_FAILED_TITLE, CODE_SCAN_RETRY_LABEL, CODE_SCAN_RETRY_NOTE } from "@/lib/code-scan/messages";
+import { CODE_SCAN_EMPTY_NOTICE, CODE_SCAN_FAILED_TITLE, CODE_SCAN_REPO_LOCK_NOTE, CODE_SCAN_RETRY_LABEL, CODE_SCAN_RETRY_NOTE, codeScanRepoLabel } from "@/lib/code-scan/messages";
 import { owaspStatusLabel } from "@/lib/code-scan/owasp";
 import { CODE_PRIVACY_PROMISE, CODE_SCAN_LIMITATIONS, OWASP_ALIGNMENT } from "@/lib/code-scan/privacy";
 import { CodeScanRefresh } from "./CodeScanRefresh";
@@ -35,7 +35,8 @@ export function CodeScanPanel({
       <h2 className="font-display text-3xl">Code scan</h2>
       <p className="mt-3 rounded-2xl bg-[#dff25b]/15 px-4 py-3 text-sm text-[#e7f6c8]">{CODE_PRIVACY_PROMISE}</p>
       <CodeScanRefresh scanId={scanId} status={status} />
-      {repo ? <p className="mt-3 text-sm text-[#d5deee]">Repository: {repo}</p> : null}
+      {repo ? <p className="mt-3 text-sm text-[#d5deee]">{codeScanRepoLabel(repo)}</p> : null}
+      {repo ? <p className="mt-1 text-sm text-[#d5deee]">{CODE_SCAN_REPO_LOCK_NOTE}</p> : null}
       {report?.commit ? <p className="mt-1 text-sm text-[#d5deee]">Commit: {report.commit.slice(0, 12)}</p> : null}
       {status === "not_connected" || !repo ? (
         <div className="mt-4 space-y-3 text-sm text-[#d5deee]">

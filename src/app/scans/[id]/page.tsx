@@ -7,6 +7,8 @@ import { CodeScanPanel } from "@/components/CodeScanPanel";
 import { shouldOfferCodeRepoStep, shouldOfferCreditCodeStep } from "@/lib/code-scan/gate";
 import { ReportView } from "@/components/ReportView";
 import { parseCodeReport } from "@/lib/code-scan/parse";
+import { codeScanRepoLabel } from "@/lib/code-scan/messages";
+import { codeScanRepoName } from "@/lib/code-scan/repo-lock";
 import { codeScoreGap, combinedScores } from "@/lib/code-scan/score";
 import { githubAppConfig } from "@/lib/github/app";
 import { getCurrentUser } from "@/lib/auth";
@@ -72,9 +74,10 @@ export default async function ScanPage({
   }
   const githubReady = githubAppConfig() !== null;
   const connectedRepo =
-    scan.project.repoLink?.status === "connected" && scan.project.repoLink.owner && scan.project.repoLink.name
+    codeScanRepoName(scan.codeRepoOwner, scan.codeRepoName) ??
+    (scan.project.repoLink?.status === "connected" && scan.project.repoLink.owner && scan.project.repoLink.name
       ? `${scan.project.repoLink.owner}/${scan.project.repoLink.name}`
-      : null;
+      : null);
   const creditCodeStep = shouldOfferCreditCodeStep({
     mode: scan.mode,
     codeScanEnabled: scan.codeScanEnabled,
@@ -124,10 +127,11 @@ export default async function ScanPage({
           initialPages={scan.pagesDiscovered}
           initialStartedAt={scan.startedAt?.toISOString() ?? null}
           initialCreatedAt={scan.createdAt.toISOString()}
-          codeScan={Boolean(scan.codeScanEnabled && connectedRepo)}
+          codeScan={Boolean(scan.codeScanEnabled && scan.codeScanChoice !== "skip" && connectedRepo)}
           progressTitle={paidFullScan ? FULL_SCAN_PROGRESS_LABEL : undefined}
           stoppedTitle={paidFullScan ? FULL_SCAN_STOPPED_LABEL : undefined}
         />
+        {connectedRepo && scan.codeScanEnabled ? <p className="text-sm text-[#d5deee]">{codeScanRepoLabel(connectedRepo)}</p> : null}
         {paidFullScan && purchase && scan.status === "failed" ? (
           <section className="paper rounded-3xl p-6 text-ink">
             <h2 className="font-display text-3xl">{FULL_SCAN_STOPPED_LABEL}</h2>
@@ -192,11 +196,7 @@ export default async function ScanPage({
               scanId={scan.id}
               projectId={scan.projectId}
               report={codeReport}
-              repo={
-                scan.project.repoLink?.status === "connected" && scan.project.repoLink.owner
-                  ? `${scan.project.repoLink.owner}/${scan.project.repoLink.name}`
-                  : null
-              }
+              repo={connectedRepo}
               ownershipVerified={Boolean(scan.project.ownershipVerifiedAt)}
               githubReady={githubReady}
             />

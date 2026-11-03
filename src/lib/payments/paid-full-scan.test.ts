@@ -334,6 +334,9 @@ test("a $99 purchase waits to connect a repository when GitHub is configured, th
   assert.deepEqual(enqueued, [started.scanId]);
   const full = await prisma.scan.findUniqueOrThrow({ where: { id: started.scanId } });
   assert.equal(full.codeScanEnabled, true);
+  assert.equal(full.codeRepoOwner, "acme");
+  assert.equal(full.codeRepoName, "app");
+  assert.equal(full.codeRepoInstallationId, "77");
   assert.equal(full.mode, "full");
   assert.equal((await prisma.purchase.findUniqueOrThrow({ where: { id: purchase.id } })).codeScanChoice, "connect");
   await applyPaidAccess("dodo", paidEvent(user.id, "rescan", scan.id, session, "pay_again"), deps);
@@ -361,6 +364,8 @@ test("skipping the code step still runs the paid site scan and keeps the code sc
   if (skipped.outcome !== "started") assert.fail(skipped.outcome);
   const full = await prisma.scan.findUniqueOrThrow({ where: { id: skipped.scanId } });
   assert.equal(full.codeScanEnabled, true);
+  assert.equal(full.codeScanChoice, "skip");
+  assert.equal(full.codeRepoOwner, null);
   assert.equal((await prisma.purchase.findUniqueOrThrow({ where: { id: purchase.id } })).codeScanChoice, "skip");
   assert.equal(await prisma.purchase.count({ where: { userId: user.id } }), 1);
   assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).rescanCredits, 1);

@@ -3,6 +3,7 @@ import { CONSENT_TEXT } from "@/lib/ownership";
 import { enqueueScan as enqueueScanJob } from "@/lib/queue";
 import { ACTIVE_SCAN_LIMIT, ACTIVE_SCAN_LIMIT_MESSAGE } from "@/lib/payments/paid-scan-status";
 import { AWAITING_REPO_STATUS, creditScanShouldWaitForRepo, type CodeScanChoice } from "./gate";
+import { repoSnapshotData } from "./repo-lock";
 
 const QUEUE_ERROR = "The scan queue is unavailable.";
 const QUEUE_RESPONSE = "The scan queue is unavailable. Check Redis and try again.";
@@ -106,7 +107,11 @@ export async function chooseHeldCreditScan(input: {
 
   const claimed = await prisma.scan.updateMany({
     where: { id: scan.id, userId: input.userId, status: AWAITING_REPO_STATUS, codeScanChoice: null },
-    data: { status: "queued", codeScanChoice: input.choice },
+    data: {
+      status: "queued",
+      codeScanChoice: input.choice,
+      ...(input.choice === "connect" ? repoSnapshotData(scan.project.repoLink) : {}),
+    },
   });
   if (claimed.count !== 1) {
     const current = await prisma.scan.findFirst({ where: { id: scan.id, userId: input.userId } });
