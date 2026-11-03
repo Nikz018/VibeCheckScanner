@@ -132,8 +132,8 @@ export default async function ScanPage({
           <section className="paper rounded-3xl p-6 text-ink">
             <h2 className="font-display text-3xl">{FULL_SCAN_STOPPED_LABEL}</h2>
             <p className="mt-2 text-sm text-[#44554c]">Retry runs this paid scan again. It does not charge you again.</p>
-            <OwnershipProof instructions={{ token: proof.token, wellKnownUrl: proof.wellKnownUrl, dnsHost: proof.dnsHost, dnsValue: proof.dnsValue }} />
-            <RetryFullScanButton purchaseId={purchase.id} label={RETRY_FULL_SCAN_LABEL} />
+            <OwnershipProof tone="light" instructions={{ token: proof.token, wellKnownUrl: proof.wellKnownUrl, dnsHost: proof.dnsHost, dnsValue: proof.dnsValue }} />
+            <RetryFullScanButton tone="light" purchaseId={purchase.id} label={RETRY_FULL_SCAN_LABEL} />
           </section>
         ) : null}
       </div>

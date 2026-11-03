@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { OwnershipNotFoundHint, OwnershipProofFields } from "@/components/OwnershipProofFields";
 
 interface Proof {
   projectId: string;
@@ -178,18 +179,7 @@ export function NewScanForm({
           ? "This origin was verified before. We check the proof again before probes start."
           : "Publish one of these proofs. Nothing active runs until it matches and you consent."}
       </p>
-      <div className="grid gap-3 md:grid-cols-2">
-        <article className="rounded-2xl bg-white p-4 text-sm">
-          <h3 className="font-semibold">DNS TXT</h3>
-          <p className="mt-2">Host: {proof.dnsHost}</p>
-          <p className="mt-1 break-all">Value: {proof.token}</p>
-        </article>
-        <article className="rounded-2xl bg-white p-4 text-sm">
-          <h3 className="font-semibold">Well-known file</h3>
-          <p className="mt-2 break-all">URL: {proof.wellKnownUrl}</p>
-          <p className="mt-1 break-all">Body: {proof.token}</p>
-        </article>
-      </div>
+      <OwnershipProofFields tone="light" host={proof.dnsHost} value={proof.token} url={proof.wellKnownUrl} body={proof.token} />
       {proof.demo ? (
         <button className="btn btn-ghost-ink" type="button" onClick={installDemo} disabled={busy}>
           Install proof on this local demo
@@ -227,7 +217,12 @@ export function NewScanForm({
         <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
         <span>I own or am authorized to test this application, and I agree to a non-destructive scan. The result is a point-in-time report, not a guarantee or a certification.</span>
       </label>
-      {error ? <p className="text-sm text-[#8a2d18]">{error}</p> : null}
+      {error ? (
+        <div>
+          <p className="text-sm text-[#8a2d18]">{error}</p>
+          <OwnershipNotFoundHint message={error} tone="light" />
+        </div>
+      ) : null}
       <button className="btn btn-ink" type="button" disabled={busy || !consent} onClick={startScan}>
         {busy ? "Verifying…" : mode === "mini" ? "Verify and run mini check" : "Verify and start scan"}
       </button>

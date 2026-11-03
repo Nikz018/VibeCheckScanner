@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PublicArticle, QaSection } from "@/components/Marketing";
+import { OWNERSHIP_GUIDE_LINK_LABEL, OWNERSHIP_GUIDE_PATH } from "@/lib/ownership-guide";
 import { HOW_TO_EXTRAS, HOW_TO_STEPS } from "@/lib/seo/content";
 import { pageMetadata } from "@/lib/seo/metadata";
 
@@ -18,6 +19,13 @@ export default function HowItWorksPage() {
                 {paragraph}
               </p>
             ))}
+            {step.heading === "How do I prove I own the origin?" ? (
+              <p className="mt-3">
+                <Link className="text-lime underline" href={OWNERSHIP_GUIDE_PATH}>
+                  {OWNERSHIP_GUIDE_LINK_LABEL}
+                </Link>
+              </p>
+            ) : null}
           </li>
         ))}
       </ol>

@@ -117,6 +117,13 @@ export function FaqList() {
         <section key={item.question}>
           <h2 className="font-display text-3xl leading-tight">{item.question}</h2>
           <p className="mt-3 text-[#ddd6c8]">{item.answer}</p>
+          {item.link ? (
+            <p className="mt-3">
+              <Link className="text-lime underline" href={item.link.href}>
+                {item.link.label}
+              </Link>
+            </p>
+          ) : null}
         </section>
       ))}
     </>

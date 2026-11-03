@@ -16,6 +16,9 @@ export default function FaqPage() {
         <Link href="/how-it-works" className="btn btn-ghost">
           How it works
         </Link>
+        <Link href="/docs/verify-ownership" className="btn btn-ghost">
+          Prove ownership
+        </Link>
         <Link href="/scans/new" className="btn btn-lime">
           Scan an app you own
         </Link>
