@@ -7,7 +7,8 @@ import { computeScore } from "@/lib/score";
 import { CODE_SCAN_EMPTY_NOTICE, CODE_SCAN_FAILED_NOTICE, CODE_SCAN_FAILED_TITLE, CODE_SCAN_SCORE_UNAVAILABLE } from "./messages";
 import { shellCodeReport } from "./parse";
 import { renderCodeScanMarkdown } from "./format";
-import { codeScoreGap, combinedScores, computeCodeScore, computeOverallScore, HIGH_CONFIDENCE_RULES, LOW_CONFIDENCE_PENALTY_FACTOR, OVERALL_SCORE_WEIGHTS, overallScoreExplanation } from "./score";
+import { scoreBand } from "@/lib/score-gauge";
+import { codeScoreGap, combinedScores, computeCodeScore, computeOverallScore, HIGH_CONFIDENCE_RULES, LOW_CONFIDENCE_PENALTY_FACTOR, OVERALL_SCORE_WEIGHTS, overallScoreExplanation, renderScoreRingsHtml, renderUnavailableScoresHtml } from "./score";
 
 test("code score uses site weights and halves low-confidence pattern findings", () => {
   assert.equal(computeCodeScore([]), 100);
@@ -113,3 +114,40 @@ test("the PDF cover shows three rings only when a code score exists", () => {
   assert.match(unavailable, /no code score and no overall score/);
   assert.equal(unavailable.includes('data-score-gauge="100"'), false);
 });
+
+test("site, code, and overall rings each use that score's rating color", () => {
+  const scores = { site: 20, code: 55, overall: 96 };
+  for (const tone of ["dark", "light"] as const) {
+    const html = renderScoreRingsHtml(scores, tone);
+    assert.equal(html.includes("#ff6a3d"), false);
+    assert.equal(html.includes("#c4471a"), false);
+    for (const role of ["site", "code", "overall"] as const) {
+      const slice = ringSlice(html, role);
+      const color = scoreBand(scores[role]).color;
+      assert.match(slice, new RegExp(`data-score-gauge="${scores[role]}"`));
+      assert.match(slice, new RegExp(`data-score-band="${scoreBand(scores[role]).id}"`));
+      assert.match(slice, new RegExp(`stroke="${color}"`));
+      assert.match(slice, new RegExp(`style="stroke:${color}"`));
+      assert.match(slice, new RegExp(`style="color:${color}"`));
+    }
+  }
+  assert.notEqual(scoreBand(scores.site).color, scoreBand(scores.code).color);
+  assert.notEqual(scoreBand(scores.code).color, scoreBand(scores.overall).color);
+
+  const gap = renderUnavailableScoresHtml({ site: 20, reason: CODE_SCAN_SCORE_UNAVAILABLE }, "light");
+  const site = ringSlice(gap, "site");
+  assert.match(site, new RegExp(scoreBand(20).color));
+  assert.match(site, /data-score-gauge="20"/);
+  assert.equal(ringSlice(gap, "code").includes("data-score-gauge"), false);
+  assert.equal(ringSlice(gap, "overall").includes("data-score-gauge"), false);
+  assert.equal(gap.includes("#ff6a3d"), false);
+});
+
+function ringSlice(html: string, role: string): string {
+  const marker = `data-score-role="${role}"`;
+  const start = html.indexOf(marker);
+  assert.ok(start >= 0, marker);
+  const rest = html.slice(start + marker.length);
+  const next = rest.indexOf('data-score-role="');
+  return html.slice(start, next === -1 ? undefined : start + marker.length + next);
+}

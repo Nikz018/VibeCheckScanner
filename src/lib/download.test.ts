@@ -102,6 +102,9 @@ test("markdown and print html keep location and fix, and drop raw secrets and to
   assert.match(html, /Needs work/);
   assert.match(html, /Higher is safer/);
   assert.match(html, /data-score-gauge="50"/);
+  assert.match(html, /data-score-band="needs-work"/);
+  assert.match(html, /stroke="#e09a14"/);
+  assert.match(html, /style="stroke:#e09a14"/);
   assert.match(html, /<pre>[^<]*<\/pre>/);
 });
 
