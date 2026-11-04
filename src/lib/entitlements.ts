@@ -29,6 +29,22 @@ export async function takeReportAccess(
   return { access: "teaser", spentRescanCredit: false };
 }
 
+export type ScanAccessChoice = "teaser" | "credit" | "rescan" | "checkout-report" | "checkout-rescan";
+
+/**
+ * A full launch scan with no paid access must not run as a free teaser.
+ * Mini checks are unchanged. A subscriber or a spent credit grants full access.
+ */
+export function fullLaunchCheckout(input: {
+  mode: "full" | "mini";
+  use: ScanAccessChoice;
+  granted: "teaser" | "full";
+}): { checkoutTier: "report" | "rescan" } | null {
+  if (input.mode !== "full" || input.granted === "full") return null;
+  if (input.use === "checkout-rescan") return { checkoutTier: "rescan" };
+  return { checkoutTier: "report" };
+}
+
 export function monitoringActive(status: string | null | undefined): boolean {
   return status === "active" || status === "trialing";
 }

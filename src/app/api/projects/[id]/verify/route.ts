@@ -7,7 +7,7 @@ import { deleteScanCredentials, saveScanCredentials } from "@/lib/credential-sto
 import { prisma } from "@/lib/db";
 import { codeScanEnabledForCredit } from "@/lib/code-scan/gate";
 import { openHeldOrQueuedScan, repoIsConnected, settleVerifiedScan } from "@/lib/code-scan/held-scan";
-import { takeReportAccess } from "@/lib/entitlements";
+import { fullLaunchCheckout, takeReportAccess } from "@/lib/entitlements";
 import { githubAppConfig } from "@/lib/github/app";
 import { LOGIN_AVAILABLE_NOTICE } from "@/lib/limitations";
 import { ACTIVE_SCAN_LIMIT } from "@/lib/payments/paid-scan-status";
@@ -17,7 +17,7 @@ import { recordScanAuthorization } from "@/lib/scan-authorization";
 const bodySchema = z.object({
   consent: z.boolean(),
   mode: z.enum(["full", "mini"]).default("full"),
-  use: z.enum(["teaser", "credit", "rescan"]).default("teaser"),
+  use: z.enum(["teaser", "credit", "rescan", "checkout-report", "checkout-rescan"]).default("teaser"),
   auth: z.unknown().optional(),
 });
 
@@ -53,10 +53,17 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     method: proof.method,
   });
 
+  const mode = parsed.data.mode;
+  const use = parsed.data.use;
+  if (mode === "full" && (use === "checkout-report" || use === "checkout-rescan")) {
+    return NextResponse.json(
+      { error: "A full launch scan needs a paid report.", checkoutTier: use === "checkout-rescan" ? "rescan" : "report" },
+      { status: 402 },
+    );
+  }
+
   const active = await prisma.scan.count({ where: { userId: user.id, status: { in: ["queued", "running"] } } });
   if (active >= ACTIVE_SCAN_LIMIT) return NextResponse.json({ error: "Wait for a running scan to finish before starting another." }, { status: 429 });
-
-  const mode = parsed.data.mode;
   if (parsed.data.auth && mode === "mini") {
     return NextResponse.json({ error: "Logged-in checks run on a full launch scan." }, { status: 400 });
   }
@@ -73,12 +80,17 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ error: message }, { status: 400 });
     }
   }
-  const access = mode === "mini" ? { access: "full" as const, spentRescanCredit: false } : await takeReportAccess(user.id, parsed.data.use);
+  const entitlementUse = use === "credit" || use === "rescan" ? use : "teaser";
+  const access = mode === "mini" ? { access: "full" as const, spentRescanCredit: false } : await takeReportAccess(user.id, entitlementUse);
   const reportAccess = access.access;
+  const checkout = fullLaunchCheckout({ mode, use, granted: reportAccess });
+  if (checkout) {
+    return NextResponse.json({ error: "A full launch scan needs a paid report.", checkoutTier: checkout.checkoutTier }, { status: 402 });
+  }
   if (auth && reportAccess !== "full") {
     return NextResponse.json({ error: LOGIN_AVAILABLE_NOTICE }, { status: 400 });
   }
-  const codeScanEnabled = codeScanEnabledForCredit({ mode, use: parsed.data.use, spentRescanCredit: access.spentRescanCredit });
+  const codeScanEnabled = codeScanEnabledForCredit({ mode, use, spentRescanCredit: access.spentRescanCredit });
   const opened = await openHeldOrQueuedScan({
     userId: user.id,
     projectId: project.id,
