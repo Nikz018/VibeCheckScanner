@@ -44,7 +44,27 @@ test("score bands and the gauge read as a ratio out of 100", () => {
   assert.match(gauge, new RegExp(scoreBand(7).color));
   assert.match(gauge, /style="stroke:#e24b3a"/);
   assert.match(gauge, /data-score-band="critical"/);
+  assert.match(gauge, /class="gauge-track"[^>]*stroke="#e24b3a" stroke-opacity="0.25"/);
   assert.doesNotMatch(gauge, />7</);
+});
+
+test("a zero score tints the whole ring with the rating color", () => {
+  for (const tone of ["dark", "light"] as const) {
+    const empty = renderScoreGaugeSvg({ score: 0, tone });
+    assert.match(empty, /0\/100/);
+    assert.match(empty, /class="gauge-track"[^>]*stroke="#e24b3a" stroke-opacity="0.25"/);
+    assert.doesNotMatch(empty, /gauge-progress/);
+    assert.doesNotMatch(empty, new RegExp(tone === "dark" ? "#3a433e" : "#e4dfd2"));
+    assert.match(empty, new RegExp(`fill="${tone === "dark" ? "#f4f0e6" : "#14201b"}"`));
+    assert.match(empty, /fill="#e24b3a"/);
+  }
+  const waiting = renderScoreGaugeSvg({ score: null, tone: "dark" });
+  assert.match(waiting, /class="gauge-track"[^>]*stroke="#3a433e"/);
+  assert.doesNotMatch(waiting, /stroke-opacity/);
+  const fair = renderScoreGaugeSvg({ score: 55, tone: "dark" });
+  assert.match(fair, /class="gauge-track"[^>]*stroke="#e09a14" stroke-opacity="0.25"/);
+  assert.match(fair, /class="gauge-progress"[^>]*stroke="#e09a14" style="stroke:#e09a14"/);
+  assert.doesNotMatch(fair, /stroke-opacity="0.25"[^>]*class="gauge-progress"|class="gauge-progress"[^>]*stroke-opacity/);
 });
 
 test("score rating colors stay on the original palette", () => {
