@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { RepoPicker } from "@/components/RepoPicker";
 import { RunCodeScanButton } from "@/components/RunCodeScanButton";
-import { getCurrentUser } from "@/lib/auth";
+import { requirePageUser } from "@/lib/require-user";
 import { CODE_SCAN_REPO_LOCK_NOTE, codeScanRepoLabel } from "@/lib/code-scan/messages";
 import { CODE_PRIVACY_PROMISE } from "@/lib/code-scan/privacy";
 import { prisma } from "@/lib/db";
 import { fetchInstallationRepos, githubAppConfig, safeAppPath } from "@/lib/github/app";
-import { signInPath } from "@/lib/checkout-path";
 import { privateMetadata } from "@/lib/seo/metadata";
 
 export const dynamic = "force-dynamic";
@@ -24,8 +23,8 @@ export default async function GithubProjectPage({
   const { id } = await params;
   const query = await searchParams;
   const next = safeAppPath(query.next);
-  const user = await getCurrentUser();
-  if (!user) redirect(signInPath(`/projects/${id}/github`));
+  const returnTo = next ? `/projects/${id}/github?next=${encodeURIComponent(next)}` : `/projects/${id}/github`;
+  const user = await requirePageUser(returnTo);
   const project = await prisma.project.findFirst({
     where: { id, userId: user.id },
     include: { repoLink: true },

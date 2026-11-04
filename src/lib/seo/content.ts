@@ -455,7 +455,7 @@ export const LEGAL_SECTIONS: Record<"terms" | "privacy" | "refund" | "contact", 
     {
       heading: "How do accounts work?",
       paragraphs: [
-        "Sign-in is an email link. The link expires quickly, and the session cookie keeps you signed in until it expires or you sign out.",
+        "Sign-in is an email link. The link expires quickly, and the session lasts 3 hours from sign-in. Using the site does not extend that session. You can sign out sooner.",
         "You are responsible for the mailbox you use.",
       ],
     },
@@ -498,7 +498,7 @@ export const LEGAL_SECTIONS: Record<"terms" | "privacy" | "refund" | "contact", 
       heading: "What account data do you store?",
       paragraphs: [
         "We store the email address you use to sign in, a hash of the magic-link token, and a hash of the session token.",
-        "The magic link expires in 30 minutes. The session cookie is named vc_session, is httpOnly, and lasts 30 days unless you sign out.",
+        "The magic link expires in 30 minutes. The session cookie is named vc_session, is httpOnly, and expires 3 hours after sign-in. Activity does not extend it.",
       ],
     },
     {
@@ -524,7 +524,7 @@ export const LEGAL_SECTIONS: Record<"terms" | "privacy" | "refund" | "contact", 
     {
       heading: "Which cookies do you set?",
       paragraphs: [
-        "The app sets the vc_session cookie so you stay signed in. It is not an advertising cookie.",
+        "The app sets the vc_session cookie for that 3-hour session. It also sets an httpOnly vc_session_exp cookie that stores only the time the session ends, so the sign-in page can say the session expired. These are not advertising cookies.",
         "The app does not set analytics or marketing cookies.",
       ],
     },
@@ -538,7 +538,7 @@ export const LEGAL_SECTIONS: Record<"terms" | "privacy" | "refund" | "contact", 
     {
       heading: "How long do you keep data?",
       paragraphs: [
-        "Magic links expire in 30 minutes and the session cookie expires in 30 days unless you sign out.",
+        "Magic links expire in 30 minutes and the session cookie expires 3 hours after sign-in unless you sign out.",
         "Account rows, scan rows, findings, and alerts stay until you ask for them to be removed. Email the address on the contact page from the account mailbox to ask.",
       ],
     },

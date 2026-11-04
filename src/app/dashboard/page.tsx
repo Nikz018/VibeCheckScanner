@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { CancelSubscription } from "@/components/CancelSubscription";
 import { ScoreGauge } from "@/components/ScoreGauge";
 import { ScoreRings, UnavailableScoreRings } from "@/components/ScoreRings";
 import { codeScoreGap, combinedScores } from "@/lib/code-scan/score";
 import { parseCodeReport } from "@/lib/code-scan/parse";
-import { getCurrentUser } from "@/lib/auth";
+import { requirePageUser } from "@/lib/require-user";
 import { prisma } from "@/lib/db";
 import { monitoringActive, ownedScanAccess } from "@/lib/entitlements";
 import { describeFindingCounts, readSeverityCounts, reportBadge, severityCountsWithCode } from "@/lib/report";
@@ -22,8 +21,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = privateMetadata("Dashboard");
 
 export default async function DashboardPage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login?next=/dashboard");
+  const user = await requirePageUser("/dashboard");
   const [projects, scans, alerts, purchases] = await Promise.all([
     prisma.project.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" } }),
     prisma.scan.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 20, include: { project: { include: { repoLink: true } } } }),

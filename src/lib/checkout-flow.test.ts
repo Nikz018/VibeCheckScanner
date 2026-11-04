@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { pricingCheckoutPath, scanCheckoutPath, signInPath, tierFromCheckoutParam } from "./checkout-path";
+import { pricingCheckoutPath, scanCheckoutPath, scanPageReturnPath, signInPath, tierFromCheckoutParam } from "./checkout-path";
 import { requestCheckout } from "./checkout-request";
 import { CHECKOUT_SETUP_MESSAGE, DEFAULT_DODO_PRODUCT_IDS, UPGRADE_ACTIONS } from "./pricing";
 
@@ -12,6 +12,12 @@ test("pricing checkout returns through sign-in to the same plan", () => {
   assert.equal(signInPath(pricingCheckoutPath("monitor")), "/login?next=%2Fpricing%3Fcheckout%3Dmonitor");
   assert.equal(signInPath("https://evil.example/pricing"), "/login");
   assert.equal(signInPath("//evil.example"), "/login");
+  assert.equal(signInPath(pricingCheckoutPath("report"), { expired: true }), "/api/auth/expired?next=%2Fpricing%3Fcheckout%3Dreport");
+  assert.equal(signInPath("/scans/scan_1", { expired: true }), "/api/auth/expired?next=%2Fscans%2Fscan_1");
+  assert.equal(signInPath("https://evil.example", { expired: true }), "/api/auth/expired");
+  assert.equal(scanPageReturnPath("scan_1", "report"), "/scans/scan_1?checkout=report#upgrade");
+  assert.equal(scanPageReturnPath("scan_1", "success"), "/scans/scan_1?checkout=success");
+  assert.equal(scanPageReturnPath("scan_1", "nope"), "/scans/scan_1");
   assert.equal(tierFromCheckoutParam("report"), "report");
   assert.equal(tierFromCheckoutParam("nope"), null);
   assert.equal(scanCheckoutPath("scan_1", "report"), "/scans/scan_1?checkout=report#upgrade");
@@ -55,7 +61,8 @@ test("pricing page and dashboard expose the live checkout actions", () => {
   const dashboard = read("src/app/dashboard/page.tsx");
   const report = read("src/components/ReportView.tsx");
   assert.match(pricing, /PricingCheckout/);
-  assert.match(pricing, /getCurrentUser/);
+  assert.match(pricing, /readSession/);
+  assert.match(pricing, /sessionExpired/);
   assert.match(read("src/components/PricingCheckout.tsx"), /signInPath\(pricingCheckoutPath/);
   assert.match(dashboard, /paidScanDashboardAction/);
   assert.match(dashboard, /scan\.mode === "mini"/);

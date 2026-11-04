@@ -5,19 +5,14 @@ import { sendEmail } from "./email";
 import { renderMagicLinkEmail } from "./email-template";
 import { magicLinkExpiresAt } from "./magic-link";
 import { hashToken } from "./ownership";
+import {
+  SESSION_COOKIE,
+  SESSION_EXPIRY_COOKIE,
+  classifySession,
+  sessionExpiresAt,
+} from "./session-lifetime";
 
-export const SESSION_COOKIE = "vc_session";
-const SESSION_DAYS = 30;
-
-export function cookieOptions() {
-  return {
-    httpOnly: true,
-    sameSite: "lax" as const,
-    secure: (process.env.APP_URL || "").startsWith("https://"),
-    path: "/",
-    maxAge: SESSION_DAYS * 24 * 60 * 60,
-  };
-}
+export { SESSION_COOKIE, SESSION_EXPIRY_COOKIE };
 
 export async function requestMagicLink(email: string, nextPath = "/dashboard"): Promise<{ devLink?: string }> {
   const normalized = email.trim().toLowerCase();
@@ -41,7 +36,7 @@ export async function requestMagicLink(email: string, nextPath = "/dashboard"): 
   return {};
 }
 
-export async function consumeMagicLink(token: string): Promise<string | null> {
+export async function consumeMagicLink(token: string): Promise<{ token: string; expiresAt: Date } | null> {
   const row = await prisma.magicLink.findUnique({ where: { tokenHash: hashToken(token) } });
   if (!row || row.usedAt || row.expiresAt.getTime() < Date.now()) return null;
   await prisma.magicLink.update({ where: { id: row.id }, data: { usedAt: new Date() } });
@@ -50,26 +45,48 @@ export async function consumeMagicLink(token: string): Promise<string | null> {
     update: {},
     create: { email: row.email },
   });
+  const createdAt = new Date();
+  const expiresAt = sessionExpiresAt(createdAt);
   const sessionToken = randomBytes(32).toString("hex");
   await prisma.session.create({
     data: {
       userId: user.id,
       tokenHash: hashToken(sessionToken),
-      expiresAt: new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000),
+      createdAt,
+      expiresAt,
     },
   });
-  return sessionToken;
+  return { token: sessionToken, expiresAt };
+}
+
+/**
+ * Reads the session and does not extend it. expiresAt is fixed at sign-in.
+ * A missing or elapsed row is not a user, including rows issued before the
+ * 3-hour cap: those stay valid until the expiresAt they already have.
+ */
+export async function readSession() {
+  const jar = await cookies();
+  const token = jar.get(SESSION_COOKIE)?.value;
+  const expiryCookie = jar.get(SESSION_EXPIRY_COOKIE)?.value;
+  const row = token
+    ? await prisma.session.findUnique({
+        where: { tokenHash: hashToken(token) },
+        include: { user: { include: { subscription: true } } },
+      })
+    : null;
+  const status = classifySession({
+    hasSessionCookie: Boolean(token),
+    expiresAt: row?.expiresAt ?? null,
+    expiryCookie,
+  });
+  if (status === "active" && row) return { status: "active" as const, user: row.user };
+  if (status === "expired") return { status: "expired" as const };
+  return { status: "anonymous" as const };
 }
 
 export async function getCurrentUser() {
-  const jar = await cookies();
-  const token = jar.get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-  const session = await prisma.session.findUnique({
-    where: { tokenHash: hashToken(token) },
-    include: { user: { include: { subscription: true } } },
-  });
-  if (!session || session.expiresAt.getTime() < Date.now()) return null;
+  const session = await readSession();
+  if (session.status !== "active") return null;
   return session.user;
 }
 
@@ -80,4 +97,5 @@ export async function destroySession(): Promise<void> {
     await prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } });
   }
   jar.delete(SESSION_COOKIE);
+  jar.delete(SESSION_EXPIRY_COOKIE);
 }

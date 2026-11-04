@@ -47,7 +47,7 @@ export function UpgradePanel({
     setBusy("");
     if (!result.ok) {
       if (result.status === 401) {
-        window.location.href = signInPath(scanId ? scanCheckoutPath(scanId, tier) : pricingCheckoutPath(tier));
+        window.location.href = signInPath(scanId ? scanCheckoutPath(scanId, tier) : pricingCheckoutPath(tier), { expired: true });
         return;
       }
       setError(result.error);
