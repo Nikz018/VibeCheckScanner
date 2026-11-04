@@ -88,29 +88,32 @@ export function PricingCheckout({
   return (
     <div className="space-y-4">
       {monitoring ? <p className="rounded-2xl border border-lime/40 bg-lime/10 px-4 py-3 text-sm font-semibold text-lime">You're on Monitoring</p> : null}
-      <div className="grid gap-4 md:grid-cols-4">
-        <article className="lift rounded-3xl border border-white/10 bg-white/5 p-5">
-          <p className="font-semibold">{FREE_TIER.name}</p>
-          <p className="font-display text-4xl">{FREE_TIER.priceLabel}</p>
-          <p className="mt-3 text-sm text-[#cfc4bb]">{FREE_TIER.blurb}</p>
-          <Link href="/check" className="btn btn-ghost mt-4 w-full">
+      <div className="price-grid">
+        <article className="price-card lift rounded-3xl border border-white/10 bg-white/5 p-5">
+          <p className="price-card-title font-semibold">{FREE_TIER.name}</p>
+          <p className="price-card-price font-display text-4xl">{FREE_TIER.priceLabel}</p>
+          <p className="price-card-tax text-xs invisible" aria-hidden="true">
+            {TAX_NOTE}
+          </p>
+          <p className="price-card-body text-sm text-[#cfc4bb]">{FREE_TIER.blurb}</p>
+          <Link href="/check" className="btn btn-ghost price-card-action">
             Start a mini check
           </Link>
         </article>
         {Object.values(TIERS).map((tier) => (
-          <article key={tier.id} className={`lift rounded-3xl border border-lime/40 bg-[#161311] p-5 ${active === tier.id ? "ring-2 ring-lime" : ""}`}>
-            <p className="font-semibold">{tier.name}</p>
-            <p className="font-display text-4xl">{tier.priceLabel}</p>
-            <p className="text-xs">{TAX_NOTE}</p>
-            <p className="mt-3 text-sm">{tier.blurb}</p>
+          <article key={tier.id} className={`price-card lift rounded-3xl border border-lime/40 bg-[#161311] p-5 ${active === tier.id ? "ring-2 ring-lime" : ""}`}>
+            <p className="price-card-title font-semibold">{tier.name}</p>
+            <p className="price-card-price font-display text-4xl">{tier.priceLabel}</p>
+            <p className="price-card-tax text-xs">{TAX_NOTE}</p>
+            <p className="price-card-body text-sm">{tier.blurb}</p>
             {monitoring ? (
-              <p className="mt-4 text-sm font-semibold text-lime">You're on Monitoring</p>
+              <p className="price-card-action text-sm font-semibold text-lime">You're on Monitoring</p>
             ) : signedIn ? (
-              <button className="btn btn-lime mt-4 w-full" type="button" disabled={busy === tier.id} onClick={() => choose(tier.id)}>
+              <button className="btn btn-lime price-card-action" type="button" disabled={busy === tier.id} onClick={() => choose(tier.id)}>
                 {busy === tier.id ? "Starting checkout…" : "Checkout"}
               </button>
             ) : (
-              <a className="btn btn-lime mt-4 w-full" href={signInPath(pricingCheckoutPath(tier.id))}>
+              <a className="btn btn-lime price-card-action" href={signInPath(pricingCheckoutPath(tier.id))}>
                 Checkout
               </a>
             )}
