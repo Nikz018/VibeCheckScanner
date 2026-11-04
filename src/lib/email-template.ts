@@ -7,10 +7,10 @@ export const MONITOR_ALERT_SUBJECT = "VibeCheck found new high-severity issues";
 export const SIGN_IN_BUTTON_LABEL = "Sign in to VibeCheck";
 export const IGNORE_UNSOLICITED_SIGN_IN = "If you didn't request this, you can ignore this email.";
 
-const NAVY = "#071018";
+const NAVY = "#0b0b0c";
 const PAPER = "#f4f7fb";
-const LIME = "#dff25b";
-const GLOW = "#3ec6ff";
+const LIME = "#ff6a3d";
+const GLOW = "#ff8a5c";
 const INK = "#071018";
 const MUTED = "#3d4c5f";
 const LINK = "#0c4a6e";

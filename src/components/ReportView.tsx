@@ -65,13 +65,13 @@ export function ReportView({
       <section className="panel panel-glow p-6 md:p-8">
         <div className="flex flex-wrap items-center justify-between gap-6">
           <div>
-            <p className={report.upsell && !sample ? "inline-flex rounded-full bg-[#fff3c4] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#5c4a10]" : "text-xs uppercase tracking-[0.18em] text-[#b7c6dc]"}>
+            <p className={report.upsell && !sample ? "inline-flex rounded-full bg-[#fff3c4] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#5c4a10]" : "text-xs uppercase tracking-[0.18em] text-[#c4b8b0]"}>
               {reportBadge(report, sample)}
             </p>
             <div className="mt-3">
               {scores ? <ScoreRings scores={scores} tone="dark" /> : codeGap ? <UnavailableScoreRings gap={codeGap} tone="dark" /> : <ScoreGauge score={report.score} tone="dark" />}
             </div>
-            <p className="mt-3 text-sm text-[#d5deee]">
+            <p className="mt-3 text-sm text-[#e6ddd6]">
               {findingLabel}
               {report.stale ? " · rescan needed" : ""}
             </p>
@@ -102,8 +102,8 @@ export function ReportView({
         {report.stale ? (
           <p className="mt-4 rounded-2xl bg-[#fff1c9] px-4 py-3 text-sm text-ink">This scan is more than 30 days old. The badge reads “rescan needed” until you run it again.</p>
         ) : null}
-        {scores || codeGap ? null : <p className="mt-4 text-sm text-[#c5d2e6]">Score starts at 100. Critical −25, high −12, medium −6, low −2.</p>}
-        <p className="mt-2 text-sm text-[#c5d2e6]">{report.disclaimer}</p>
+        {scores || codeGap ? null : <p className="mt-4 text-sm text-[#cfc4bb]">Score starts at 100. Critical −25, high −12, medium −6, low −2.</p>}
+        <p className="mt-2 text-sm text-[#cfc4bb]">{report.disclaimer}</p>
         {report.notices.map((notice) => (
           <p key={notice} className="mt-3 rounded-2xl bg-[#fff1c9] px-4 py-3 text-sm text-ink">
             {notice}
@@ -116,7 +116,7 @@ export function ReportView({
           <article key={row.family} className="lift rounded-2xl border border-white/10 bg-white/5 p-4">
             <h2 className="text-sm font-semibold">{row.label}</h2>
             <p className="mt-2 font-display text-2xl capitalize">{coverageLabel(row)}</p>
-            <p className="mt-1 text-xs text-[#c5d2e6]">
+            <p className="mt-1 text-xs text-[#cfc4bb]">
               {row.checksRun.length} checks ran{row.checksNotRun.length ? ` · ${row.checksNotRun.length} not included` : ""}
             </p>
           </article>
@@ -137,7 +137,7 @@ export function ReportView({
               </div>
             </section>
           ) : (
-            <p className="text-[#d5deee]">No headline issues on this scan.</p>
+            <p className="text-[#e6ddd6]">No headline issues on this scan.</p>
           )}
           {report.families.map((group) => (
             <section key={group.family} className="space-y-3">
@@ -148,7 +148,7 @@ export function ReportView({
                   <FindingCard key={`${finding.checkId}-${index}`} finding={finding} showAffectedPages />
                 ))}
               {group.findings.every((finding) => finding.headlineRank !== null) ? (
-                <p className="text-sm text-[#c5d2e6]">Headline findings for this family are in the priority list above.</p>
+                <p className="text-sm text-[#cfc4bb]">Headline findings for this family are in the priority list above.</p>
               ) : null}
             </section>
           ))}
@@ -159,13 +159,13 @@ export function ReportView({
         <section id="upgrade" className="space-y-4">
           <div className="upgrade-panel p-5">
             <h2 className="font-display text-3xl">{FREE_PREVIEW_LABEL}</h2>
-            <div className="mt-3 space-y-2 text-sm text-[#d5deee]">
+            <div className="mt-3 space-y-2 text-sm text-[#e6ddd6]">
               {freePreviewLines(freePreviewFacts(report)).map((line) => (
                 <p key={line}>{line}</p>
               ))}
             </div>
             {paidFollowup || paymentNotice ? null : (
-              <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-[#d5deee]">
+              <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-[#e6ddd6]">
                 <li>
                   {TIERS.report.priceLabel} {TIERS.report.name}. {FULL_REPORT_PURCHASE_LEDE} {TAX_NOTE}.
                 </li>
@@ -186,7 +186,7 @@ export function ReportView({
             <div className="space-y-4">
               <section className="rounded-3xl border border-[#f3c7bc]/50 bg-[#f3c7bc]/10 p-5">
                 <h2 className="font-display text-3xl">Payment didn't go through</h2>
-                <p className="mt-3 text-sm text-[#d5deee]">{PAYMENT_DECLINED_COPY}</p>
+                <p className="mt-3 text-sm text-[#e6ddd6]">{PAYMENT_DECLINED_COPY}</p>
               </section>
               <UpgradePanel
                 scanId={scanId}
@@ -208,7 +208,7 @@ export function ReportView({
           {paymentNotice === "declined" ? (
             <section className="rounded-3xl border border-[#f3c7bc]/50 bg-[#f3c7bc]/10 p-5">
               <h2 className="font-display text-3xl">Payment didn't go through</h2>
-              <p className="mt-3 text-sm text-[#d5deee]">{PAYMENT_DECLINED_COPY}</p>
+              <p className="mt-3 text-sm text-[#e6ddd6]">{PAYMENT_DECLINED_COPY}</p>
             </section>
           ) : null}
         </section>
@@ -218,12 +218,12 @@ export function ReportView({
 
       <section className="panel p-5">
         <h2 className="font-display text-3xl">{report.limitationsTitle}</h2>
-        <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-[#d5deee]">
+        <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-[#e6ddd6]">
           {report.limitations.map((item) => (
             <li key={item}>{item}</li>
           ))}
         </ul>
-        <p className="mt-3 text-sm text-[#d5deee]">{report.limitationsNote}</p>
+        <p className="mt-3 text-sm text-[#e6ddd6]">{report.limitationsNote}</p>
       </section>
 
       {scanId && share ? <SharePanel scanId={scanId} enabled={share.enabled} token={share.token} /> : null}
@@ -258,9 +258,9 @@ function FreeFindings({
         Findings
       </h2>
       {report.totalFindings === 0 ? (
-        <p className="text-sm text-[#d5deee]">This scan did not find any issues.</p>
+        <p className="text-sm text-[#e6ddd6]">This scan did not find any issues.</p>
       ) : (
-        <p className="text-sm text-[#d5deee]">
+        <p className="text-sm text-[#e6ddd6]">
           {report.totalFindings} finding{report.totalFindings === 1 ? "" : "s"}
           {breakdown ? `: ${breakdown}` : ""}. This preview shows the lowest-severity finding in full.
           {report.hiddenCount > 0
@@ -278,14 +278,14 @@ function FreeFindings({
           {visibleLocked.map((severity, index) => (
             <li key={`${severity}-${index}`} className="locked-row panel px-4 py-3">
               <span className={`rounded-full px-2 py-1 text-xs font-semibold uppercase ${SEVERITY_STYLE[severity]}`}>{severity}</span>
-              <span className="text-sm text-[#d5deee]">Locked. Upgrade to read this finding.</span>
+              <span className="text-sm text-[#e6ddd6]">Locked. Upgrade to read this finding.</span>
               <span className="locked-ghost col-span-2" aria-hidden="true" />
             </li>
           ))}
         </ul>
       ) : null}
       {extraLocked > 0 ? (
-        <p className="text-sm text-[#d5deee]">
+        <p className="text-sm text-[#e6ddd6]">
           And {extraLocked} more locked finding{extraLocked === 1 ? "" : "s"}. The count above is the real total.
         </p>
       ) : null}
@@ -299,13 +299,13 @@ function PriceHint() {
   return (
     <div id="upgrade" className="upgrade-panel p-5">
       <h3 className="font-display text-2xl">Unlock every finding</h3>
-      <p className="mt-2 text-sm text-[#d5deee]">This sample uses invented data. A scan you own uses the same free preview, then checkout for the full report.</p>
+      <p className="mt-2 text-sm text-[#e6ddd6]">This sample uses invented data. A scan you own uses the same free preview, then checkout for the full report.</p>
       <ul className="mt-4 grid gap-3 md:grid-cols-3">
         {Object.values(TIERS).map((tier) => (
           <li key={tier.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <p className="font-display text-3xl text-lime">{tier.priceLabel}</p>
             <p className="font-semibold">{tier.name}</p>
-            <p className="mt-1 text-xs text-[#c5d2e6]">{TAX_NOTE}</p>
+            <p className="mt-1 text-xs text-[#cfc4bb]">{TAX_NOTE}</p>
           </li>
         ))}
       </ul>
@@ -323,12 +323,12 @@ function FindingCard({ finding, showAffectedPages = false }: { finding: Customer
     <article className="lift panel p-5">
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className={`rounded-full px-2 py-1 font-semibold uppercase ${SEVERITY_STYLE[finding.severity]}`}>{finding.severity}</span>
-        <span className="text-[#c5d2e6]">{finding.familyLabel}</span>
-        {finding.headlineRank ? <span className="text-[#c5d2e6]">Headline {finding.headlineRank}</span> : null}
-        {finding.confidence ? <span className="text-[#c5d2e6]">Confidence {finding.confidence}</span> : null}
+        <span className="text-[#cfc4bb]">{finding.familyLabel}</span>
+        {finding.headlineRank ? <span className="text-[#cfc4bb]">Headline {finding.headlineRank}</span> : null}
+        {finding.confidence ? <span className="text-[#cfc4bb]">Confidence {finding.confidence}</span> : null}
       </div>
       <h3 className="mt-3 font-display text-2xl">{finding.title}</h3>
-      <div className="mt-3 space-y-4 text-sm leading-6 text-[#e4ebf6]">
+      <div className="mt-3 space-y-4 text-sm leading-6 text-[#f3eee9]">
         {finding.evidence ? (
           <p>
             <span className="font-semibold">Evidence. </span>
@@ -359,12 +359,12 @@ function FindingCard({ finding, showAffectedPages = false }: { finding: Customer
                     <span className="font-semibold">{location.method}</span> {location.url}
                   </p>
                   {location.line ? (
-                    <p className="text-[#c5d2e6]">
+                    <p className="text-[#cfc4bb]">
                       Line {location.line}
                       {location.column ? `, column ${location.column}` : ""}
                     </p>
                   ) : null}
-                  {location.maskedSecret ? <p className="text-[#c5d2e6]">Secret {location.maskedSecret}</p> : null}
+                  {location.maskedSecret ? <p className="text-[#cfc4bb]">Secret {location.maskedSecret}</p> : null}
                 </li>
               ))}
             </ul>
@@ -377,7 +377,7 @@ function FindingCard({ finding, showAffectedPages = false }: { finding: Customer
               Request: {finding.proof.method} {finding.proof.url}
             </p>
             {finding.proof.headers.length > 0 ? (
-              <ul className="mt-1 text-[#c5d2e6]">
+              <ul className="mt-1 text-[#cfc4bb]">
                 {finding.proof.headers.map((header) => (
                   <li key={header.name}>
                     {header.name}: {header.value}
@@ -425,7 +425,7 @@ function reportHasWhere(finding: CustomerReport["samples"][number]): boolean {
 
 function CodeBlock({ children }: { children: string }) {
   return (
-    <pre className="code-block" style={{ backgroundColor: "#0b1220", color: "#f4f7fb", WebkitTextFillColor: "#f4f7fb" }}>
+    <pre className="code-block" style={{ backgroundColor: "#12100f", color: "#f4f1ee", WebkitTextFillColor: "#f4f1ee" }}>
       {children}
     </pre>
   );

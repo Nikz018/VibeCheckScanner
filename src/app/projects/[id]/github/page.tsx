@@ -52,22 +52,22 @@ export default async function GithubProjectPage({
     <div className="py-8">
       <section className="panel p-6">
         <h1 className="font-display text-4xl">Connect a repository</h1>
-        <p className="mt-2 text-sm text-[#d5deee]">{project.url}</p>
-        <p className="mt-4 rounded-2xl bg-[#dff25b]/15 px-4 py-3 text-sm text-[#e7f6c8]">{CODE_PRIVACY_PROMISE}</p>
-        <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-[#d5deee]">
+        <p className="mt-2 text-sm text-[#e6ddd6]">{project.url}</p>
+        <p className="mt-4 rounded-2xl bg-[#ff6a3d]/15 px-4 py-3 text-sm text-[#f8e6dc]">{CODE_PRIVACY_PROMISE}</p>
+        <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-[#e6ddd6]">
           <li>Pick one repository. The connection can read file contents and recent history, and it cannot change the repository.</li>
           <li>Connecting it shows you control that code. The scan still requires the ownership proof on this origin.</li>
           <li>Choose “Only select repositories” on the GitHub screen and tick a single repo.</li>
         </ul>
-        {query.connected === "1" && connected ? <p className="mt-4 text-sm text-[#d5deee]">Connected {connected}.</p> : null}
+        {query.connected === "1" && connected ? <p className="mt-4 text-sm text-[#e6ddd6]">Connected {connected}.</p> : null}
         {query.github === "denied" ? <p className="mt-4 text-sm text-[#f3c7bc]">This origin needs a verified $99 site + code scan before a repository can be connected.</p> : null}
         {query.github === "unavailable" || !config ? <p className="mt-4 text-sm text-[#f3c7bc]">Repository connection is not available on this server yet.</p> : null}
         {query.github === "taken" ? <p className="mt-4 text-sm text-[#f3c7bc]">That repository is already connected to another project.</p> : null}
         {listError ? <p className="mt-4 text-sm text-[#f3c7bc]">{listError}</p> : null}
         {connected ? (
           <div className="mt-4 space-y-3">
-            <p className="text-sm text-[#d5deee]">{codeScanRepoLabel(connected)}</p>
-            <p className="text-sm text-[#d5deee]">{CODE_SCAN_REPO_LOCK_NOTE}</p>
+            <p className="text-sm text-[#e6ddd6]">{codeScanRepoLabel(connected)}</p>
+            <p className="text-sm text-[#e6ddd6]">{CODE_SCAN_REPO_LOCK_NOTE}</p>
             <RunCodeScanButton projectId={project.id} />
             {config ? (
               <a className="btn btn-ghost" href={connectHref}>

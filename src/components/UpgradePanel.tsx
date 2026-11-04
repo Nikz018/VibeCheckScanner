@@ -59,10 +59,10 @@ export function UpgradePanel({
   return (
     <div id={id} className="upgrade-panel p-5">
       <h3 className="font-display text-2xl">{heading}</h3>
-      {lede ? <p className="mt-1 text-sm text-[#d5deee]">{lede}</p> : null}
+      {lede ? <p className="mt-1 text-sm text-[#e6ddd6]">{lede}</p> : null}
       {collectBilling ? (
         <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <p className="text-sm text-[#d5deee] md:col-span-2">Checkout needs a billing country and address.</p>
+          <p className="text-sm text-[#e6ddd6] md:col-span-2">Checkout needs a billing country and address.</p>
           <label className="text-sm">
             Billing country
             <input className="field mt-1" value={country} onChange={(event) => setCountry(event.target.value)} placeholder="US" maxLength={2} autoComplete="country" />

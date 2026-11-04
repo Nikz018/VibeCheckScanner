@@ -134,7 +134,7 @@ export default async function ScanPage({
           progressTitle={paidFullScan ? FULL_SCAN_PROGRESS_LABEL : undefined}
           stoppedTitle={paidFullScan ? FULL_SCAN_STOPPED_LABEL : undefined}
         />
-        {connectedRepo && scan.codeScanEnabled ? <p className="text-sm text-[#d5deee]">{codeScanRepoLabel(connectedRepo)}</p> : null}
+        {connectedRepo && scan.codeScanEnabled ? <p className="text-sm text-[#e6ddd6]">{codeScanRepoLabel(connectedRepo)}</p> : null}
         {paidFullScan && purchase && scan.status === "failed" ? (
           <section className="paper rounded-3xl p-6 text-ink">
             <h2 className="font-display text-3xl">{FULL_SCAN_STOPPED_LABEL}</h2>

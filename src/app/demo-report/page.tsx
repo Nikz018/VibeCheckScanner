@@ -27,7 +27,7 @@ export default function DemoReportPage() {
       </div>
       <section id="free-preview" className="space-y-4">
         <h2 className="font-display text-4xl">Free preview of this sample</h2>
-        <p className="max-w-2xl text-[#c5d2e6]">
+        <p className="max-w-2xl text-[#cfc4bb]">
           Invented data, same gate as a free scan. One finding is included. The counts are the real totals for this sample. The other findings are not in this preview.
         </p>
         <ReportView report={freePreview} targetLabel="Sample application" sample />

@@ -45,6 +45,17 @@ test("score bands and the gauge read as a ratio out of 100", () => {
   assert.doesNotMatch(gauge, />7</);
 });
 
+test("good score ring is coral, and light backgrounds use a deeper coral", () => {
+  assert.equal(scoreBand(80).id, "good");
+  assert.equal(scoreBand(80).color, "#ff6a3d");
+  assert.match(renderScoreGaugeSvg({ score: 80, tone: "dark" }), /#ff6a3d/);
+  assert.match(renderScoreGaugeSvg({ score: 80, tone: "light" }), /#c4471a/);
+  assert.doesNotMatch(renderScoreGaugeSvg({ score: 80, tone: "light" }), /#ff6a3d/);
+  assert.match(renderScoreGaugeSvg({ score: 20, tone: "dark" }), /#e24b3a/);
+  assert.match(renderScoreGaugeSvg({ score: 50, tone: "dark" }), /#e09a14/);
+  assert.match(renderScoreGaugeSvg({ score: 95, tone: "dark" }), /#2f9e5a/);
+});
+
 test("share disclaimer is point-in-time and not a certification", () => {
   assert.match(POINT_IN_TIME_DISCLAIMER, /point in time/i);
   assert.match(POINT_IN_TIME_DISCLAIMER, /not a guarantee/i);

@@ -92,10 +92,10 @@ export function PricingCards({ titles = "heading" }: { titles?: "heading" | "tex
       <article className="lift rounded-3xl border border-white/10 bg-white/5 p-5">
         <Title className="font-semibold">{FREE_TIER.name}</Title>
         <p className="font-display text-4xl">{FREE_TIER.priceLabel}</p>
-        <p className="mt-3 text-sm text-[#c5d2e6]">{FREE_TIER.blurb}</p>
+        <p className="mt-3 text-sm text-[#cfc4bb]">{FREE_TIER.blurb}</p>
       </article>
       {Object.values(TIERS).map((tier) => (
-        <article key={tier.id} className="lift rounded-3xl border border-lime/40 bg-[#121c30] p-5">
+        <article key={tier.id} className="lift rounded-3xl border border-lime/40 bg-[#161311] p-5">
           <Title className="font-semibold">{tier.name}</Title>
           <p className="font-display text-4xl">{tier.priceLabel}</p>
           <p className="text-xs">{TAX_NOTE}</p>

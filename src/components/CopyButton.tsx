@@ -45,7 +45,7 @@ export function CopyButton({
   const toneClass =
     tone === "dark"
       ? "border-white/30 text-white hover:bg-white/10"
-      : "border-[#071018]/20 text-ink hover:bg-[#071018]/5";
+      : "border-ink/20 text-ink hover:bg-ink/5";
   const shown = state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : text;
 
   return (

@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import { OG_HEIGHT, OG_IMAGE_ALT, OG_WIDTH } from "@/lib/seo/content";
-import { scoreBand } from "@/lib/score-gauge";
+import { scoreBand, scoreBandPaint } from "@/lib/score-gauge";
 
 export const alt = OG_IMAGE_ALT;
 export const size = { width: OG_WIDTH, height: OG_HEIGHT };
@@ -19,7 +19,7 @@ export default function OpenGraphImage() {
           width: "100%",
           height: "100%",
           display: "flex",
-          background: "#101410",
+          background: "linear-gradient(115deg, #0b0b0c 42%, #3a1a12 100%)",
           color: "#f4f0e6",
         }}
       >
@@ -38,8 +38,8 @@ export default function OpenGraphImage() {
                 width: 64,
                 height: 64,
                 borderRadius: 16,
-                background: "#dff25b",
-                color: "#14201b",
+                background: "#ff6a3d",
+                color: "#1a100c",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -78,7 +78,7 @@ export default function OpenGraphImage() {
                   cy="100"
                   r="78"
                   fill="none"
-                  stroke={band.color}
+                  stroke={scoreBandPaint(EXAMPLE_SCORE, "light")}
                   strokeWidth="12"
                   strokeLinecap="round"
                   strokeDasharray={`${dash} ${ring}`}
@@ -99,7 +99,7 @@ export default function OpenGraphImage() {
                 }}
               >
                 <div style={{ display: "flex", fontSize: 28, fontWeight: 700, color: "#14201b" }}>72/100</div>
-                <div style={{ display: "flex", marginTop: 6, fontSize: 16, color: band.color }}>{band.label}</div>
+                <div style={{ display: "flex", marginTop: 6, fontSize: 16, color: scoreBandPaint(EXAMPLE_SCORE, "light") }}>{band.label}</div>
               </div>
             </div>
             <div style={{ display: "flex", fontSize: 16, color: "#536058", marginTop: 8 }}>Example gauge</div>
