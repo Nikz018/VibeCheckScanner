@@ -11,14 +11,14 @@ import { codeScanRepoLabel } from "@/lib/code-scan/messages";
 import { codeScanRepoName } from "@/lib/code-scan/repo-lock";
 import { codeScoreGap, combinedScores } from "@/lib/code-scan/score";
 import { githubAppConfig } from "@/lib/github/app";
-import { getCurrentUser } from "@/lib/auth";
+import { requirePageUser } from "@/lib/require-user";
 import { prisma } from "@/lib/db";
 import { monitoringActive, ownedScanAccess } from "@/lib/entitlements";
 import { instructionsFor } from "@/lib/ownership";
 import { collectsBillingAddress } from "@/lib/payments";
 import { settlePreviewCheckout } from "@/lib/payments/confirm-purchase";
 import { FULL_SCAN_PROGRESS_LABEL, FULL_SCAN_STOPPED_LABEL, RETRY_FULL_SCAN_LABEL } from "@/lib/payments/paid-scan-status";
-import { signInPath } from "@/lib/checkout-path";
+import { scanPageReturnPath } from "@/lib/checkout-path";
 import { privateMetadata } from "@/lib/seo/metadata";
 import { reportFromStored } from "@/lib/stored-report";
 
@@ -34,8 +34,7 @@ export default async function ScanPage({
 }) {
   const { id } = await params;
   const query = await searchParams;
-  const user = await getCurrentUser();
-  if (!user) redirect(signInPath(`/scans/${id}`));
+  const user = await requirePageUser(scanPageReturnPath(id, query.checkout));
   const scan = await prisma.scan.findFirst({
     where: { id, userId: user.id },
     include: { findings: true, project: { include: { repoLink: true } } },

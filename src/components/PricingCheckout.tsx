@@ -13,11 +13,13 @@ export function PricingCheckout({
   collectBilling,
   initialTier,
   monitoring = false,
+  sessionExpired = false,
 }: {
   signedIn: boolean;
   collectBilling: boolean;
   initialTier: TierId | null;
   monitoring?: boolean;
+  sessionExpired?: boolean;
 }) {
   const [active, setActive] = useState<TierId | null>(initialTier);
   const [busy, setBusy] = useState<TierId | "">("");
@@ -40,7 +42,7 @@ export function PricingCheckout({
   async function choose(tier: TierId) {
     setError("");
     if (!signedIn) {
-      window.location.href = signInPath(pricingCheckoutPath(tier));
+      window.location.href = signInPath(pricingCheckoutPath(tier), { expired: sessionExpired });
       return;
     }
     if (collectBilling && !billingReady(billing)) {
@@ -48,7 +50,7 @@ export function PricingCheckout({
       const probe = await requestCheckout({ tier });
       setBusy("");
       if (!probe.ok && probe.status === 401) {
-        window.location.href = signInPath(pricingCheckoutPath(tier));
+        window.location.href = signInPath(pricingCheckoutPath(tier), { expired: true });
         return;
       }
       if (!probe.ok && probe.status === 503) {
@@ -76,7 +78,7 @@ export function PricingCheckout({
     setBusy("");
     if (!result.ok) {
       if (result.status === 401) {
-        window.location.href = signInPath(pricingCheckoutPath(tier));
+        window.location.href = signInPath(pricingCheckoutPath(tier), { expired: true });
         return;
       }
       setError(result.error);
@@ -113,7 +115,7 @@ export function PricingCheckout({
                 {busy === tier.id ? "Starting checkout…" : "Checkout"}
               </button>
             ) : (
-              <a className="btn btn-lime price-card-action" href={signInPath(pricingCheckoutPath(tier.id))}>
+              <a className="btn btn-lime price-card-action" href={signInPath(pricingCheckoutPath(tier.id), { expired: sessionExpired })}>
                 Checkout
               </a>
             )}

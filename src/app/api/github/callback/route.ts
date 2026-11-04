@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { readSession } from "@/lib/auth";
+import { signInPath } from "@/lib/checkout-path";
 import { projectHasPaidCodeScan, queueCodeScanForProject, saveConnectedRepo } from "@/lib/code-scan/connect";
 import { resumeHeldCreditScanAfterRepo } from "@/lib/code-scan/held-scan";
 import { resumeAfterRepoChoice } from "@/lib/payments/paid-full-scan";
@@ -10,10 +11,13 @@ import { fetchInstallationRepos, githubAppConfig, readGithubState } from "@/lib/
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const user = await getCurrentUser();
+  const session = await readSession();
   const url = new URL(request.url);
   const origin = (process.env.APP_URL || url.origin).replace(/\/$/, "");
-  if (!user) return NextResponse.redirect(`${origin}/login?next=/dashboard`);
+  if (session.status !== "active") {
+    return NextResponse.redirect(new URL(signInPath("/dashboard", { expired: session.status === "expired" }), origin));
+  }
+  const user = session.user;
   const secret = process.env.SESSION_SECRET?.trim() ?? "";
   const state = readGithubState(url.searchParams.get("state") || "", secret);
   if (!state || state.userId !== user.id) {

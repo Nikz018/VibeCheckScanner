@@ -8,8 +8,19 @@ export function scanCheckoutPath(scanId: string, tier: TierId): string {
   return `/scans/${scanId}?checkout=${tier}#upgrade`;
 }
 
-export function signInPath(nextPath: string): string {
-  if (!nextPath.startsWith("/") || nextPath.startsWith("//")) return "/login";
+export function scanPageReturnPath(scanId: string, checkout: string | undefined): string {
+  const tier = tierFromCheckoutParam(checkout);
+  if (tier) return scanCheckoutPath(scanId, tier);
+  if (checkout === "success" || checkout === "cancel") return `/scans/${scanId}?checkout=${checkout}`;
+  return `/scans/${scanId}`;
+}
+
+export function signInPath(nextPath: string, options?: { expired?: boolean }): string {
+  const safe = nextPath.startsWith("/") && !nextPath.startsWith("//");
+  if (options?.expired) {
+    return safe ? `/api/auth/expired?next=${encodeURIComponent(nextPath)}` : "/api/auth/expired";
+  }
+  if (!safe) return "/login";
   return `/login?next=${encodeURIComponent(nextPath)}`;
 }
 
