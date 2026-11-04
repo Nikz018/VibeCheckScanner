@@ -68,14 +68,20 @@ export async function applyPaidAccess(provider: PaymentProviderId, event: PaidEv
 
   if (scanId) {
     await prisma.scan.updateMany({ where: { id: scanId, userId }, data: { reportAccess: "full" } });
-  } else if (tier === "report") {
+  } else if (tier === "report" && !alreadyPaid) {
     await prisma.user.update({ where: { id: userId }, data: { reportCredits: { increment: 1 } } });
   }
-  if (tier === "rescan") {
-    await prisma.user.update({ where: { id: userId }, data: { rescanCredits: { increment: 1 } } });
-    if (!scanId) {
-      await prisma.user.update({ where: { id: userId }, data: { reportCredits: { increment: 1 } } });
-    }
+  // A standalone $99 purchase does not start a scan. The buyer spends a $99
+  // full-report credit for the first site + code scan, then one rescan credit.
+  // That credit is separate from a $49 report credit, which never includes code.
+  if (tier === "rescan" && !alreadyPaid) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        rescanCredits: { increment: 1 },
+        ...(scanId ? {} : { codeReportCredits: { increment: 1 } }),
+      },
+    });
   }
 }
 

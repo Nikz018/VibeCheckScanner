@@ -1,3 +1,4 @@
+import { AWAITING_REPO_STATUS } from "../code-scan/gate";
 import { renderTransactionalEmail } from "../email-template";
 
 export const FULL_SCAN_PROGRESS_LABEL = "Full scan in progress";
@@ -51,6 +52,9 @@ export function paidScanDashboardAction(previewId: string, purchase: PaidScanLin
     return { href: `/scans/${previewId}#upgrade`, label: upgradeLabel };
   }
   if (purchase.fullScan) {
+    if (purchase.fullScan.status === AWAITING_REPO_STATUS) {
+      return { href: `/scans/${purchase.fullScan.id}`, label: CONNECT_GITHUB_CODE_SCAN_LABEL };
+    }
     if (purchase.fullScan.status === "completed") {
       return { href: `/scans/${purchase.fullScan.id}`, label: OPEN_FULL_REPORT_LABEL };
     }
@@ -80,6 +84,9 @@ export function codeScanDashboardPrompt(input: {
   projectId: string;
   fullScan: { id: string; status: string } | null;
 }): { href: string; label: string } | null {
+  if (input.fullScan?.status === AWAITING_REPO_STATUS && input.tier === "rescan") {
+    return { href: `/scans/${input.fullScan.id}`, label: CONNECT_GITHUB_CODE_SCAN_LABEL };
+  }
   if (!input.githubConfigured || input.tier !== "rescan" || input.repoConnected) return null;
   if (input.fullScan?.status === "completed") {
     return { href: `/scans/${input.fullScan.id}#code-scan`, label: CONNECT_GITHUB_CODE_SCAN_LABEL };

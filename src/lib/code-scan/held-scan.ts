@@ -113,6 +113,12 @@ export async function chooseHeldCreditScan(input: {
       ...(input.choice === "connect" ? repoSnapshotData(scan.project.repoLink) : {}),
     },
   });
+  if (claimed.count === 1) {
+    await prisma.purchase.updateMany({
+      where: { fullScanId: scan.id, codeScanChoice: null },
+      data: { codeScanChoice: input.choice },
+    });
+  }
   if (claimed.count !== 1) {
     const current = await prisma.scan.findFirst({ where: { id: scan.id, userId: input.userId } });
     if (current && (current.status === "queued" || current.status === "running" || current.status === "completed")) {

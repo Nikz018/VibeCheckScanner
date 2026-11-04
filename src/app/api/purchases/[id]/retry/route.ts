@@ -12,6 +12,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   if (result.outcome === "not_found") return NextResponse.json({ error: "Purchase not found." }, { status: 404 });
   if (result.outcome === "not_applicable") return NextResponse.json({ error: "This purchase does not start a full scan." }, { status: 400 });
   if (result.outcome === "needs_repo") {
+    if (result.scanId) return NextResponse.json({ scanId: result.scanId, needsRepo: true });
     return NextResponse.json({ error: "Connect a repository or skip the code scan before the paid scan starts.", needsRepo: true }, { status: 409 });
   }
   if (result.outcome === "needs_ownership") {

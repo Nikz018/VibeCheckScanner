@@ -8,6 +8,7 @@ import {
   ACTIVE_SCAN_LIMIT_MESSAGE,
   QUEUE_UNAVAILABLE_MESSAGE,
 } from "./paid-scan-status";
+import { AWAITING_REPO_STATUS, firstPaidScanPlan } from "../code-scan/gate";
 import { repoSnapshotData } from "../code-scan/repo-lock";
 
 const OWNERSHIP_FALLBACK = "Ownership proof was not found. Publish the token in DNS TXT or at /.well-known/vibecheck-verify.txt and try again.";
@@ -33,7 +34,7 @@ export type PaidFullScanOutcome =
   | { outcome: "needs_ownership"; reason: string }
   | { outcome: "limited"; reason: string }
   | { outcome: "queue_unavailable"; scanId: string; reason: string }
-  | { outcome: "needs_repo" }
+  | { outcome: "needs_repo"; scanId: string | null }
   | { outcome: "not_applicable" }
   | { outcome: "not_found" };
 
@@ -96,6 +97,7 @@ export async function resumeAfterRepoChoice(
 }
 
 export function paidScanId(outcome: PaidFullScanOutcome): string | null {
+  if (outcome.outcome === "needs_repo") return outcome.scanId;
   if (outcome.outcome === "started" || outcome.outcome === "already_started" || outcome.outcome === "queue_unavailable") return outcome.scanId;
   return null;
 }
@@ -135,6 +137,27 @@ async function startPaidFullScan(input: {
         enqueue,
       });
     }
+    if (purchase.fullScan.status === AWAITING_REPO_STATUS) {
+      const waitingChoice = resolveCodeChoice(input.deps?.codeChoice, purchase.codeScanChoice);
+      return releaseAwaitingPaidScan({
+        purchaseId: purchase.id,
+        scanId: purchase.fullScan.id,
+        userId: purchase.userId,
+        userEmail: purchase.user.email,
+        projectId: preview.projectId,
+        targetUrl: preview.project.url,
+        method: ownershipMethod(preview.project.ownershipMethod),
+        plan: firstPaidScanPlan({
+          tier: purchase.tier,
+          githubConfigured: isGithubConfigured(input.deps),
+          choice: waitingChoice,
+          repoConnected: repoIsConnected(preview.project.repoLink),
+        }),
+        choice: waitingChoice,
+        repoLink: preview.project.repoLink,
+        enqueue,
+      });
+    }
     if (purchase.fullScan.status === "queued" && !purchase.fullScan.startedAt) {
       try {
         await enqueue(purchase.fullScan.id);
@@ -164,74 +187,150 @@ async function startPaidFullScan(input: {
   }
 
   const choice = resolveCodeChoice(input.deps?.codeChoice, purchase.codeScanChoice);
-  const githubReady = isGithubConfigured(input.deps);
-  const connected = repoIsConnected(preview.project.repoLink);
-  if (purchase.tier === "rescan" && githubReady && !choice) {
-    await prisma.purchase.update({
-      where: { id: purchase.id },
-      data: { ownershipBlock: null, startNote: null },
-    });
-    await stampProjectOwnership(preview.projectId, proof.method);
-    return { outcome: "needs_repo" };
-  }
-  if (purchase.tier === "rescan" && choice === "connect" && !connected) {
-    await stampProjectOwnership(preview.projectId, proof.method);
-    return { outcome: "needs_repo" };
-  }
-  if (input.deps?.codeChoice && purchase.codeScanChoice !== input.deps.codeChoice) {
-    await prisma.purchase.update({
-      where: { id: purchase.id },
-      data: { codeScanChoice: input.deps.codeChoice },
-    });
-  }
-
-  const active = await prisma.scan.count({
-    where: { userId: purchase.userId, status: { in: ["queued", "running"] } },
+  const plan = firstPaidScanPlan({
+    tier: purchase.tier,
+    githubConfigured: isGithubConfigured(input.deps),
+    choice,
+    repoConnected: repoIsConnected(preview.project.repoLink),
   });
-  if (active >= ACTIVE_SCAN_LIMIT) {
-    await prisma.purchase.update({
-      where: { id: purchase.id },
-      data: { startNote: ACTIVE_SCAN_LIMIT_MESSAGE, ownershipBlock: null },
+  return createPaidFullScan({
+    purchaseId: purchase.id,
+    userId: purchase.userId,
+    userEmail: purchase.user.email,
+    projectId: preview.projectId,
+    targetUrl: preview.project.url,
+    method: proof.method,
+    plan,
+    choice,
+    repoLink: preview.project.repoLink,
+    enqueue,
+  });
+}
+
+async function createPaidFullScan(input: {
+  purchaseId: string;
+  userId: string;
+  userEmail: string;
+  projectId: string;
+  targetUrl: string;
+  method: "well_known" | "dns_txt";
+  plan: { codeScanEnabled: boolean; status: typeof AWAITING_REPO_STATUS | "queued"; enqueue: boolean };
+  choice: CodeRepoChoice | null;
+  repoLink: Parameters<typeof repoSnapshotData>[0];
+  enqueue: (scanId: string) => Promise<void>;
+}): Promise<PaidFullScanOutcome> {
+  if (input.plan.enqueue) {
+    const active = await prisma.scan.count({
+      where: { userId: input.userId, status: { in: ["queued", "running"] } },
     });
-    return { outcome: "limited", reason: ACTIVE_SCAN_LIMIT_MESSAGE };
+    if (active >= ACTIVE_SCAN_LIMIT) {
+      await prisma.purchase.update({
+        where: { id: input.purchaseId },
+        data: { startNote: ACTIVE_SCAN_LIMIT_MESSAGE, ownershipBlock: null },
+      });
+      return { outcome: "limited", reason: ACTIVE_SCAN_LIMIT_MESSAGE };
+    }
   }
 
+  const releasing = input.plan.enqueue && input.plan.codeScanEnabled && input.choice === "connect";
   const scan = await prisma.scan.create({
     data: {
-      projectId: preview.projectId,
-      userId: purchase.userId,
-      status: "queued",
+      projectId: input.projectId,
+      userId: input.userId,
+      status: input.plan.status,
       mode: "full",
       reportAccess: "full",
-      codeScanEnabled: purchase.tier === "rescan",
-      codeScanChoice: choice,
-      ...(choice === "connect" ? repoSnapshotData(preview.project.repoLink) : {}),
-      targetUrl: preview.project.url,
+      codeScanEnabled: input.plan.codeScanEnabled,
+      codeScanChoice: input.plan.enqueue ? input.choice : null,
+      ...(releasing ? repoSnapshotData(input.repoLink) : {}),
+      targetUrl: input.targetUrl,
       consentAt: new Date(),
       consentText: CONSENT_TEXT,
     },
   });
   const claimed = await prisma.purchase.updateMany({
-    where: { id: purchase.id, fullScanId: null },
-    data: { fullScanId: scan.id, ownershipBlock: null, startNote: null },
+    where: { id: input.purchaseId, fullScanId: null },
+    data: {
+      fullScanId: scan.id,
+      ownershipBlock: null,
+      startNote: null,
+      ...(input.plan.enqueue && input.choice ? { codeScanChoice: input.choice } : {}),
+    },
   });
   if (claimed.count !== 1) {
     await prisma.scan.delete({ where: { id: scan.id } }).catch(() => undefined);
-    const current = await prisma.purchase.findUnique({ where: { id: purchase.id } });
+    const current = await prisma.purchase.findUnique({ where: { id: input.purchaseId } });
     if (current?.fullScanId) return { outcome: "already_started", scanId: current.fullScanId };
     return { outcome: "not_applicable" };
   }
-
-  const queued = await enqueueOrFail(scan.id, enqueue);
   await rememberAuthorization({
-    userId: purchase.userId,
-    userEmail: purchase.user.email,
-    projectId: preview.projectId,
+    userId: input.userId,
+    userEmail: input.userEmail,
+    projectId: input.projectId,
     scanId: scan.id,
-    targetUrl: preview.project.url,
-    method: proof.method,
+    targetUrl: input.targetUrl,
+    method: input.method,
   });
-  await stampProjectOwnership(preview.projectId, proof.method);
+  await stampProjectOwnership(input.projectId, input.method);
+  if (!input.plan.enqueue) return { outcome: "needs_repo", scanId: scan.id };
+  return enqueueOrFail(scan.id, input.enqueue);
+}
+
+async function releaseAwaitingPaidScan(input: {
+  purchaseId: string;
+  scanId: string;
+  userId: string;
+  userEmail: string;
+  projectId: string;
+  targetUrl: string;
+  method: "well_known" | "dns_txt" | null;
+  plan: { enqueue: boolean };
+  choice: CodeRepoChoice | null;
+  repoLink: Parameters<typeof repoSnapshotData>[0];
+  enqueue: (scanId: string) => Promise<void>;
+}): Promise<PaidFullScanOutcome> {
+  if (!input.plan.enqueue) return { outcome: "needs_repo", scanId: input.scanId };
+  const active = await prisma.scan.count({
+    where: { userId: input.userId, status: { in: ["queued", "running"] } },
+  });
+  if (active >= ACTIVE_SCAN_LIMIT) {
+    await prisma.purchase.update({
+      where: { id: input.purchaseId },
+      data: { startNote: ACTIVE_SCAN_LIMIT_MESSAGE },
+    });
+    return { outcome: "limited", reason: ACTIVE_SCAN_LIMIT_MESSAGE };
+  }
+  const claimed = await prisma.scan.updateMany({
+    where: { id: input.scanId, userId: input.userId, status: AWAITING_REPO_STATUS, codeScanChoice: null },
+    data: {
+      status: "queued",
+      codeScanChoice: input.choice,
+      ...(input.choice === "connect" ? repoSnapshotData(input.repoLink) : {}),
+    },
+  });
+  if (claimed.count !== 1) {
+    const current = await prisma.scan.findFirst({ where: { id: input.scanId, userId: input.userId } });
+    if (current && (current.status === "queued" || current.status === "running" || current.status === "completed")) {
+      return { outcome: "already_started", scanId: input.scanId };
+    }
+    return { outcome: "not_applicable" };
+  }
+  await prisma.purchase.update({
+    where: { id: input.purchaseId },
+    data: { codeScanChoice: input.choice, ownershipBlock: null, startNote: null },
+  });
+  const queued = await enqueueOrFail(input.scanId, input.enqueue);
+  if (input.method) {
+    await rememberAuthorization({
+      userId: input.userId,
+      userEmail: input.userEmail,
+      projectId: input.projectId,
+      scanId: input.scanId,
+      targetUrl: input.targetUrl,
+      method: input.method,
+    });
+    await stampProjectOwnership(input.projectId, input.method);
+  }
   return queued;
 }
 

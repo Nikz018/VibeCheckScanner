@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -18,6 +18,7 @@ import {
   codeScanEnabledForCredit,
   codeScanEnabledForTier,
   creditScanShouldWaitForRepo,
+  firstPaidScanPlan,
   shouldOfferCodeRepoStep,
   shouldOfferCreditCodeStep,
 } from "./gate";
@@ -311,6 +312,44 @@ test("a clean JavaScript file does not invent findings, and dependencies are not
   }
 });
 
+test("the $99 first scan and the $99 credit wait for GitHub, and a $49 or monitoring scan does not", () => {
+  const held = { codeScanEnabled: true, status: AWAITING_REPO_STATUS, enqueue: false };
+  const queuedCode = { codeScanEnabled: true, status: "queued" as const, enqueue: true };
+  const queuedSite = { codeScanEnabled: false, status: "queued" as const, enqueue: true };
+  assert.deepEqual(firstPaidScanPlan({ tier: "rescan", githubConfigured: true, choice: null, repoConnected: false }), held);
+  assert.deepEqual(firstPaidScanPlan({ tier: "rescan", githubConfigured: true, choice: null, repoConnected: true }), held);
+  assert.deepEqual(firstPaidScanPlan({ tier: "rescan", githubConfigured: true, choice: "connect", repoConnected: false }), held);
+  assert.deepEqual(firstPaidScanPlan({ tier: "rescan", githubConfigured: true, choice: "connect", repoConnected: true }), queuedCode);
+  assert.deepEqual(firstPaidScanPlan({ tier: "rescan", githubConfigured: true, choice: "skip", repoConnected: false }), queuedCode);
+  assert.deepEqual(firstPaidScanPlan({ tier: "rescan", githubConfigured: false, choice: null, repoConnected: false }), queuedCode);
+  assert.deepEqual(firstPaidScanPlan({ tier: "report", githubConfigured: true, choice: null, repoConnected: true }), queuedSite);
+  assert.deepEqual(firstPaidScanPlan({ tier: "monitor", githubConfigured: true, choice: null, repoConnected: false }), queuedSite);
+
+  const codeCredit = codeScanEnabledForCredit({ mode: "full", use: "code-credit", spentRescanCredit: true });
+  assert.equal(creditScanShouldWaitForRepo({ codeScanEnabled: codeCredit, githubConfigured: true, repoConnected: true }), true);
+  assert.equal(codeScanEnabledForCredit({ mode: "full", use: "credit", spentRescanCredit: true }), false);
+
+  const paid = readFileSync(path.join(process.cwd(), "src/lib/payments/paid-full-scan.ts"), "utf8");
+  assert.match(paid, /firstPaidScanPlan/);
+  assert.match(paid, /AWAITING_REPO_STATUS/);
+  assert.match(paid, /outcome: "needs_repo", scanId/);
+  const page = readFileSync(path.join(process.cwd(), "src/app/scans/[id]/page.tsx"), "utf8");
+  assert.match(page, /purchase\.fullScan\.status === AWAITING_REPO_STATUS/);
+  assert.match(page, /redirect\(`\/scans\/\$\{purchase\.fullScan\.id\}`\)/);
+  const form = readFileSync(path.join(process.cwd(), "src/components/NewScanForm.tsx"), "utf8");
+  assert.match(form, /code-credit/);
+  assert.match(form, /Use a \$99 full-report credit/);
+  assert.match(form, /Use a full-report credit/);
+  const route = readFileSync(path.join(process.cwd(), "src/app/api/projects/[id]/verify/route.ts"), "utf8");
+  assert.match(route, /code-credit/);
+  const fulfill = readFileSync(path.join(process.cwd(), "src/lib/payments/fulfill.ts"), "utf8");
+  assert.match(fulfill, /codeReportCredits: \{ increment: 1 \}/);
+  const schedule = readFileSync(path.join(process.cwd(), "src/worker/schedule.ts"), "utf8");
+  assert.equal(schedule.includes("codeScanEnabled"), false);
+  assert.equal(schedule.includes("awaiting_repo"), false);
+  assert.match(schedule, /status: "queued"/);
+});
+
 test("python files get agnostic checks and no JavaScript-only rules yet", async () => {
   assert.equal(languageFor("app.py"), "python");
   assert.equal(languageFor("app.ts"), "javascript");
@@ -339,6 +378,9 @@ test("masking and gating", () => {
   assert.equal(codeScanEnabledForCredit({ mode: "full", use: "rescan", spentRescanCredit: true }), true);
   assert.equal(codeScanEnabledForCredit({ mode: "full", use: "rescan", spentRescanCredit: false }), false);
   assert.equal(codeScanEnabledForCredit({ mode: "full", use: "credit", spentRescanCredit: false }), false);
+  assert.equal(codeScanEnabledForCredit({ mode: "full", use: "credit", spentRescanCredit: true }), false);
+  assert.equal(codeScanEnabledForCredit({ mode: "full", use: "code-credit", spentRescanCredit: true }), true);
+  assert.equal(codeScanEnabledForCredit({ mode: "full", use: "code-credit", spentRescanCredit: false }), false);
   assert.equal(codeScanEnabledForCredit({ mode: "mini", use: "rescan", spentRescanCredit: true }), false);
   assert.equal(canConnectRepository({ ownershipVerified: true, paidRescan: true }).ok, true);
   assert.equal(canConnectRepository({ ownershipVerified: true, paidRescan: false }).ok, false);
@@ -373,6 +415,10 @@ test("masking and gating", () => {
   assert.equal(shouldOfferCreditCodeStep({ ...creditOffer, status: "queued" }), false);
   assert.equal(shouldOfferCreditCodeStep({ ...creditOffer, codeScanChoice: "skip" }), false);
   assert.equal(shouldOfferCreditCodeStep({ ...creditOffer, codeScanChoice: "connect" }), false);
+  const codeCredit = codeScanEnabledForCredit({ mode: "full", use: "code-credit", spentRescanCredit: true });
+  assert.equal(creditScanShouldWaitForRepo({ codeScanEnabled: codeCredit, githubConfigured: true, repoConnected: true }), true);
+  const reportCredit = codeScanEnabledForCredit({ mode: "full", use: "credit", spentRescanCredit: false });
+  assert.equal(creditScanShouldWaitForRepo({ codeScanEnabled: reportCredit, githubConfigured: true, repoConnected: false }), false);
   const history = parseHistory("COMMIT:abc123456789\n+++ b/.env\n+TOKEN=sk_live_abcdefghijklmnopqrstuv\n");
   assert.equal(history.some((hit) => hit.path === ".env"), true);
 });

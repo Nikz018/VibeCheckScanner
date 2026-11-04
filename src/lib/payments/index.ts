@@ -59,7 +59,11 @@ export async function checkoutResponse(request: Request, provider: PaymentProvid
     scanId = scan.id;
   }
   const appUrl = process.env.APP_URL || "http://localhost:3000";
-  const successPath = scanId ? `/scans/${scanId}?checkout=success` : "/dashboard?checkout=success";
+  const successPath = scanId
+    ? `/scans/${scanId}?checkout=success`
+    : tier === "rescan"
+      ? "/scans/new?checkout=success"
+      : "/dashboard?checkout=success";
   const cancelPath = scanId ? `/scans/${scanId}?checkout=cancel` : "/dashboard?checkout=cancel";
   try {
     const billing = prepareCheckout(provider, parsed.data.billing);

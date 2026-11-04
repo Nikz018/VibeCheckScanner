@@ -24,7 +24,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const scores = combinedScores(scoreInput);
   const codeGap = codeScoreGap(scoreInput);
   const extra = renderCodeScanMarkdown(code);
-  const html = renderPrintHtml(loaded.report, loaded.targetUrl, scores, codeGap).replace(
+  const html = renderPrintHtml(loaded.report, loaded.targetUrl, scores, codeGap, code).replace(
     "</body>",
     extra ? `<section class="finding"><pre>${escapePrint(extra)}</pre></section></body>` : "</body>",
   );

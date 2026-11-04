@@ -52,6 +52,10 @@ test("paid scan status copy runs the full report after purchase", () => {
     { href: "/scans/full", label: OPEN_FULL_REPORT_LABEL },
   );
   assert.deepEqual(
+    paidScanDashboardAction("preview", { status: "paid", ownershipBlock: null, startNote: null, fullScan: { id: "full", status: "awaiting_repo" }, tier: "rescan" }, UPGRADE_ACTIONS.report),
+    { href: "/scans/full", label: CONNECT_GITHUB_CODE_SCAN_LABEL },
+  );
+  assert.deepEqual(
     paidScanDashboardAction("preview", { status: "paid", ownershipBlock: "Publish the token again.", startNote: null, fullScan: null }, UPGRADE_ACTIONS.report),
     { href: "/scans/preview#upgrade", label: REVERIFY_OWNERSHIP_LABEL },
   );
@@ -78,6 +82,14 @@ test("paid scan status copy runs the full report after purchase", () => {
   assert.deepEqual(
     codeScanDashboardPrompt({ tier: "rescan", repoConnected: false, githubConfigured: true, previewId: "p", projectId: "proj", fullScan: { id: "full", status: "completed" } }),
     { href: "/scans/full#code-scan", label: CONNECT_GITHUB_CODE_SCAN_LABEL },
+  );
+  assert.deepEqual(
+    codeScanDashboardPrompt({ tier: "rescan", repoConnected: true, githubConfigured: true, previewId: "p", projectId: "proj", fullScan: { id: "full", status: "awaiting_repo" } }),
+    { href: "/scans/full", label: CONNECT_GITHUB_CODE_SCAN_LABEL },
+  );
+  assert.equal(
+    codeScanDashboardPrompt({ tier: "report", repoConnected: false, githubConfigured: true, previewId: "p", projectId: "proj", fullScan: { id: "full", status: "awaiting_repo" } }),
+    null,
   );
   assert.equal(CODE_REPO_STEP_TITLE, "Step 1: Connect your GitHub repo (read-only, one repo, deleted after scan)");
   assert.equal(SKIP_CODE_SCAN_LABEL, "Skip code scan, scan site only");
@@ -211,8 +223,13 @@ test("the $99 mini purchase adds one rescan credit and still one full scan", { s
   await applyPaidAccess("dodo", paidEvent(user.id, "rescan", scan.id, session, "pay_rescan_3"), deps);
   assert.equal(enqueued.length, 1);
   assert.equal(await prisma.scan.count({ where: { userId: user.id, mode: "full" } }), 1);
-  assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).rescanCredits, 1);
+  const buyer = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+  assert.equal(buyer.rescanCredits, 1);
+  assert.equal(buyer.codeReportCredits, 0);
+  assert.equal(buyer.reportCredits, 0);
   const full = await prisma.scan.findFirstOrThrow({ where: { userId: user.id, mode: "full" } });
+  assert.equal(full.status, "queued");
+  assert.equal(full.codeScanEnabled, true);
   const ownership = await prisma.scanAuthorization.findFirstOrThrow({ where: { scanId: full.id, kind: "ownership" } });
   assert.equal(ownership.method, "well_known");
   await cleanup(prisma, user.id);
@@ -313,24 +330,41 @@ test("a $99 purchase waits to connect a repository when GitHub is configured, th
   await applyPaidAccess("dodo", paidEvent(user.id, "rescan", scan.id, session), deps);
   const held = await prisma.purchase.findUniqueOrThrow({ where: { id: purchase.id } });
   assert.equal(held.status, "paid");
-  assert.equal(held.fullScanId, null);
+  if (!held.fullScanId) assert.fail("missing full scan");
   assert.equal(held.codeScanChoice, null);
   assert.equal(enqueued.length, 0);
-  assert.equal(await prisma.scan.count({ where: { userId: user.id, mode: "full" } }), 0);
-  assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).rescanCredits, 1);
+  const waitingScan = await prisma.scan.findUniqueOrThrow({ where: { id: held.fullScanId } });
+  assert.equal(waitingScan.status, "awaiting_repo");
+  assert.equal(waitingScan.codeScanEnabled, true);
+  assert.equal(waitingScan.codeScanChoice, null);
+  assert.equal(waitingScan.mode, "full");
+  assert.equal(waitingScan.reportAccess, "full");
+  assert.equal(await prisma.scan.count({ where: { userId: user.id, mode: "full" } }), 1);
+  const buyer = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+  assert.equal(buyer.rescanCredits, 1);
+  assert.equal(buyer.codeReportCredits, 0);
+  assert.equal(buyer.reportCredits, 0);
   const stamped = await prisma.project.findUniqueOrThrow({ where: { id: project.id } });
   assert.equal(stamped.ownershipMethod, "dns_txt");
   assert.ok(stamped.ownershipVerifiedAt);
 
-  const blocked = await choosePaidCodeScan({ userId: user.id, purchaseId: purchase.id, choice: "connect", deps });
-  assert.equal(blocked.outcome, "needs_repo");
+  await applyPaidAccess("dodo", paidEvent(user.id, "rescan", scan.id, session, "pay_while_waiting"), deps);
   assert.equal(enqueued.length, 0);
+  assert.equal(await prisma.scan.count({ where: { userId: user.id, mode: "full" } }), 1);
+  assert.equal((await prisma.scan.findUniqueOrThrow({ where: { id: held.fullScanId } })).status, "awaiting_repo");
+
+  const blocked = await choosePaidCodeScan({ userId: user.id, purchaseId: purchase.id, choice: "connect", deps });
+  if (blocked.outcome !== "needs_repo") assert.fail(blocked.outcome);
+  assert.equal(blocked.scanId, held.fullScanId);
+  assert.equal(enqueued.length, 0);
+  assert.equal((await prisma.scan.findUniqueOrThrow({ where: { id: held.fullScanId } })).status, "awaiting_repo");
 
   await prisma.repoLink.create({
     data: { projectId: project.id, userId: user.id, installationId: "77", repoId: "88", owner: "acme", name: "app", status: "connected" },
   });
   const started = await choosePaidCodeScan({ userId: user.id, purchaseId: purchase.id, choice: "connect", deps });
   if (started.outcome !== "started") assert.fail(started.outcome);
+  assert.equal(started.scanId, held.fullScanId);
   assert.deepEqual(enqueued, [started.scanId]);
   const full = await prisma.scan.findUniqueOrThrow({ where: { id: started.scanId } });
   assert.equal(full.codeScanEnabled, true);
@@ -360,9 +394,14 @@ test("skipping the code step still runs the paid site scan and keeps the code sc
   };
   await applyPaidAccess("dodo", paidEvent(user.id, "rescan", scan.id, session), deps);
   assert.equal(enqueued.length, 0);
+  const held = await prisma.purchase.findUniqueOrThrow({ where: { id: purchase.id } });
+  if (!held.fullScanId) assert.fail("missing full scan");
+  assert.equal((await prisma.scan.findUniqueOrThrow({ where: { id: held.fullScanId } })).status, "awaiting_repo");
   const skipped = await choosePaidCodeScan({ userId: user.id, purchaseId: purchase.id, choice: "skip", deps });
   if (skipped.outcome !== "started") assert.fail(skipped.outcome);
+  assert.equal(skipped.scanId, held.fullScanId);
   const full = await prisma.scan.findUniqueOrThrow({ where: { id: skipped.scanId } });
+  assert.equal(full.status, "queued");
   assert.equal(full.codeScanEnabled, true);
   assert.equal(full.codeScanChoice, "skip");
   assert.equal(full.codeRepoOwner, null);
@@ -386,6 +425,7 @@ test("a $49 purchase still starts immediately when GitHub is configured", { skip
   });
   assert.equal(enqueued.length, 1);
   const full = await prisma.scan.findFirstOrThrow({ where: { userId: user.id, mode: "full" } });
+  assert.equal(full.status, "queued");
   assert.equal(full.codeScanEnabled, false);
   await cleanup(prisma, user.id);
 });

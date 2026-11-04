@@ -192,6 +192,50 @@ export function lowestSeverityFinding(findings: CustomerFinding[]): CustomerFind
   })[0];
 }
 
+export function emptySeverityCounts(): Record<Severity, number> {
+  return Object.fromEntries(SEVERITIES.map((severity) => [severity, 0])) as Record<Severity, number>;
+}
+
+/** Add code-scan findings onto the site counts. Unknown severities are ignored. */
+export function addSeverityCounts(base: Record<Severity, number>, extra: Array<{ severity: string }>): Record<Severity, number> {
+  const counts = { ...emptySeverityCounts(), ...base };
+  for (const item of extra) {
+    if (!(SEVERITIES as readonly string[]).includes(item.severity)) continue;
+    const severity = item.severity as Severity;
+    counts[severity] = (counts[severity] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/**
+ * Site counts plus a finished code scan. A skipped, failed, or empty code scan
+ * does not change the site numbers.
+ */
+export function severityCountsWithCode(
+  site: Record<Severity, number>,
+  codeReport: { status: string; empty?: boolean; findings: Array<{ severity: string }> } | null | undefined,
+): { counts: Record<Severity, number>; includesCode: boolean } {
+  const finished = Boolean(codeReport && codeReport.status === "completed" && !codeReport.empty && codeReport.findings.length > 0);
+  if (!finished || !codeReport) return { counts: { ...emptySeverityCounts(), ...site }, includesCode: false };
+  return { counts: addSeverityCounts(site, codeReport.findings), includesCode: true };
+}
+
+export function findingTotal(counts: Record<Severity, number>): number {
+  return SEVERITIES.reduce((sum, severity) => sum + (counts[severity] ?? 0), 0);
+}
+
+export function describeFindingCounts(
+  counts: Record<Severity, number>,
+  options?: { includesCode?: boolean; join?: "colon" | "dot" },
+): string {
+  const total = findingTotal(counts);
+  if (total === 0) return "No findings";
+  const noun = `${total} finding${total === 1 ? "" : "s"}`;
+  const breakdown = formatSeverityBreakdown(counts);
+  const joined = breakdown ? (options?.join === "dot" ? `${noun} · ${breakdown}` : `${noun}: ${breakdown}`) : noun;
+  return options?.includesCode ? `${joined} · site and code` : joined;
+}
+
 export function formatSeverityBreakdown(counts: Record<Severity, number>): string {
   return SEVERITIES.filter((severity) => (counts[severity] ?? 0) > 0)
     .map((severity) => {

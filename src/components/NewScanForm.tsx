@@ -3,6 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { OwnershipNotFoundHint, OwnershipProofFields } from "@/components/OwnershipProofFields";
+import { pricingCheckoutPath } from "@/lib/checkout-path";
+import { TIERS } from "@/lib/pricing";
+
+type ReportUse = "teaser" | "credit" | "rescan" | "code-credit" | "checkout-report" | "checkout-rescan" | "included";
 
 interface Proof {
   projectId: string;
@@ -30,6 +34,7 @@ export function NewScanForm({
   lockMode = false,
   reportCredits,
   rescanCredits,
+  codeReportCredits = 0,
   monitoring = false,
 }: {
   initialUrl?: string;
@@ -37,12 +42,15 @@ export function NewScanForm({
   lockMode?: boolean;
   reportCredits: number;
   rescanCredits: number;
+  codeReportCredits?: number;
   monitoring?: boolean;
 }) {
   const router = useRouter();
   const [url, setUrl] = useState(initialUrl);
   const [mode, setMode] = useState<"full" | "mini">(initialMode);
-  const [use, setUse] = useState<"teaser" | "credit" | "rescan">("teaser");
+  const [use, setUse] = useState<ReportUse>(
+    initialMode !== "full" ? "teaser" : !monitoring && codeReportCredits > 0 ? "code-credit" : "checkout-report",
+  );
   const [consent, setConsent] = useState(false);
   const [proof, setProof] = useState<Proof | null>(null);
   const [error, setError] = useState("");
@@ -51,7 +59,9 @@ export function NewScanForm({
   const [authConsent, setAuthConsent] = useState(false);
   const [accounts, setAccounts] = useState<AccountDraft[]>([emptyAccount("A"), emptyAccount("B")]);
 
-  const paid = monitoring || (mode === "full" && (use === "credit" || use === "rescan"));
+  const paid = monitoring || (mode === "full" && (use === "credit" || use === "rescan" || use === "code-credit"));
+  const checkoutChoice = mode === "full" && !monitoring && (use === "checkout-report" || use === "checkout-rescan" || use === "teaser");
+  const spendingCodeCredit = use === "code-credit" || use === "rescan";
 
   async function createProject(event: React.FormEvent) {
     event.preventDefault();
@@ -112,13 +122,18 @@ export function NewScanForm({
     }
     setBusy(true);
     setError("");
+    const submittedUse: ReportUse = mode === "mini" || (monitoring && !spendingCodeCredit) ? "teaser" : use;
     const response = await fetch(`/api/projects/${proof.projectId}/verify`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ consent, mode, use: mode === "mini" ? "teaser" : use, ...(auth ? { auth } : {}) }),
+      body: JSON.stringify({ consent, mode, use: submittedUse, ...(auth ? { auth } : {}) }),
     });
-    const data = (await response.json()) as { error?: string; scanId?: string; needsRepo?: boolean };
+    const data = (await response.json()) as { error?: string; scanId?: string; needsRepo?: boolean; checkoutTier?: "report" | "rescan" };
     setBusy(false);
+    if (data.checkoutTier === "report" || data.checkoutTier === "rescan") {
+      router.push(pricingCheckoutPath(data.checkoutTier));
+      return;
+    }
     if (data.needsRepo && data.scanId) {
       router.push(`/scans/${data.scanId}`);
       return;
@@ -140,7 +155,16 @@ export function NewScanForm({
         <fieldset className="space-y-2 text-sm">
           <legend className="font-medium">Scan</legend>
           <label className="flex gap-2">
-            <input type="radio" name="mode" checked={mode === "full"} disabled={lockMode && initialMode !== "full"} onChange={() => setMode("full")} />
+            <input
+              type="radio"
+              name="mode"
+              checked={mode === "full"}
+              disabled={lockMode && initialMode !== "full"}
+              onChange={() => {
+                setMode("full");
+                setUse((current) => (current === "teaser" ? "checkout-report" : current));
+              }}
+            />
             Full launch scan
           </label>
           <label className="flex gap-2">
@@ -151,18 +175,28 @@ export function NewScanForm({
         {mode === "full" && !monitoring ? (
           <label className="block text-sm">
             Report access
-            <select className="field mt-1" value={use} onChange={(event) => setUse(event.target.value as typeof use)}>
-              <option value="teaser">Free teaser</option>
-              <option value="credit" disabled={reportCredits < 1}>
-                Use a full-report credit ({reportCredits} left)
-              </option>
-              <option value="rescan" disabled={rescanCredits < 1}>
-                Use a rescan credit ({rescanCredits} left)
-              </option>
+            <select className="field mt-1" value={use === "teaser" ? "checkout-report" : use} onChange={(event) => setUse(event.target.value as ReportUse)}>
+              <option value="checkout-report">{TIERS.report.priceLabel} report</option>
+              <option value="checkout-rescan">{TIERS.rescan.priceLabel} report with a fix rescan and code scan</option>
+              {codeReportCredits > 0 ? <option value="code-credit">Use a $99 full-report credit ({codeReportCredits} left)</option> : null}
+              {reportCredits > 0 ? <option value="credit">Use a full-report credit ({reportCredits} left)</option> : null}
+              {rescanCredits > 0 ? <option value="rescan">Use a rescan credit ({rescanCredits} left)</option> : null}
             </select>
           </label>
         ) : null}
-        {mode === "full" && !paid ? <p className="text-sm text-[#44554c]">Logged-in checks are available in the full report.</p> : null}
+        {mode === "full" && monitoring && (codeReportCredits > 0 || rescanCredits > 0) ? (
+          <label className="block text-sm">
+            Report access
+            <select className="field mt-1" value={use === "code-credit" || use === "rescan" ? use : "included"} onChange={(event) => setUse(event.target.value as ReportUse)}>
+              <option value="included">Included with monitoring (site scan)</option>
+              {codeReportCredits > 0 ? <option value="code-credit">Use a $99 full-report credit ({codeReportCredits} left)</option> : null}
+              {rescanCredits > 0 ? <option value="rescan">Use a rescan credit ({rescanCredits} left)</option> : null}
+            </select>
+          </label>
+        ) : null}
+        {mode === "full" && !monitoring && (use === "checkout-report" || use === "checkout-rescan" || use === "teaser") ? (
+          <p className="text-sm text-[#44554c]">A full launch scan uses a paid report. The free path is the mini check. Checkout starts after the ownership proof.</p>
+        ) : null}
         {error ? <p className="text-sm text-[#8a2d18]">{error}</p> : null}
         <button className="btn btn-ink" disabled={busy} type="submit">
           {busy ? "Checking…" : "Continue"}
@@ -224,7 +258,7 @@ export function NewScanForm({
         </div>
       ) : null}
       <button className="btn btn-ink" type="button" disabled={busy || !consent} onClick={startScan}>
-        {busy ? "Verifying…" : mode === "mini" ? "Verify and run mini check" : "Verify and start scan"}
+        {busy ? "Verifying…" : mode === "mini" ? "Verify and run mini check" : checkoutChoice ? "Verify and continue to checkout" : "Verify and start scan"}
       </button>
     </div>
   );

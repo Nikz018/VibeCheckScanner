@@ -8,9 +8,8 @@ import { codeScoreGap, combinedScores } from "@/lib/code-scan/score";
 import { parseCodeReport } from "@/lib/code-scan/parse";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { SEVERITIES } from "@/lib/catalog";
 import { monitoringActive, ownedScanAccess } from "@/lib/entitlements";
-import { formatSeverityBreakdown, readSeverityCounts, reportBadge } from "@/lib/report";
+import { describeFindingCounts, readSeverityCounts, reportBadge, severityCountsWithCode } from "@/lib/report";
 import { AWAITING_REPO_STATUS } from "@/lib/code-scan/gate";
 import { CONNECT_GITHUB_CODE_SCAN_LABEL, codeScanDashboardPrompt, paidScanDashboardAction } from "@/lib/payments/paid-scan-status";
 import { codeScanFailurePrompt, codeScanRepoLabel } from "@/lib/code-scan/messages";
@@ -67,6 +66,8 @@ export default async function DashboardPage() {
         <article className="lift rounded-2xl border border-white/10 bg-white/5 p-4">
           <p className="text-xs uppercase tracking-wide text-[#c5d2e6]">Full-report credits</p>
           <p className="font-display text-4xl">{user.reportCredits}</p>
+          <p className="mt-3 text-xs uppercase tracking-wide text-[#c5d2e6]">$99 full-report credits</p>
+          <p className="font-display text-4xl">{user.codeReportCredits}</p>
         </article>
         <article className="lift rounded-2xl border border-white/10 bg-white/5 p-4">
           <p className="text-xs uppercase tracking-wide text-[#c5d2e6]">Rescan credits</p>
@@ -157,8 +158,8 @@ export default async function DashboardPage() {
               report: codeReport,
             });
             const counts = readSeverityCounts(scan.severityCounts);
-            const total = counts ? SEVERITIES.reduce((sum, severity) => sum + counts[severity], 0) : null;
-            const breakdown = counts ? formatSeverityBreakdown(counts) : "";
+            const counted = counts ? severityCountsWithCode(counts, codeReport) : null;
+            const findingLine = counted ? describeFindingCounts(counted.counts, { includesCode: counted.includesCode, join: "dot" }) : null;
             return (
               <li key={scan.id} className="lift flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm">
                 <div className="flex items-center gap-3">
@@ -178,13 +179,7 @@ export default async function DashboardPage() {
                       {scan.scheduled ? " · scheduled" : ""}
                     </p>
                     {codeRepo ? <p className="text-[#c5d2e6]">{codeScanRepoLabel(codeRepo)}</p> : null}
-                    {scan.status === "completed" && total === 0 ? <p className="text-[#c5d2e6]">No findings</p> : null}
-                    {scan.status === "completed" && total !== null && total > 0 ? (
-                      <p className="text-[#c5d2e6]">
-                        {total} finding{total === 1 ? "" : "s"}
-                        {breakdown ? ` · ${breakdown}` : ""}
-                      </p>
-                    ) : null}
+                    {scan.status === "completed" && findingLine ? <p className="text-[#c5d2e6]">{findingLine}</p> : null}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">

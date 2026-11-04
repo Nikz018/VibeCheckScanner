@@ -43,12 +43,14 @@ test("signed checkout unlocks a scan and a duplicate event does not apply twice"
   assert.equal(credits.status, 200);
   const once = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
   assert.equal(once.rescanCredits, 1);
-  assert.equal(once.reportCredits, 1);
+  assert.equal(once.codeReportCredits, 1);
+  assert.equal(once.reportCredits, 0);
   const creditsAgain = await postEvent(POST, stripe, checkoutEvent(`evt_rescan_${suffix}`, user.id, "rescan", "", `cs_rescan_${suffix}`));
   assert.equal(creditsAgain.status, 200);
   const twice = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
   assert.equal(twice.rescanCredits, 1);
-  assert.equal(twice.reportCredits, 1);
+  assert.equal(twice.codeReportCredits, 1);
+  assert.equal(twice.reportCredits, 0);
 
   const periodEnd = 1893456000;
   const subscription = await postEvent(

@@ -17,7 +17,8 @@ import {
   type CustomerFinding,
   type CustomerReport,
 } from "./report";
-import { ownedScanAccess } from "./entitlements";
+import { fullLaunchCheckout, ownedScanAccess } from "./entitlements";
+import { TIERS } from "./pricing";
 import { reportFromStored } from "./stored-report";
 
 const marked = Object.fromEntries(CHECK_CATALOG.map((check) => [check.id, "ok" as const]));
@@ -71,6 +72,33 @@ function assertWithheld(report: CustomerReport, shownEvidence: string) {
     assert.equal(blob.includes(hiddenUrl), false, hiddenUrl);
   }
 }
+
+test("a full launch scan cannot start as a free teaser", () => {
+  assert.deepEqual(fullLaunchCheckout({ mode: "full", use: "teaser", granted: "teaser" }), { checkoutTier: "report" });
+  assert.deepEqual(fullLaunchCheckout({ mode: "full", use: "checkout-report", granted: "teaser" }), { checkoutTier: "report" });
+  assert.deepEqual(fullLaunchCheckout({ mode: "full", use: "checkout-rescan", granted: "teaser" }), { checkoutTier: "rescan" });
+  assert.equal(fullLaunchCheckout({ mode: "full", use: "credit", granted: "full" }), null);
+  assert.equal(fullLaunchCheckout({ mode: "full", use: "rescan", granted: "full" }), null);
+  assert.equal(fullLaunchCheckout({ mode: "full", use: "teaser", granted: "full" }), null);
+  assert.equal(fullLaunchCheckout({ mode: "mini", use: "teaser", granted: "full" }), null);
+
+  const form = readFileSync(path.join(process.cwd(), "src/components/NewScanForm.tsx"), "utf8");
+  const route = readFileSync(path.join(process.cwd(), "src/app/api/projects/[id]/verify/route.ts"), "utf8");
+  assert.doesNotMatch(form, /value="teaser"/);
+  assert.match(form, /checkout-report/);
+  assert.match(form, /checkout-rescan/);
+  assert.match(form, /Free mini check/);
+  assert.match(form, /Use a rescan credit/);
+  assert.match(form, /Use a full-report credit/);
+  assert.match(form, /TIERS\.report\.priceLabel/);
+  assert.match(form, /TIERS\.rescan\.priceLabel/);
+  assert.match(form, /fix rescan and code scan/);
+  assert.equal(TIERS.report.priceLabel, "$49");
+  assert.equal(TIERS.rescan.priceLabel, "$99");
+  assert.match(route, /fullLaunchCheckout/);
+  assert.match(route, /status: 402/);
+  assert.match(route, /mode === "mini"/);
+});
 
 test("free tier server output contains exactly the lowest-severity finding and the real counts", () => {
   assert.equal(isFreeTierDelivery({ mode: "full", access: "teaser" }), true);

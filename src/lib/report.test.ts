@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { CHECK_CATALOG } from "./catalog";
 import { buildDemoReport } from "./demo-report";
-import { FREE_PREVIEW_LABEL, buildCoverage, buildCustomerReport, freePreviewFacts, freePreviewLines } from "./report";
+import { renderFixMarkdown, renderPrintHtml } from "./download";
+import { FREE_PREVIEW_LABEL, addSeverityCounts, buildCoverage, buildCustomerReport, describeFindingCounts, emptySeverityCounts, freePreviewFacts, freePreviewLines, severityCountsWithCode } from "./report";
 import { containsToolBrand } from "./sanitize";
 
 test("demo report groups families, orders headline ranks, and hides tool brands", () => {
@@ -178,6 +179,60 @@ test("free preview counts only checks and findings that are on the report", () =
   const hiddenLines = freePreviewLines(hidden);
   assert.match(hiddenLines.join("\n"), /2 findings from checks that already ran are in the full report/);
   assert.equal(hiddenLines.some((line) => /did not run/.test(line)), false);
+});
+
+test("severity totals include finished code findings in the report, PDF, and markdown", () => {
+  const site = { critical: 0, high: 0, medium: 3, low: 2, info: 0 };
+  const code = {
+    status: "completed",
+    empty: false,
+    findings: [
+      { severity: "high" },
+      { severity: "medium" },
+      { severity: "low" },
+    ],
+  };
+  const counted = severityCountsWithCode(site, code);
+  assert.equal(counted.includesCode, true);
+  assert.deepEqual(counted.counts, { critical: 0, high: 1, medium: 4, low: 3, info: 0 });
+  assert.equal(describeFindingCounts(counted.counts, { includesCode: true }), "8 findings: 1 High, 4 Medium, 3 Low · site and code");
+  assert.equal(describeFindingCounts(site), "5 findings: 3 Medium, 2 Low");
+  assert.equal(severityCountsWithCode(site, { status: "failed", findings: code.findings }).includesCode, false);
+  assert.equal(severityCountsWithCode(site, { status: "completed", empty: true, findings: [] }).includesCode, false);
+  assert.deepEqual(addSeverityCounts(emptySeverityCounts(), [{ severity: "critical" }, { severity: "nope" }]), {
+    critical: 1,
+    high: 0,
+    medium: 0,
+    low: 0,
+    info: 0,
+  });
+
+  const marked = Object.fromEntries(CHECK_CATALOG.map((check) => [check.id, "ok" as const]));
+  const report = buildCustomerReport({
+    scanId: "scan-code-counts",
+    status: "completed",
+    mode: "full",
+    access: "full",
+    finishedAt: new Date("2026-11-03T00:00:00.000Z"),
+    marked,
+    unlock: true,
+    results: [
+      { checkId: "missing_csp", evidence: "header missing" },
+      { checkId: "missing_csp", evidence: "second page" },
+      { checkId: "missing_referrer_policy", evidence: "referrer" },
+    ],
+  });
+  const markdown = renderFixMarkdown(report, "https://app.example", code);
+  const html = renderPrintHtml(report, "https://app.example", { site: 78, code: 60, overall: 71 }, null, code);
+  assert.match(markdown, /Findings: 6\./);
+  assert.match(markdown, /1 High, 3 Medium, 2 Low/);
+  assert.match(markdown, /Site and code are both included/);
+  assert.equal(html.includes('data-severity-count="high"><strong>1</strong>'), true);
+  assert.equal(html.includes('data-severity-count="medium"><strong>3</strong>'), true);
+  assert.equal(html.includes('data-severity-count="low"><strong>2</strong>'), true);
+  assert.match(html, /6 findings: 1 High, 3 Medium, 2 Low · site and code/);
+  assert.equal(containsToolBrand(`${markdown}\n${html}`), null);
+  assert.doesNotMatch(`${markdown}\n${html}`, /semgrep|trufflehog|gitleaks|osv-scanner|npm audit/i);
 });
 
 test("coverage marks families that were not executed", () => {
