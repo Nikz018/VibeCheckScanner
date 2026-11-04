@@ -129,6 +129,7 @@ test("site, code, and overall rings each use that score's rating color", () => {
       assert.match(slice, new RegExp(`stroke="${color}"`));
       assert.match(slice, new RegExp(`style="stroke:${color}"`));
       assert.match(slice, new RegExp(`style="color:${color}"`));
+      assert.match(slice, new RegExp(`class="gauge-track"[^>]*stroke="${color}" stroke-opacity="0.25"`));
     }
   }
   assert.notEqual(scoreBand(scores.site).color, scoreBand(scores.code).color);

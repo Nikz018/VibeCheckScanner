@@ -21,6 +21,9 @@ const TONE = {
   dark: { track: "#3a433e", value: "#f4f0e6", label: "#d9d3c5" },
 } as const;
 
+/** Unfilled part of the ring. Solid enough to read the band when the arc is empty. */
+const TRACK_OPACITY = 0.25;
+
 export function clampScore(score: number): number {
   if (!Number.isFinite(score)) return 0;
   return Math.max(0, Math.min(100, Math.round(score)));
@@ -47,8 +50,11 @@ export function renderScoreGaugeSvg(input: { score: number | null; tone?: GaugeT
       ? ""
       : `<circle class="gauge-progress" cx="100" cy="100" r="78" fill="none" stroke="${band.color}" style="stroke:${band.color}" stroke-width="12" stroke-linecap="round" pathLength="100" stroke-dasharray="${score} 100" transform="rotate(-90 100 100)"/>`;
   const aria = score === null ? "Score not ready" : `${ratio}, ${label}`;
+  const track = band
+    ? `stroke="${band.color}" stroke-opacity="${TRACK_OPACITY}"`
+    : `stroke="${tone.track}"`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="${escapeXml(aria)}" data-score-gauge="${score ?? ""}" data-score-band="${band?.id ?? ""}">
-  <circle cx="100" cy="100" r="78" fill="none" stroke="${tone.track}" stroke-width="12"/>
+  <circle class="gauge-track" cx="100" cy="100" r="78" fill="none" ${track} stroke-width="12"/>
   ${progress}
   <text x="100" y="96" text-anchor="middle" font-family="Georgia, serif" font-size="28" font-weight="700" fill="${tone.value}">${escapeXml(ratio)}</text>
   <text x="100" y="122" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13" fill="${band ? band.color : tone.label}">${escapeXml(label)}</text>
