@@ -20,6 +20,8 @@ import { settlePreviewCheckout } from "@/lib/payments/confirm-purchase";
 import { FULL_SCAN_PROGRESS_LABEL, FULL_SCAN_STOPPED_LABEL, RETRY_FULL_SCAN_LABEL } from "@/lib/payments/paid-scan-status";
 import { signInPath } from "@/lib/checkout-path";
 import { privateMetadata } from "@/lib/seo/metadata";
+import { clientScanReport } from "@/lib/finding-order";
+import { severityCountsWithCode } from "@/lib/report";
 import { reportFromStored } from "@/lib/stored-report";
 
 export const dynamic = "force-dynamic";
@@ -148,7 +150,7 @@ export default async function ScanPage({
   }
   const proof = instructionsFor(scan.project.url, scan.project.ownershipToken);
   const codeReport = scan.codeScanEnabled ? parseCodeReport(scan.codeReport) : null;
-  const report = reportFromStored({
+  const stored = reportFromStored({
     scanId: scan.id,
     status: scan.status,
     mode: scan.mode,
@@ -158,6 +160,17 @@ export default async function ScanPage({
     coverage: scan.coverage,
     unlock: gating.unlock,
   });
+  const codeFindings = codeReport && codeReport.status === "completed" && !codeReport.empty ? codeReport.findings : [];
+  const counted = severityCountsWithCode(stored.severityCounts, codeReport);
+  const presented = clientScanReport({
+    report: stored,
+    codeFindings,
+    counts: counted.counts,
+    includesCode: counted.includesCode,
+    entitled: !gating.upsell,
+  });
+  const report = presented.report;
+  const codePanelReport = codeReport ? { ...codeReport, findings: [] } : null;
   return (
     <div className="space-y-6 py-6">
       {offerCodeStep && purchase ? (
@@ -193,13 +206,14 @@ export default async function ScanPage({
               })
             : null
         }
-        codeReport={scan.codeScanEnabled && scan.reportAccess === "full" && !gating.upsell ? codeReport : null}
+        findings={presented.findings}
+        includesCode={presented.includesCode}
         codeScan={
-          scan.codeScanEnabled && scan.reportAccess === "full" && !gating.upsell ? (
+          scan.codeScanEnabled && !gating.upsell ? (
             <CodeScanPanel
               scanId={scan.id}
               projectId={scan.projectId}
-              report={codeReport}
+              report={codePanelReport}
               repo={connectedRepo}
               ownershipVerified={Boolean(scan.project.ownershipVerifiedAt)}
               githubReady={githubReady}

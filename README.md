@@ -133,7 +133,7 @@ The checklist in [docs/SECURITY_CHECKLIST.md](docs/SECURITY_CHECKLIST.md) is gen
 - info_disclosure
 - dependencies
 
-Headline ranks 1–10 sort first in a paid report. They do not replace the rest of the catalog, and they do not choose the free preview. A free preview shows the lowest-severity finding. A full scan attempts every family. A mini check does not, and it must not show those families as passed.
+Headline ranks 1–10 are labels on a paid report. They do not replace the rest of the catalog, and they do not choose the free preview or the list order. A paid report lists site and code findings together by severity. A free preview shows the lowest-severity finding. A full scan attempts every family. A mini check does not, and it must not show those families as passed.
 
 The headless render is optional. Set `PLAYWRIGHT_ENABLED=false` to use HTTP fetching only. Static bundles are still downloaded and reviewed. If the browser cannot launch, or if it runs longer than `BROWSER_TIMEOUT_MS`, the worker kills that browser process and the scan continues with the fetched files. The report does not mention the browser.
 

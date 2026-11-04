@@ -99,6 +99,35 @@ const SEVERITY_RANK: Record<Severity, number> = {
   info: 4,
 };
 
+const CONFIDENCE_RANK: Record<Confidence, number> = {
+  high: 0,
+  medium: 1,
+  low: 2,
+};
+
+/**
+ * Critical first. Within a severity, higher confidence comes first, then title, then a stable tie-break.
+ * A finding with no confidence recorded sorts with high confidence. Those checks are deterministic.
+ */
+export function compareByDisplayedSeverity(
+  a: { severity: Severity; confidence?: Confidence | null; title: string; tieBreak?: string },
+  b: { severity: Severity; confidence?: Confidence | null; title: string; tieBreak?: string },
+): number {
+  const bySeverity = SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity];
+  if (bySeverity !== 0) return bySeverity;
+  const byConfidence = confidenceRank(a.confidence) - confidenceRank(b.confidence);
+  if (byConfidence !== 0) return byConfidence;
+  const byTitle = a.title.localeCompare(b.title);
+  if (byTitle !== 0) return byTitle;
+  return (a.tieBreak ?? "").localeCompare(b.tieBreak ?? "");
+}
+
+function confidenceRank(value: Confidence | null | undefined): number {
+  if (value === "medium") return CONFIDENCE_RANK.medium;
+  if (value === "low") return CONFIDENCE_RANK.low;
+  return CONFIDENCE_RANK.high;
+}
+
 export function buildCoverage(marked: Record<string, CheckRunState>, findingIds: string[]): CoverageRow[] {
   const found = new Set(findingIds);
   return FAMILIES.map((family) => {
@@ -285,7 +314,15 @@ export function visibleCustomerFindings(report: CustomerReport): CustomerFinding
     seen.add(finding);
     ordered.push(finding);
   }
-  return ordered;
+  return ordered
+    .map((finding, index) => ({ finding, index }))
+    .sort((a, b) =>
+      compareByDisplayedSeverity(
+        { severity: a.finding.severity, confidence: a.finding.confidence, title: a.finding.title, tieBreak: `${a.finding.checkId}:${a.index}` },
+        { severity: b.finding.severity, confidence: b.finding.confidence, title: b.finding.title, tieBreak: `${b.finding.checkId}:${b.index}` },
+      ),
+    )
+    .map((item) => item.finding);
 }
 
 export const FREE_PREVIEW_LABEL = "Free preview";

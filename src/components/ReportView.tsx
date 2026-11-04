@@ -1,8 +1,11 @@
 import type { ReactNode } from "react";
 import type { CodeScoreGap, CombinedScores } from "@/lib/code-scan/score";
+import type { CodeFinding } from "@/lib/code-scan/types";
+import { FREE_PREVIEW_BLUR_CAP, blurredSeverityLabels, listPaidFindings, lockedFindingsSummary, lockedSeverityCounts, type ListedFinding } from "@/lib/finding-order";
 import type { CustomerReport } from "@/lib/report";
-import { FREE_PREVIEW_LABEL, FULL_REPORT_PURCHASE_LEDE, RESCAN_PURCHASE_NOTE, describeFindingCounts, formatSeverityBreakdown, freePreviewFacts, freePreviewLines, lockedSeverityRows, reportBadge, severityCountsWithCode } from "@/lib/report";
-import type { Severity } from "@/lib/catalog";
+import { FREE_PREVIEW_LABEL, FULL_REPORT_PURCHASE_LEDE, RESCAN_PURCHASE_NOTE, describeFindingCounts, formatSeverityBreakdown, freePreviewFacts, freePreviewLines, reportBadge } from "@/lib/report";
+import { SEVERITIES, type Severity } from "@/lib/catalog";
+import { sanitizeCode, sanitizeCustomerText } from "@/lib/sanitize";
 import { TAX_NOTE, TIERS, type TierId } from "@/lib/pricing";
 import { PAYMENT_DECLINED_COPY, PAYMENT_TRY_AGAIN_LABEL } from "@/lib/payments/checkout-return";
 import { RESCAN_CONFIRMING_DETAIL } from "@/lib/payments/paid-scan-status";
@@ -22,8 +25,6 @@ const SEVERITY_STYLE: Record<Severity, string> = {
   info: "bg-[#e7eee8] text-[#24503a]",
 };
 
-const LOCKED_ROW_CAP = 24;
-
 export function ReportView({
   report,
   targetLabel,
@@ -39,7 +40,8 @@ export function ReportView({
   codeScan = null,
   scores = null,
   codeGap = null,
-  codeReport = null,
+  findings = null,
+  includesCode = false,
 }: {
   report: CustomerReport;
   targetLabel?: string;
@@ -55,10 +57,12 @@ export function ReportView({
   codeScan?: ReactNode;
   scores?: CombinedScores | null;
   codeGap?: CodeScoreGap | null;
-  codeReport?: { status: string; empty?: boolean; findings: Array<{ severity: string }> } | null;
+  findings?: ListedFinding[] | null;
+  includesCode?: boolean;
 }) {
-  const counted = severityCountsWithCode(report.severityCounts, codeReport);
-  const findingLabel = describeFindingCounts(counted.counts, { includesCode: counted.includesCode });
+  const listed = findings ?? listPaidFindings(report, []);
+  const counted = { counts: report.severityCounts, includesCode };
+  const findingLabel = describeFindingCounts(counted.counts, { includesCode });
 
   return (
     <div className="space-y-6">
@@ -124,35 +128,21 @@ export function ReportView({
       </section>
 
       {report.upsell ? (
-        <FreeFindings report={report} scanId={scanId} collectBilling={collectBilling} />
+        <FreeFindings report={report} findings={listed} scanId={scanId} collectBilling={collectBilling} />
       ) : (
-        <>
-          {report.priority.length > 0 ? (
-            <section className="space-y-4">
-              <h2 className="font-display text-3xl">Priority issues</h2>
-              <div className="grid gap-4">
-                {report.priority.map((finding, index) => (
-                  <FindingCard key={`${finding.checkId}-${index}`} finding={finding} showAffectedPages />
-                ))}
-              </div>
-            </section>
-          ) : (
-            <p className="text-[#d5deee]">No headline issues on this scan.</p>
-          )}
-          {report.families.map((group) => (
-            <section key={group.family} className="space-y-3">
-              <h2 className="font-display text-2xl">{group.label}</h2>
-              {group.findings
-                .filter((finding) => finding.headlineRank === null)
-                .map((finding, index) => (
-                  <FindingCard key={`${finding.checkId}-${index}`} finding={finding} showAffectedPages />
-                ))}
-              {group.findings.every((finding) => finding.headlineRank !== null) ? (
-                <p className="text-sm text-[#c5d2e6]">Headline findings for this family are in the priority list above.</p>
-              ) : null}
-            </section>
-          ))}
-        </>
+        <section className="space-y-4">
+          <h2 className="font-display text-3xl">Findings</h2>
+          {listed.length === 0 ? <p className="text-[#d5deee]">No issues on this scan.</p> : null}
+          <div className="grid gap-4">
+            {listed.map((item, index) =>
+              item.code ? (
+                <CodeFindingCard key={`${item.tieBreak}-${index}`} finding={item.code} />
+              ) : item.site ? (
+                <FindingCard key={`${item.tieBreak}-${index}`} finding={item.site} showAffectedPages />
+              ) : null,
+            )}
+          </div>
+        </section>
       )}
 
       {report.upsell && report.mode === "mini" && !sample ? (
@@ -160,7 +150,7 @@ export function ReportView({
           <div className="upgrade-panel p-5">
             <h2 className="font-display text-3xl">{FREE_PREVIEW_LABEL}</h2>
             <div className="mt-3 space-y-2 text-sm text-[#d5deee]">
-              {freePreviewLines(freePreviewFacts(report)).map((line) => (
+              {freePreviewLines(previewFacts(report, listed.length)).map((line) => (
                 <p key={line}>{line}</p>
               ))}
             </div>
@@ -238,19 +228,27 @@ export function ReportView({
   );
 }
 
+function previewFacts(report: CustomerReport, shown: number) {
+  const facts = freePreviewFacts(report);
+  if (report.access === "teaser") facts.findingsShown = shown;
+  return facts;
+}
+
 function FreeFindings({
   report,
+  findings,
   scanId,
   collectBilling,
 }: {
   report: CustomerReport;
+  findings: ListedFinding[];
   scanId?: string;
   collectBilling: boolean;
 }) {
-  const locked = lockedSeverityRows(report);
-  const visibleLocked = locked.slice(0, LOCKED_ROW_CAP);
-  const extraLocked = locked.length - visibleLocked.length;
   const breakdown = formatSeverityBreakdown(report.severityCounts);
+  const lockedCounts = lockedSeverityCounts(report.severityCounts, findings[0] ?? null);
+  const summary = lockedFindingsSummary(lockedCounts);
+  const blurred = blurredSeverityLabels(lockedCounts, FREE_PREVIEW_BLUR_CAP);
 
   return (
     <section className="space-y-4" aria-labelledby="free-findings-heading">
@@ -269,25 +267,35 @@ function FreeFindings({
         </p>
       )}
       <div className="grid gap-4">
-        {report.samples.map((finding, index) => (
-          <FindingCard key={`${finding.checkId}-${index}`} finding={finding} />
-        ))}
+        {findings.map((item, index) =>
+          item.code ? (
+            <CodeFindingCard key={`${item.tieBreak}-${index}`} finding={item.code} />
+          ) : item.site ? (
+            <FindingCard key={`${item.tieBreak}-${index}`} finding={item.site} />
+          ) : null,
+        )}
       </div>
-      {visibleLocked.length > 0 ? (
-        <ul className="grid gap-3" aria-label="Locked findings">
-          {visibleLocked.map((severity, index) => (
+      {summary ? (
+        <article className="panel p-5" aria-label="Locked findings">
+          <p className="text-sm text-[#d5deee]">{summary}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {SEVERITIES.filter((severity) => (lockedCounts[severity] ?? 0) > 0).map((severity) => (
+              <span key={severity} className={`rounded-full px-2 py-1 text-xs font-semibold uppercase ${SEVERITY_STYLE[severity]}`}>
+                {lockedCounts[severity]} {severity}
+              </span>
+            ))}
+          </div>
+        </article>
+      ) : null}
+      {blurred.length > 0 ? (
+        <ul className="grid gap-3" aria-hidden="true">
+          {blurred.map((severity, index) => (
             <li key={`${severity}-${index}`} className="locked-row panel px-4 py-3">
               <span className={`rounded-full px-2 py-1 text-xs font-semibold uppercase ${SEVERITY_STYLE[severity]}`}>{severity}</span>
-              <span className="text-sm text-[#d5deee]">Locked. Upgrade to read this finding.</span>
-              <span className="locked-ghost col-span-2" aria-hidden="true" />
+              <span className="locked-ghost" />
             </li>
           ))}
         </ul>
-      ) : null}
-      {extraLocked > 0 ? (
-        <p className="text-sm text-[#d5deee]">
-          And {extraLocked} more locked finding{extraLocked === 1 ? "" : "s"}. The count above is the real total.
-        </p>
       ) : null}
       {scanId && report.mode !== "mini" ? <UpgradePanel id="upgrade" scanId={scanId} collectBilling={collectBilling} /> : null}
       {!scanId ? <PriceHint /> : null}
@@ -323,6 +331,7 @@ function FindingCard({ finding, showAffectedPages = false }: { finding: Customer
     <article className="lift panel p-5">
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className={`rounded-full px-2 py-1 font-semibold uppercase ${SEVERITY_STYLE[finding.severity]}`}>{finding.severity}</span>
+        <SourceTag source="Site" />
         <span className="text-[#c5d2e6]">{finding.familyLabel}</span>
         {finding.headlineRank ? <span className="text-[#c5d2e6]">Headline {finding.headlineRank}</span> : null}
         {finding.confidence ? <span className="text-[#c5d2e6]">Confidence {finding.confidence}</span> : null}
@@ -408,6 +417,42 @@ function FindingCard({ finding, showAffectedPages = false }: { finding: Customer
       </div>
     </article>
   );
+}
+
+function CodeFindingCard({ finding }: { finding: CodeFinding }) {
+  return (
+    <article className="lift panel p-5">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className={`rounded-full px-2 py-1 font-semibold uppercase ${SEVERITY_STYLE[finding.severity]}`}>{finding.severity}</span>
+        <SourceTag source="Code" />
+        <span className="text-[#c5d2e6]">{finding.family}</span>
+        <span className="text-[#c5d2e6]">{finding.owasp}</span>
+      </div>
+      <h3 className="mt-3 font-display text-2xl">{sanitizeCustomerText(finding.title)}</h3>
+      <div className="mt-3 space-y-4 text-sm leading-6 text-[#e4ebf6]">
+        <p>
+          {finding.file}:{finding.line}
+        </p>
+        <p>{sanitizeCustomerText(finding.explanation)}</p>
+        {finding.snippet ? (
+          <div>
+            <p className="font-semibold">Excerpt.</p>
+            <CodeBlock>{sanitizeCode(finding.snippet)}</CodeBlock>
+          </div>
+        ) : null}
+        {finding.fixPrompt ? (
+          <div>
+            <p className="font-semibold">Fix.</p>
+            <CodeBlock>{sanitizeCode(finding.fixPrompt)}</CodeBlock>
+          </div>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function SourceTag({ source }: { source: "Site" | "Code" }) {
+  return <span className="rounded-full bg-white/10 px-2 py-1 font-semibold uppercase tracking-wide text-[#d5deee]">{source}</span>;
 }
 
 function coverageLabel(row: CustomerReport["coverage"][number]): string {

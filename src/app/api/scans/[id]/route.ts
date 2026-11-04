@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { progressPercent, stageState } from "@/lib/scan-progress";
+import { publicScanStatus } from "@/lib/scan-status";
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -29,23 +29,17 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const lockedRepo = Boolean(scan.codeRepoOwner && scan.codeRepoName);
   const linkedRepo = Boolean(scan.project.repoLink?.status === "connected" && scan.project.repoLink.owner && scan.project.repoLink.name);
   const codeScan = Boolean(scan.codeScanEnabled && scan.codeScanChoice !== "skip" && (lockedRepo || linkedRepo));
-  return NextResponse.json({
-    status: scan.status,
-    error: scan.error,
-    mode: scan.mode,
-    stage: scan.progressStage,
-    pagesDiscovered: scan.pagesDiscovered,
-    startedAt: scan.startedAt?.toISOString() ?? null,
-    createdAt: scan.createdAt.toISOString(),
-    codeScan,
-    codeStatus: readCodeStatus(scan.codeReport),
-    progress: progressPercent({ mode: scan.mode, stage: scan.progressStage, status: scan.status, codeScan }),
-    stages: stageState({ mode: scan.mode, stage: scan.progressStage, status: scan.status, codeScan }),
-  });
-}
-
-function readCodeStatus(value: unknown): string | null {
-  if (!value || typeof value !== "object" || !("status" in value)) return null;
-  const status = (value as { status?: unknown }).status;
-  return typeof status === "string" ? status : null;
+  return NextResponse.json(
+    publicScanStatus({
+      status: scan.status,
+      error: scan.error,
+      mode: scan.mode,
+      stage: scan.progressStage,
+      pagesDiscovered: scan.pagesDiscovered,
+      startedAt: scan.startedAt,
+      createdAt: scan.createdAt,
+      codeScan,
+      codeReport: scan.codeReport,
+    }),
+  );
 }

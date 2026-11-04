@@ -13,7 +13,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   if (!loaded.ok) return loaded.response;
   const stored = await prisma.scan.findUnique({ where: { id }, select: { codeScanEnabled: true, codeReport: true } });
   const code = stored?.codeScanEnabled ? parseCodeReport(stored.codeReport) : null;
-  const markdown = `${renderFixMarkdown(loaded.report, loaded.targetUrl, code)}${renderCodeScanMarkdown(code)}`;
+  const markdown = `${renderFixMarkdown(loaded.report, loaded.targetUrl, code)}${renderCodeScanMarkdown(code, { includeFindings: false })}`;
   const name = downloadBasename(loaded.targetUrl, loaded.report.finishedAt ? new Date(loaded.report.finishedAt) : null);
   return new NextResponse(markdown, {
     status: 200,

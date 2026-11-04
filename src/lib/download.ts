@@ -1,10 +1,18 @@
 import { overallScoreExplanation, renderScoreRingsHtml, renderUnavailableScoresHtml, type CodeScoreGap, type CombinedScores } from "./code-scan/score";
+import type { CodeFinding } from "./code-scan/types";
 import { POINT_IN_TIME_DISCLAIMER, formatScanDate } from "./badge";
 import { SEVERITIES } from "./catalog";
+import { listPaidFindings, type ListedFinding } from "./finding-order";
 import { describeFindingCounts, findingTotal, formatSeverityBreakdown, severityCountsWithCode, visibleCustomerFindings, type CustomerFinding, type CustomerReport } from "./report";
 import { containsToolBrand } from "./sanitize";
 import { SCORE_EXPLAINER, formatScoreRatio, renderScoreGaugeSvg, scoreBand } from "./score-gauge";
 import { toolBrandPattern } from "./tool-denylist";
+
+type ExportCodeReport = {
+  status: string;
+  empty?: boolean;
+  findings: Array<{ severity: string } & Partial<CodeFinding>>;
+} | null;
 
 export function downloadAccess(input: {
   userId: string | null;
@@ -24,6 +32,10 @@ export function orderedFindings(report: CustomerReport): CustomerFinding[] {
   return visibleCustomerFindings(report);
 }
 
+export function orderedListedFindings(report: CustomerReport, codeReport?: ExportCodeReport): ListedFinding[] {
+  return listPaidFindings(report, exportCodeFindings(codeReport));
+}
+
 export function downloadBasename(targetUrl: string, finishedAt: Date | null): string {
   let host = "scan";
   try {
@@ -36,11 +48,7 @@ export function downloadBasename(targetUrl: string, finishedAt: Date | null): st
   return `vibecheck-${safeHost}-${day}`;
 }
 
-export function renderFixMarkdown(
-  report: CustomerReport,
-  targetUrl: string,
-  codeReport?: { status: string; empty?: boolean; findings: Array<{ severity: string }> } | null,
-): string {
+export function renderFixMarkdown(report: CustomerReport, targetUrl: string, codeReport?: ExportCodeReport): string {
   const when = report.finishedAt ? formatScanDate(new Date(report.finishedAt)) : "an unknown date";
   const host = safeHostLabel(targetUrl);
   const counted = severityCountsWithCode(report.severityCounts, codeReport);
@@ -57,13 +65,20 @@ export function renderFixMarkdown(
     "Apply each fix in the application. Keep secrets on the server. The values below are already redacted.",
     "",
   ];
-  const findings = orderedFindings(report);
+  const findings = orderedListedFindings(report, codeReport);
   if (findings.length === 0) {
     lines.push("No findings were recorded for this scan.");
   }
-  findings.forEach((finding, index) => {
+  findings.forEach((item, index) => {
+    if (item.code) {
+      lines.push(...codeMarkdown(item.code, item.tag, index));
+      return;
+    }
+    const finding = item.site;
+    if (!finding) return;
     lines.push(`## ${index + 1}. ${finding.title}`);
     lines.push("");
+    lines.push(`- Source: ${item.tag}`);
     lines.push(`- Severity: ${finding.severity}`);
     lines.push(`- Family: ${finding.familyLabel}`);
     if (finding.confidence) lines.push(`- Confidence: ${finding.confidence}`);
@@ -117,17 +132,20 @@ export function renderPrintHtml(
   targetUrl: string,
   scores?: CombinedScores | null,
   codeGap?: CodeScoreGap | null,
-  codeReport?: { status: string; empty?: boolean; findings: Array<{ severity: string }> } | null,
+  codeReport?: ExportCodeReport,
 ): string {
   const when = report.finishedAt ? formatScanDate(new Date(report.finishedAt)) : "Unknown date";
-  const findings = orderedFindings(report);
+  const findings = orderedListedFindings(report, codeReport);
   const counted = severityCountsWithCode(report.severityCounts, codeReport);
   const findingLine = describeFindingCounts(counted.counts, { includesCode: counted.includesCode });
   const counts = SEVERITIES.map(
     (severity) => `<li data-severity-count="${escapeHtml(severity)}"><strong>${counted.counts[severity] ?? 0}</strong><span>${escapeHtml(severity)}</span></li>`,
   ).join("");
   const blocks = findings
-    .map((finding) => {
+    .map((item) => {
+      if (item.code) return codeFindingHtml(item.code, item.tag);
+      const finding = item.site;
+      if (!finding) return "";
       const places = (finding.locations ?? [])
         .map((location) => {
           const extra = [
@@ -142,8 +160,8 @@ export function renderPrintHtml(
         .map((header) => `<li>${escapeHtml(header.name)}: ${escapeHtml(header.value)}</li>`)
         .join("");
       const steps = (finding.steps ?? []).map((step) => `<li>${escapeHtml(step)}</li>`).join("");
-      return `<section class="finding">
-        <p class="kicker">${escapeHtml(finding.severity)} · ${escapeHtml(finding.familyLabel)}</p>
+      return `<section class="finding" data-source="site">
+        <p class="kicker">${escapeHtml(finding.severity)} · ${escapeHtml(item.tag)} · ${escapeHtml(finding.familyLabel)}</p>
         <h2>${escapeHtml(finding.title)}</h2>
         <h3>Location</h3>
         <ul>${places || "<li>No request URL was recorded.</li>"}</ul>
@@ -245,6 +263,63 @@ export function pdfFooterTemplate(disclaimer = POINT_IN_TIME_DISCLAIMER): string
       <div style="white-space:nowrap;"><span class="pageNumber"></span> / <span class="totalPages"></span></div>
     </div>
   </div>`;
+}
+
+function codeMarkdown(finding: CodeFinding, tag: string, index: number): string[] {
+  const lines = [
+    `## ${index + 1}. ${finding.title}`,
+    "",
+    `- Source: ${tag}`,
+    `- Severity: ${finding.severity}`,
+    `- Family: ${finding.family}`,
+    `- File: ${finding.file}`,
+    `- Line: ${finding.line}`,
+    `- Category: ${finding.owasp}`,
+    "",
+    "### Explanation",
+    "",
+    finding.explanation,
+    "",
+  ];
+  if (finding.snippet) {
+    lines.push("### Excerpt", "", fence(finding.snippet), "");
+  }
+  lines.push("### Fix", "", fence(finding.fixPrompt), "");
+  return lines;
+}
+
+function codeFindingHtml(finding: CodeFinding, tag: string): string {
+  return `<section class="finding" data-source="code">
+        <p class="kicker">${escapeHtml(finding.severity)} · ${escapeHtml(tag)} · ${escapeHtml(finding.family)}</p>
+        <h2>${escapeHtml(finding.title)}</h2>
+        <h3>Location</h3>
+        <ul><li>${escapeHtml(finding.file)}:${finding.line}</li></ul>
+        <h3>Explanation</h3>
+        <p>${escapeHtml(finding.explanation)}</p>
+        ${finding.snippet ? `<h3>Excerpt</h3><pre>${escapeHtml(finding.snippet)}</pre>` : ""}
+        <h3>Fix</h3>
+        <pre>${escapeHtml(finding.fixPrompt)}</pre>
+      </section>`;
+}
+
+function exportCodeFindings(codeReport: ExportCodeReport | undefined): CodeFinding[] {
+  if (!codeReport || codeReport.status !== "completed" || codeReport.empty) return [];
+  return codeReport.findings.filter(isExportCodeFinding);
+}
+
+function isExportCodeFinding(value: { severity: string } & Partial<CodeFinding>): value is CodeFinding {
+  return (
+    (SEVERITIES as readonly string[]).includes(value.severity) &&
+    typeof value.title === "string" &&
+    typeof value.ruleId === "string" &&
+    typeof value.family === "string" &&
+    typeof value.file === "string" &&
+    typeof value.line === "number" &&
+    typeof value.snippet === "string" &&
+    typeof value.explanation === "string" &&
+    typeof value.owasp === "string" &&
+    typeof value.fixPrompt === "string"
+  );
 }
 
 function locationLines(finding: CustomerFinding): string[] {
