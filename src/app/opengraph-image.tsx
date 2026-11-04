@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import { OG_HEIGHT, OG_IMAGE_ALT, OG_WIDTH } from "@/lib/seo/content";
-import { scoreBand, scoreBandPaint } from "@/lib/score-gauge";
+import { scoreBand } from "@/lib/score-gauge";
 
 export const alt = OG_IMAGE_ALT;
 export const size = { width: OG_WIDTH, height: OG_HEIGHT };
@@ -78,7 +78,7 @@ export default function OpenGraphImage() {
                   cy="100"
                   r="78"
                   fill="none"
-                  stroke={scoreBandPaint(EXAMPLE_SCORE, "light")}
+                  stroke={band.color}
                   strokeWidth="12"
                   strokeLinecap="round"
                   strokeDasharray={`${dash} ${ring}`}
@@ -99,7 +99,7 @@ export default function OpenGraphImage() {
                 }}
               >
                 <div style={{ display: "flex", fontSize: 28, fontWeight: 700, color: "#14201b" }}>72/100</div>
-                <div style={{ display: "flex", marginTop: 6, fontSize: 16, color: scoreBandPaint(EXAMPLE_SCORE, "light") }}>{band.label}</div>
+                <div style={{ display: "flex", marginTop: 6, fontSize: 16, color: band.color }}>{band.label}</div>
               </div>
             </div>
             <div style={{ display: "flex", fontSize: 16, color: "#536058", marginTop: 8 }}>Example gauge</div>

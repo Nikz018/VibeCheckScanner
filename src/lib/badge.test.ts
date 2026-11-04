@@ -45,15 +45,23 @@ test("score bands and the gauge read as a ratio out of 100", () => {
   assert.doesNotMatch(gauge, />7</);
 });
 
-test("good score ring is coral, and light backgrounds use a deeper coral", () => {
-  assert.equal(scoreBand(80).id, "good");
-  assert.equal(scoreBand(80).color, "#ff6a3d");
-  assert.match(renderScoreGaugeSvg({ score: 80, tone: "dark" }), /#ff6a3d/);
-  assert.match(renderScoreGaugeSvg({ score: 80, tone: "light" }), /#c4471a/);
-  assert.doesNotMatch(renderScoreGaugeSvg({ score: 80, tone: "light" }), /#ff6a3d/);
-  assert.match(renderScoreGaugeSvg({ score: 20, tone: "dark" }), /#e24b3a/);
-  assert.match(renderScoreGaugeSvg({ score: 50, tone: "dark" }), /#e09a14/);
-  assert.match(renderScoreGaugeSvg({ score: 95, tone: "dark" }), /#2f9e5a/);
+test("score rating colors stay on the original palette", () => {
+  assert.equal(scoreBand(20).color, "#e24b3a");
+  assert.equal(scoreBand(50).color, "#e09a14");
+  assert.equal(scoreBand(80).color, "#9bb42a");
+  assert.equal(scoreBand(95).color, "#2f9e5a");
+  for (const tone of ["dark", "light"] as const) {
+    const good = renderScoreGaugeSvg({ score: 80, tone });
+    assert.match(good, /#9bb42a/);
+    assert.doesNotMatch(good, /#ff6a3d/);
+    assert.doesNotMatch(good, /#c4471a/);
+    assert.match(renderScoreGaugeSvg({ score: 20, tone }), /#e24b3a/);
+    assert.match(renderScoreGaugeSvg({ score: 50, tone }), /#e09a14/);
+    assert.match(renderScoreGaugeSvg({ score: 95, tone }), /#2f9e5a/);
+  }
+  const badge = renderBadgeSvg({ score: 80, finishedAt: scanned, passed: true, stale: false });
+  assert.match(badge, /#9bb42a/);
+  assert.doesNotMatch(badge, /#ff6a3d/);
 });
 
 test("share disclaimer is point-in-time and not a certification", () => {

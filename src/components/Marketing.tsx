@@ -88,18 +88,21 @@ export function IssueGrid() {
 export function PricingCards({ titles = "heading" }: { titles?: "heading" | "text" }) {
   const Title = titles === "heading" ? "h3" : "p";
   return (
-    <div className="grid gap-4 md:grid-cols-4">
-      <article className="lift rounded-3xl border border-white/10 bg-white/5 p-5">
-        <Title className="font-semibold">{FREE_TIER.name}</Title>
-        <p className="font-display text-4xl">{FREE_TIER.priceLabel}</p>
-        <p className="mt-3 text-sm text-[#cfc4bb]">{FREE_TIER.blurb}</p>
+    <div className="price-grid">
+      <article className="price-card lift rounded-3xl border border-white/10 bg-white/5 p-5">
+        <Title className="price-card-title font-semibold">{FREE_TIER.name}</Title>
+        <p className="price-card-price font-display text-4xl">{FREE_TIER.priceLabel}</p>
+        <p className="price-card-tax text-xs invisible" aria-hidden="true">
+          {TAX_NOTE}
+        </p>
+        <p className="price-card-body text-sm text-[#cfc4bb]">{FREE_TIER.blurb}</p>
       </article>
       {Object.values(TIERS).map((tier) => (
-        <article key={tier.id} className="lift rounded-3xl border border-lime/40 bg-[#161311] p-5">
-          <Title className="font-semibold">{tier.name}</Title>
-          <p className="font-display text-4xl">{tier.priceLabel}</p>
-          <p className="text-xs">{TAX_NOTE}</p>
-          <p className="mt-3 text-sm">{tier.blurb}</p>
+        <article key={tier.id} className="price-card lift rounded-3xl border border-lime/40 bg-[#161311] p-5">
+          <Title className="price-card-title font-semibold">{tier.name}</Title>
+          <p className="price-card-price font-display text-4xl">{tier.priceLabel}</p>
+          <p className="price-card-tax text-xs">{TAX_NOTE}</p>
+          <p className="price-card-body text-sm">{tier.blurb}</p>
         </article>
       ))}
     </div>
