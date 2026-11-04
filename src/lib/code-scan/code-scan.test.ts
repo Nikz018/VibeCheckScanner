@@ -30,9 +30,11 @@ import { PYTHON_RULES } from "./rules";
 import type { CodeScanReport } from "./types";
 
 const exec = promisify(execFile);
-const SECRET = "sk_live_abcdefghijklmnopqrstuv";
-const OPENAI = "sk-proj-abcdefghijklmnopqrstuvwxyz";
-const GROQ = "gsk_abcdefghijklmnopqrstuvwxyz";
+const SECRET = ["sk_live_", "4eKj8QpL2mN4vR7xT9aB3cD6"].join("");
+const STRIPE_TEST = ["sk_test_", "4eKj8QpL2mN4vR7xT9aB3cD6"].join("");
+const OPENAI = "sk-proj-Ab9Kx2Lm8Qp4Nv7Rs1Tu3Vw5Xy6Za8Bc0De2Fg4Hi";
+const GROQ = "gsk_Ab9Kx2Lm8Qp4Nv7Rs1Tu3Vw5Xy6Za8Bc";
+const GEMINI = "AIzaSyA1b2C3d4E5f6G7h8I9j0K1l2M3n4O5pQr";
 
 const lookup: AdvisoryLookupFn = async (packages) => {
   const byPackage = new Map();
@@ -84,7 +86,7 @@ function ids(report: CodeScanReport): Set<string> {
 test("secrets: keys, public env, service role, committed env, and git history", async () => {
   const dir = await writeRepo({
     "src/keys.ts": `const stripe = "${SECRET}";\n`,
-    "components/client.tsx": `const NEXT_PUBLIC_STRIPE_SECRET_KEY = "sk_test_abcdefghijklmnopqrstuv";\nconst SUPABASE_SERVICE_ROLE_KEY = "${serviceJwt()}";\n`,
+    "components/client.tsx": `const NEXT_PUBLIC_STRIPE_SECRET_KEY = "${STRIPE_TEST}";\nconst SUPABASE_SERVICE_ROLE_KEY = "${serviceJwt()}";\n`,
     ".env": `TOKEN=${SECRET}\n`,
   });
   try {
@@ -98,7 +100,7 @@ test("secrets: keys, public env, service role, committed env, and git history", 
     }
     const blob = JSON.stringify(report);
     assert.equal(blob.includes(SECRET), false);
-    assert.equal(blob.includes("sk_test_abcdefghijklmnopqrstuv"), false);
+    assert.equal(blob.includes(STRIPE_TEST), false);
     assert.equal(blob.includes(serviceJwt()), false);
     assert.ok(report.findings.every((finding) => finding.explanation.length > 20 && finding.fixPrompt.includes(finding.file.split(":")[0] === finding.file ? "File:" : "File:")));
     assert.ok(report.findings.every((finding) => finding.owasp.startsWith("A")));
@@ -223,6 +225,97 @@ test("payments: unsigned webhooks and client-trusted prices", async () => {
   }
 });
 
+test("placeholders, test fixtures, and verified webhooks are not flagged", async () => {
+  const { report, dir } = await scan({
+    "src/lib/code-scan/code-scan.test.ts": [
+      'assert.equal(blob.includes("sk_test_redacted"), false);',
+      'assert.equal(blob.includes("sk_test_abcdefghijklmnopqrstuv"), false);',
+      'const history = parseHistory("COMMIT:abc123456789\\n+++ b/.env\\n+TOKEN=sk_live_redacted\\n");',
+      `const leaked = "${SECRET}";`,
+    ].join("\n"),
+    "src/worker/extract-llm-keys.test.ts": 'assert.equal(blob.includes("sk-redacted"), false);\nconst anthropic = "sk-ant-api03-abcdefghijklmnopqrstuvwxyz";\n',
+    "src/lib/payments/webhook.ts": [
+      "export async function handleProviderWebhook(provider: { parseWebhook(payload: string, headers: Headers): unknown }, request: Request) {",
+      "  const payload = await request.text();",
+      "  try {",
+      "    event = provider.parseWebhook(payload, request.headers);",
+      "  } catch (error) {",
+      "    if (error instanceof MissingSignatureError) return new Response(\"Missing signature.\", { status: 400 });",
+      "    if (error instanceof InvalidSignatureError) return new Response(\"Invalid signature.\", { status: 400 });",
+      "    throw error;",
+      "  }",
+      "}",
+    ].join("\n"),
+    "app/api/pay/webhook/route.ts": [
+      'import { handleProviderWebhook } from "@/lib/payments/webhook";',
+      "export async function POST(request: Request) {",
+      "  return handleProviderWebhook(stripeProvider, request);",
+      "}",
+    ].join("\n"),
+    "src/lib/billing/accept.ts": [
+      'import { parseStripeWebhook } from "./stripe-events";',
+      "export async function acceptStripeEvent(request: Request) {",
+      "  const payload = await request.text();",
+      "  return parseStripeWebhook(payload, request.headers);",
+      "}",
+    ].join("\n"),
+    "src/lib/billing/stripe-events.ts": [
+      "export function parseStripeWebhook(payload: string, headers: Headers) {",
+      "  const signature = headers.get(\"stripe-signature\");",
+      "  if (!signature) throw new MissingSignatureError();",
+      "  return stripe.webhooks.constructEvent(payload, signature, secret);",
+      "}",
+    ].join("\n"),
+    "app/api/billing/webhook/route.ts": [
+      'import { acceptStripeEvent } from "@/lib/billing/accept";',
+      "export async function POST(request: Request) {",
+      "  const event = await acceptStripeEvent(request);",
+      "  await prisma.order.update({ where: { id: event.id }, data: { paid: true } });",
+      "}",
+    ].join("\n"),
+    "app/api/hooks/webhook/route.ts": [
+      "export async function POST(req: Request) {",
+      "  const body = await req.json();",
+      "  if (body.type === \"stripe\") await prisma.order.update({ data: { paid: body.paid } });",
+      "}",
+    ].join("\n"),
+    "src/config.ts": `export const stripeKey = "${SECRET}";\n`,
+    "src/placeholders.ts": [
+      `export const redacted = "${["sk_test_", "redacted_value_000000000000"].join("")}";`,
+      `export const example = "${["sk_live_", "examplekey00000000000000"].join("")}";`,
+      `export const yours = "${["sk_live_", "your_key_here_0000000000"].join("")}";`,
+      'export const dummy = "sk-dummy-key-abcdefghijklmnopqrstuvwxyz0123456789";',
+      `export const wrapped = "<${SECRET}>";`,
+      `// const hidden = "${SECRET}";`,
+    ].join("\n"),
+    "src/types.ts": "export interface Config { stripeSecretKey: string; apiKey: string }\n",
+    ".env.example": `STRIPE_SECRET_KEY=${["sk_live_", "your_key_here_not_real"].join("")}\n`,
+  });
+  try {
+    const files = report.findings.map((finding) => `${finding.ruleId}:${finding.file}`);
+    for (const file of [
+      "src/lib/code-scan/code-scan.test.ts",
+      "src/worker/extract-llm-keys.test.ts",
+      "src/lib/payments/webhook.ts",
+      "app/api/pay/webhook/route.ts",
+      "app/api/billing/webhook/route.ts",
+      "src/placeholders.ts",
+      "src/types.ts",
+      ".env.example",
+    ]) {
+      assert.equal(files.some((item) => item.endsWith(`:${file}`)), false, file);
+    }
+    const live = report.findings.find((finding) => finding.file === "src/config.ts");
+    assert.equal(live?.ruleId, "code_secret_hardcoded");
+    assert.equal(live?.severity, "critical");
+    const unsigned = report.findings.find((finding) => finding.file === "app/api/hooks/webhook/route.ts" && finding.ruleId === "code_pay_webhook");
+    assert.equal(unsigned?.severity, "critical");
+    assert.equal(JSON.stringify(report).includes(SECRET), false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("logging: secrets and personal data", async () => {
   const { report, dir } = await scan({
     "lib/log.ts": "export function audit(user: { email: string; password: string }) {\n  console.log(user.email, user.password);\n}\n",
@@ -242,7 +335,7 @@ test("ai security: keys, auth, prompts, output, tools, retrieval, and limits", a
       "import OpenAI from \"openai\";",
       "export async function POST(req: Request) {",
       "  const user = await req.json();",
-      "  const systemPrompt = `You are helpful. ${user.message} sk-proj-abcdefghijklmnopqrstuvwxyz`;",
+      "  const systemPrompt = `You are helpful. ${user.message} " + OPENAI + "`;",
       "  console.log(systemPrompt);",
       "  const client = new OpenAI({ apiKey: \"" + OPENAI + "\" });",
       "  const completion = await client.chat.completions.create({",
@@ -261,7 +354,7 @@ test("ai security: keys, auth, prompts, output, tools, retrieval, and limits", a
       "export async function search() {",
       "  return supabase.rpc(\"match_documents\", { query: \"hi\" });",
       "}",
-      "const GEMINI_API_KEY = \"AIzaSyabcdefghijklmnopqrstuvwxyz123456\";",
+      "const GEMINI_API_KEY = \"" + GEMINI + "\";",
       "const model = \"gemini-pro\";",
       "void GEMINI_API_KEY; void model; void spec;",
       "",
@@ -287,7 +380,7 @@ test("ai security: keys, auth, prompts, output, tools, retrieval, and limits", a
     const blob = JSON.stringify(report);
     assert.equal(blob.includes(OPENAI), false);
     assert.equal(blob.includes(GROQ), false);
-    assert.equal(blob.includes("AIzaSyabcdefghijklmnopqrstuvwxyz123456"), false);
+    assert.equal(blob.includes(GEMINI), false);
     assert.match(report.owaspNote, /aligned with the OWASP Top 10/);
     assert.match(report.owaspNote, /not a certification/);
     assert.equal(report.privacy.toLowerCase().includes("training"), true);

@@ -4,9 +4,24 @@ import type { Severity } from "@/lib/catalog";
 import { jwtRole, sanitizeCode, sanitizeCustomerText } from "@/lib/sanitize";
 import { abandonedPackages, typosquatPackages } from "./dependencies";
 import { maskSecretsInText, maskSnippet } from "./mask";
+import {
+  SIGNATURE_SIGNAL,
+  findAcceptedSecrets,
+  hasCodeSignal,
+  isGitIgnored,
+  languageOf,
+  lineHasRegexSource,
+  looksLikeRealSecret,
+  quotedValue,
+  reachableFiles,
+  regionAt,
+  reachesSignatureVerification,
+  type ScanLanguage,
+} from "./signals";
 import type { CodeFamily, CodeFinding, HistoryHit, OwaspId, RuleScope, SourceFile } from "./types";
 
 export interface RepoFacts {
+  root: string;
   files: SourceFile[];
   javascript: SourceFile[];
   sql: SourceFile[];
@@ -26,19 +41,6 @@ export interface Rule {
   owasp: OwaspId[];
   run: (repo: RepoFacts) => CodeFinding[];
 }
-
-const KEYS: Array<{ id: string; label: string; ai: boolean; source: string }> = [
-  { id: "anthropic", label: "an Anthropic API key", ai: true, source: "\\bsk-ant-[A-Za-z0-9_-]{10,}" },
-  { id: "openai_proj", label: "an OpenAI API key", ai: true, source: "\\bsk-proj-[A-Za-z0-9_-]{10,}" },
-  { id: "groq", label: "a Groq API key", ai: true, source: "\\bgsk_[A-Za-z0-9]{16,}" },
-  { id: "xai", label: "an xAI API key", ai: true, source: "\\bxai-[A-Za-z0-9_-]{12,}" },
-  { id: "openai", label: "an OpenAI API key", ai: true, source: "\\bsk-[A-Za-z0-9_-]{16,}" },
-  { id: "stripe_live", label: "a Stripe live secret key", ai: false, source: "\\bsk_live_[A-Za-z0-9]{8,}" },
-  { id: "stripe", label: "a Stripe secret key", ai: false, source: "\\bsk_test_[A-Za-z0-9]{8,}" },
-  { id: "aws", label: "an AWS access key id", ai: false, source: "\\bAKIA[0-9A-Z]{16}\\b" },
-  { id: "github", label: "a GitHub token", ai: false, source: "\\bghp_[A-Za-z0-9]{20,}" },
-  { id: "pem", label: "a private key", ai: false, source: "-----BEGIN [A-Z ]*PRIVATE KEY-----[\\s\\S]*?-----END [A-Z ]*PRIVATE KEY-----" },
-];
 
 function makeFinding(input: {
   ruleId: string;
@@ -74,23 +76,33 @@ function lineText(text: string, line: number): string {
   return text.split(/\r?\n/)[line - 1] ?? "";
 }
 
-function firstMatch(text: string, source: string): { line: number; snippet: string } | null {
-  const expression = new RegExp(source, "i");
-  const match = expression.exec(text);
-  if (!match || match.index === undefined) return null;
-  const line = lineAt(text, match.index);
-  return { line, snippet: lineText(text, line) || match[0].split(/\r?\n/)[0] };
+function firstMatch(
+  text: string,
+  source: string,
+  language: ScanLanguage = "javascript",
+): { index: number; line: number; snippet: string; value: string } | null {
+  for (const hit of eachMatch(text, source, language)) return hit;
+  return null;
 }
 
-function eachMatch(text: string, source: string): Array<{ line: number; snippet: string; value: string }> {
+function eachMatch(
+  text: string,
+  source: string,
+  language: ScanLanguage = "javascript",
+): Array<{ index: number; line: number; snippet: string; value: string }> {
   const expression = new RegExp(source, "gi");
-  const hits: Array<{ line: number; snippet: string; value: string }> = [];
+  const hits: Array<{ index: number; line: number; snippet: string; value: string }> = [];
   for (const match of text.matchAll(expression)) {
     if (match.index === undefined) continue;
+    if (regionAt(text, match.index, language) === "comment") continue;
     const line = lineAt(text, match.index);
-    hits.push({ line, snippet: lineText(text, line) || match[0].split(/\r?\n/)[0], value: match[0] });
+    hits.push({ index: match.index, line, snippet: lineText(text, line) || match[0].split(/\r?\n/)[0], value: match[0] });
   }
   return hits;
+}
+
+function reachableSignal(file: SourceFile, repo: RepoFacts, source: string): boolean {
+  return reachableFiles(file, repo.files, 2).some((item) => hasCodeSignal(item.text, source, languageOf(item)));
 }
 
 function promptFor(file: string, line: number, problem: string, change: string): string {
@@ -132,41 +144,50 @@ function isAdminRoute(file: string): boolean {
   return /\/admin\/(?:.*\/)?route\.[a-z]+$/.test(normalized) || /\/api\/admin\.[a-z]+$/.test(normalized);
 }
 
-const AUTH = /getSession|getCurrentUser|auth\(\)|requireUser|requireAuth|getUser\(|getServerSession|cookies\(\)|authorization|withAuth|clerkMiddleware|createServerClient/;
+const AUTH_SIGNAL =
+  "getSession|readSession|getCurrentUser|auth\\(\\)|requireUser|requireAuth|requirePaid|getUser\\(|getServerSession|cookies\\(\\)|authorization|withAuth|clerkMiddleware|createServerClient|shareToken|verify\\w*Webhook";
+const ROLE_SIGNAL = "isAdmin|requireAdmin|role\\s*!==?\\s*[\"']admin[\"']|session\\.role|user\\.role";
 const DATA = /\.from\(|prisma\.|sql`|db\.query|collection\(|findUnique|findFirst|findMany/;
 const HANDLER = /export\s+(?:async\s+)?function\s+(?:GET|POST|PUT|PATCH|DELETE)|export\s+const\s+(?:GET|POST|PUT|PATCH|DELETE)\b/;
-const RATE = /rateLimit|ratelimit|rateLimiter|limiter|upstash/i;
+const RATE_SIGNAL = "rateLimit|ratelimit|rateLimiter|\\blimiter\\b|upstash";
+
+function secretOnLine(file: SourceFile, index: number, valueLength = 0): boolean {
+  const line = lineText(file.text, lineAt(file.text, index));
+  if (lineHasRegexSource(line)) return false;
+  if (regionAt(file.text, index, languageOf(file)) === "comment") return false;
+  if (file.text[index - 1] === "<" && file.text[index + valueLength] === ">") return false;
+  return true;
+}
 
 function secretsRule(repo: RepoFacts): CodeFinding[] {
   const findings: CodeFinding[] = [];
   for (const file of repo.files) {
     if (file.kind === "lock") continue;
-    for (const key of KEYS) {
-      for (const hit of eachMatch(file.text, key.source)) {
-        if (key.id === "openai" && (hit.value.startsWith("sk-ant-") || hit.value.startsWith("sk-proj-"))) continue;
-        const ai = key.ai;
-        findings.push(
-          makeFinding({
-            ruleId: ai ? "code_ai_provider_key" : "code_secret_hardcoded",
-            family: ai ? "AI security" : "Secrets",
-            file: file.relativePath,
-            line: hit.line,
-            snippet: hit.snippet,
-            severity: "critical",
-            title: ai ? "Model provider key is in the repository" : "Secret is hardcoded in the repository",
-            explanation: `This line contains ${key.label}. Anyone who can read the repository, or the built app if this file is bundled, can use it.`,
-            owasp: "A02:2021",
-            fixPrompt: promptFor(
-              file.relativePath,
-              hit.line,
-              `Remove ${key.label} from source.`,
-              "Move the value to a server-only environment variable, rotate the old key, and read it only on the server.",
-            ),
-          }),
-        );
-      }
+    if (file.kind === "env" && isGitIgnored(repo.root, file.relativePath)) continue;
+    for (const hit of findAcceptedSecrets(file.text)) {
+      if (!secretOnLine(file, hit.index, hit.value.length)) continue;
+      const ai = hit.ai;
+      findings.push(
+        makeFinding({
+          ruleId: ai ? "code_ai_provider_key" : "code_secret_hardcoded",
+          family: ai ? "AI security" : "Secrets",
+          file: file.relativePath,
+          line: lineAt(file.text, hit.index),
+          snippet: lineText(file.text, lineAt(file.text, hit.index)) || hit.value.split(/\r?\n/)[0],
+          severity: "critical",
+          title: ai ? "Model provider key is in the repository" : "Secret is hardcoded in the repository",
+          explanation: `This line contains ${hit.label}. Anyone who can read the repository, or the built app if this file is bundled, can use it.`,
+          owasp: "A02:2021",
+          fixPrompt: promptFor(
+            file.relativePath,
+            lineAt(file.text, hit.index),
+            `Remove ${hit.label} from source.`,
+            "Move the value to a server-only environment variable, rotate the old key, and read it only on the server.",
+          ),
+        }),
+      );
     }
-    for (const hit of eachMatch(file.text, "\\beyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{4,}")) {
+    for (const hit of eachMatch(file.text, "\\beyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{4,}", languageOf(file))) {
       if (jwtRole(hit.value) !== "service_role") continue;
       const client = isClientPath(file.relativePath, file.text);
       findings.push(
@@ -191,11 +212,9 @@ function secretsRule(repo: RepoFacts): CodeFinding[] {
         }),
       );
     }
-    if (/(?:^|\/)(?:app\/api|pages\/api|server)\//.test(file.relativePath)) {
-      // Service-role assignment by name in server files is still a hardcoded secret.
-    }
-    const namedService = firstMatch(file.text, "SUPABASE_SERVICE_ROLE(?:_KEY)?\\s*[:=]\\s*[\"'`][^\"'`]{8,}");
-    if (namedService && isClientPath(file.relativePath, file.text)) {
+    const namedService = firstMatch(file.text, "SUPABASE_SERVICE_ROLE(?:_KEY)?\\s*[:=]\\s*[\"'`][^\"'`]{8,}", languageOf(file));
+    const namedValue = namedService ? quotedValue(namedService.snippet) : null;
+    if (namedService && namedValue && isClientPath(file.relativePath, file.text) && (jwtRole(namedValue) === "service_role" || looksLikeRealSecret(namedValue))) {
       findings.push(
         makeFinding({
           ruleId: "code_secret_service_role_client",
@@ -214,8 +233,10 @@ function secretsRule(repo: RepoFacts): CodeFinding[] {
     const publicVar = firstMatch(
       file.text,
       "(?:NEXT_PUBLIC|VITE)_[A-Z0-9_]*(?:SECRET|SERVICE_ROLE|PRIVATE|PASSWORD|TOKEN|API_KEY)[A-Z0-9_]*\\s*[:=]\\s*[\"'`][^\"'`]{6,}",
+      languageOf(file),
     );
-    if (publicVar) {
+    const publicValue = publicVar ? quotedValue(publicVar.snippet) : null;
+    if (publicVar && publicValue && looksLikeRealSecret(publicValue)) {
       findings.push(
         makeFinding({
           ruleId: "code_secret_public_env",
@@ -237,23 +258,55 @@ function secretsRule(repo: RepoFacts): CodeFinding[] {
       );
     }
     if (file.kind === "env") {
-      findings.push(
-        makeFinding({
-          ruleId: "code_secret_env_file",
-          family: "Secrets",
-          file: file.relativePath,
-          line: 1,
-          snippet: lineText(file.text, 1) || "(empty env file)",
-          severity: "critical",
-          title: "Environment file is committed",
-          explanation: "An env file is in the repository. Those files often hold live keys, and deleting the file later does not remove it from history.",
-          owasp: "A02:2021",
-          fixPrompt: promptFor(file.relativePath, 1, "An env file is tracked.", "Remove it from the tree and from git history, add it to the ignore file, and rotate every value that was committed."),
-        }),
-      );
+      const secretLine = envSecretLine(file.text);
+      if (secretLine) {
+        findings.push(
+          makeFinding({
+            ruleId: "code_secret_env_file",
+            family: "Secrets",
+            file: file.relativePath,
+            line: secretLine.line,
+            snippet: secretLine.text,
+            severity: "critical",
+            title: "Environment file is committed",
+            explanation: "An env file in the repository holds a live-looking value. Deleting the file later does not remove it from history.",
+            owasp: "A02:2021",
+            fixPrompt: promptFor(file.relativePath, secretLine.line, "An env file with a secret is tracked.", "Remove it from the tree and from git history, add it to the ignore file, and rotate every value that was committed."),
+          }),
+        );
+      }
     }
   }
   return dedupe(findings);
+}
+
+function envSecretLine(text: string): { line: number; text: string } | null {
+  const lines = text.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!line.trim() || line.trim().startsWith("#")) continue;
+    const match = line.match(/^([A-Za-z0-9_]+)\s*=\s*(.*)$/);
+    if (!match) continue;
+    const name = match[1];
+    if (!/(SECRET|PASSWORD|TOKEN|PRIVATE|API_KEY|DATABASE_URL|REDIS_URL)/i.test(name)) continue;
+    const raw = match[2].trim().replace(/^["']|["']$/g, "");
+    if (findAcceptedSecrets(raw).length > 0 || connectionSecret(raw) || looksLikeRealSecret(raw)) {
+      return { line: index + 1, text: line };
+    }
+  }
+  return null;
+}
+
+function connectionSecret(value: string): boolean {
+  const userinfo = value.match(/^[a-z][a-z0-9+.-]*:\/\/([^/\s]+)@/i);
+  if (!userinfo) return false;
+  const password = decodeURIComponent(userinfo[1].split(":").slice(1).join(":"));
+  return looksLikeRealSecret(password);
+}
+
+function historyLineIsSecret(lineText: string): boolean {
+  if (findAcceptedSecrets(lineText).length > 0) return true;
+  return /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}/.test(lineText) && jwtRole(lineText.match(/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}/)?.[0] ?? "") === "service_role";
 }
 
 function historyRule(repo: RepoFacts): CodeFinding[] {
@@ -261,8 +314,9 @@ function historyRule(repo: RepoFacts): CodeFinding[] {
   const seen = new Set<string>();
   for (const hit of repo.history) {
     const env = isHistoryEnv(hit.path);
-    const secret = KEYS.some((key) => new RegExp(key.source, "i").test(hit.lineText)) || /service_role/.test(hit.lineText);
+    const secret = !env && historyLineIsSecret(hit.lineText);
     if (!env && !secret) continue;
+    if (env && hit.lineText !== "env file committed" && !historyLineIsSecret(hit.lineText) && !envSecretLine(`${hit.lineText}\n`)) continue;
     const key = `${hit.commit}:${hit.path}:${env ? "env" : hit.lineText.slice(0, 40)}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -367,7 +421,7 @@ function accessRule(repo: RepoFacts): CodeFinding[] {
   const findings: CodeFinding[] = [];
   for (const file of repo.javascript) {
     if (!isApiRoute(file.relativePath) || !HANDLER.test(file.text)) continue;
-    const hasAuth = AUTH.test(file.text);
+    const hasAuth = reachableSignal(file, repo, `${AUTH_SIGNAL}|${SIGNATURE_SIGNAL}`);
     const hasData = DATA.test(file.text);
     if (hasData && !hasAuth) {
       const place = firstMatch(file.text, "export\\s+(?:async\\s+)?function\\s+(?:GET|POST|PUT|PATCH|DELETE)|export\\s+const\\s+(?:GET|POST)");
@@ -415,19 +469,20 @@ function accessRule(repo: RepoFacts): CodeFinding[] {
         }),
       );
     }
-    if (isAdminRoute(file.relativePath) && !/isAdmin|requireAdmin|role\s*!==?\s*["']admin["']|session\.role|user\.role/.test(file.text)) {
+    if (isAdminRoute(file.relativePath) && !reachableSignal(file, repo, ROLE_SIGNAL)) {
+      const place = firstMatch(file.text, "export\\s+(?:async\\s+)?function\\s+(?:GET|POST|PUT|PATCH|DELETE)|export\\s+const\\s+(?:GET|POST)", languageOf(file));
       findings.push(
         makeFinding({
           ruleId: "code_access_admin",
           family: "Access control",
           file: file.relativePath,
-          line: 1,
-          snippet: file.relativePath,
+          line: place?.line ?? 1,
+          snippet: place?.snippet ?? file.relativePath,
           severity: "critical",
           title: "Admin route has no role check",
           explanation: "This route lives under an admin path and the file does not check an admin role. Any caller who can hit the URL can use it.",
           owasp: "A01:2021",
-          fixPrompt: promptFor(file.relativePath, 1, "The admin route does not check a role.", "Require a signed-in admin on the server and return 403 for everyone else."),
+          fixPrompt: promptFor(file.relativePath, place?.line ?? 1, "The admin route does not check a role.", "Require a signed-in admin on the server and return 403 for everyone else."),
         }),
       );
     }
@@ -503,10 +558,7 @@ function databaseRule(repo: RepoFacts): CodeFinding[] {
   }
   const sources = [...repo.javascript, ...repo.sql, ...repo.files.filter((file) => file.language === "python")];
   for (const file of sources) {
-    const concat = firstMatch(
-      file.text,
-      "(?:select|insert|update|delete)\\b[\\s\\S]{0,180}(?:\\$\\{\\s*(?:req|request|body|params|query|input|user|searchParams)|\\+\\s*(?:req|request|body|params|query|input|user|searchParams))",
-    );
+    const concat = sqlConcatenation(file);
     if (!concat) continue;
     findings.push(
       makeFinding({
@@ -526,31 +578,44 @@ function databaseRule(repo: RepoFacts): CodeFinding[] {
   return dedupe(findings);
 }
 
+function sqlConcatenation(file: SourceFile): { line: number; snippet: string } | null {
+  const language = languageOf(file);
+  const userInput = /(?:\$\{\s*(?:req|request|body|params|query|input|user|searchParams|user_id)\b|["'`]\s*\+\s*(?:req|request|body|params|query|input|user|searchParams|user_id)\b)/;
+  for (const match of file.text.matchAll(/\b(?:select|insert|update|delete)\b/gi)) {
+    const index = match.index ?? 0;
+    if (regionAt(file.text, index, language) !== "string") continue;
+    const after = file.text.slice(index + match[0].length, index + match[0].length + 1);
+    if (after === "(") continue;
+    const window = file.text.slice(index, index + 240);
+    if (!userInput.test(window)) continue;
+    const line = lineAt(file.text, index);
+    return { line, snippet: lineText(file.text, line) };
+  }
+  return null;
+}
+
 function injectionRule(repo: RepoFacts): CodeFinding[] {
   const findings: CodeFinding[] = [];
   for (const file of repo.javascript) {
-    const html = firstMatch(file.text, "dangerouslySetInnerHTML|\\.innerHTML\\s*=");
-    if (html && !/__html\s*:\s*["'`]/.test(html.snippet) && !/innerHTML\s*=\s*["'`]/.test(html.snippet)) {
-      const userish = /props|params|user|data|html|content|message|children|input|query|body/.test(file.text);
-      if (userish || /dangerouslySetInnerHTML/.test(html.snippet)) {
-        findings.push(
-          makeFinding({
-            ruleId: "code_inject_html",
-            family: "Injection and output",
-            file: file.relativePath,
-            line: html.line,
-            snippet: html.snippet,
-            severity: "high",
-            title: "HTML is rendered from data",
-            explanation: "The page writes HTML from a value instead of text. If that value includes user content, the browser will run it.",
-            owasp: "A03:2021",
-            fixPrompt: promptFor(file.relativePath, html.line, "HTML is set from a variable.", "Render text, or sanitize the HTML with a strict allow-list before it reaches the page."),
-          }),
-        );
-      }
+    const html = unsafeHtml(file);
+    if (html) {
+      findings.push(
+        makeFinding({
+          ruleId: "code_inject_html",
+          family: "Injection and output",
+          file: file.relativePath,
+          line: html.line,
+          snippet: html.snippet,
+          severity: "high",
+          title: "HTML is rendered from data",
+          explanation: "The page writes HTML from a value instead of text. If that value includes user content, the browser will run it.",
+          owasp: "A03:2021",
+          fixPrompt: promptFor(file.relativePath, html.line, "HTML is set from a variable.", "Render text, or sanitize the HTML with a strict allow-list before it reaches the page."),
+        }),
+      );
     }
-    const evaluated = firstMatch(file.text, "(?:^|[^\\w])eval\\s*\\(|new\\s+Function\\s*\\(");
-    if (evaluated && !/eval\s*\(\s*["'`]/.test(evaluated.snippet) && !/new\s+Function\s*\(\s*["'`]/.test(evaluated.snippet)) {
+    const evaluated = codeCall(file, "(?<![\\w.])eval\\s*\\(|(?<![\\w.])new\\s+Function\\s*\\(");
+    if (evaluated && !/eval\s*\(\s*["'`][^"'`]*["'`]/.test(evaluated.snippet) && !/new\s+Function\s*\(\s*["'`]/.test(evaluated.snippet)) {
       findings.push(
         makeFinding({
           ruleId: "code_inject_eval",
@@ -566,8 +631,8 @@ function injectionRule(repo: RepoFacts): CodeFinding[] {
         }),
       );
     }
-    const command = firstMatch(file.text, "(?:exec|execSync|spawn|spawnSync)\\s*\\(");
-    if (command && !/(?:exec|execSync|spawn|spawnSync)\s*\(\s*["'][^"']+["']\s*[,)]/.test(command.snippet)) {
+    const command = unsafeCommand(file);
+    if (command) {
       findings.push(
         makeFinding({
           ruleId: "code_inject_command",
@@ -583,7 +648,7 @@ function injectionRule(repo: RepoFacts): CodeFinding[] {
         }),
       );
     }
-    const fetchHit = firstMatch(file.text, "fetch\\s*\\(\\s*(?:req\\.|request\\.|searchParams|params\\.|body\\.|`[^`]*\\$\\{[^}]*(?:req|searchParams|params|body|user|input))");
+    const fetchHit = codeCall(file, "fetch\\s*\\(\\s*(?:req\\.|request\\.|searchParams|params\\.|body\\.|`[^`]*\\$\\{[^}]*(?:req|searchParams|params|body|user|input))");
     if (fetchHit) {
       findings.push(
         makeFinding({
@@ -600,8 +665,8 @@ function injectionRule(repo: RepoFacts): CodeFinding[] {
         }),
       );
     }
-    const redirect = firstMatch(file.text, "(?:redirect|res\\.redirect)\\s*\\(\\s*(?:searchParams|req\\.query|req\\.body|params\\.|next\\b|destination)");
-    if (redirect) {
+    const redirect = codeCall(file, "(?:redirect|res\\.redirect)\\s*\\(\\s*(?:searchParams|req\\.query|req\\.body|params\\.|next\\b|destination)");
+    if (redirect && regionAt(file.text, redirect.index, "javascript") === "code") {
       findings.push(
         makeFinding({
           ruleId: "code_inject_redirect",
@@ -617,26 +682,90 @@ function injectionRule(repo: RepoFacts): CodeFinding[] {
         }),
       );
     }
-    const upload = /writeFile|writeFileSync|putObject/.test(file.text) && /formData|req\.file|multer/.test(file.text);
-    if (upload && !/mimetype|mime|content-type|allowedTypes|fileFilter|maxSize|file\.size/i.test(file.text)) {
-      const place = firstMatch(file.text, "writeFile|writeFileSync|putObject");
+    const upload = unsafeUpload(file);
+    if (upload) {
       findings.push(
         makeFinding({
           ruleId: "code_inject_upload",
           family: "Injection and output",
           file: file.relativePath,
-          line: place?.line ?? 1,
-          snippet: place?.snippet ?? "upload",
+          line: upload.line,
+          snippet: upload.snippet,
           severity: "medium",
           title: "Upload is saved without a type or size check",
           explanation: "The handler writes an uploaded file and does not check the type or size. That can store unexpected content.",
           owasp: "A04:2021",
-          fixPrompt: promptFor(file.relativePath, place?.line ?? 1, "The upload is not validated.", "Allow only expected types, reject large files, and store them outside the public web root."),
+          fixPrompt: promptFor(file.relativePath, upload.line, "The upload is not validated.", "Allow only expected types, reject large files, and store them outside the public web root."),
         }),
       );
     }
   }
   return dedupe(findings);
+}
+
+function codeCall(file: SourceFile, source: string): { index: number; line: number; snippet: string; value: string } | null {
+  for (const hit of eachMatch(file.text, source, languageOf(file))) {
+    if (regionAt(file.text, hit.index, languageOf(file)) !== "code") continue;
+    if (lineHasRegexSource(hit.snippet)) continue;
+    return hit;
+  }
+  return null;
+}
+
+const HTML_VALUE = /\b(?:props|params|user|html|content|message|children|input|query|body|markdown|raw|location|hash)\b/i;
+
+function unsafeHtml(file: SourceFile): { line: number; snippet: string } | null {
+  const expression = /dangerouslySetInnerHTML\s*=\s*\{\{[^}]*__html\s*:\s*([^}\n]+)\}|\.innerHTML\s*=\s*([^;\n]+)/g;
+  for (const match of file.text.matchAll(expression)) {
+    const index = match.index ?? 0;
+    if (regionAt(file.text, index, "javascript") !== "code") continue;
+    const line = lineText(file.text, lineAt(file.text, index));
+    if (lineHasRegexSource(line)) continue;
+    const value = (match[1] || match[2] || "").trim();
+    if (!value || /^["'`]/.test(value)) continue;
+    if (/JSON\.stringify|escapeHtml|sanitize|DOMPurify/.test(value)) continue;
+    const ident = /^[A-Za-z_$][\w$]*/.exec(value)?.[0];
+    if (ident) {
+      const declaration = new RegExp(`(?:const|let|var)\\s+${ident}\\s*=\\s*([^\\n;]+)`).exec(file.text);
+      if (declaration && /JSON\.stringify|escapeHtml|sanitize|DOMPurify/.test(declaration[1])) continue;
+    }
+    if (!HTML_VALUE.test(value)) continue;
+    return { line: lineAt(file.text, index), snippet: line };
+  }
+  return null;
+}
+
+function unsafeCommand(file: SourceFile): { line: number; snippet: string } | null {
+  for (const hit of eachMatch(file.text, "(?<![\\w.])(?:execSync|exec|spawnSync|spawn)\\s*\\(", languageOf(file))) {
+    if (regionAt(file.text, hit.index, languageOf(file)) !== "code") continue;
+    if (lineHasRegexSource(hit.snippet)) continue;
+    const window = file.text.slice(hit.index, hit.index + 360);
+    const call = /^(execSync|exec|spawnSync|spawn)\s*\(/.exec(window);
+    if (!call) continue;
+    const name = call[1];
+    const rest = window.slice(call[0].length);
+    if (/shell\s*:\s*true/.test(window) && name.startsWith("spawn")) {
+      return { line: hit.line, snippet: hit.snippet };
+    }
+    if (/^\s*["'][^"'\n]+["']\s*[,)]/.test(rest)) continue;
+    if (name.startsWith("spawn") && /^\s*(?:["'][^"'\n]+["']|process\.execPath|process\.argv\[0\])\s*,\s*\[/.test(rest)) continue;
+    if (name === "exec" || name === "execSync") return { line: hit.line, snippet: hit.snippet };
+    if (name.startsWith("spawn") && !/^\s*(?:["']|process\.execPath|process\.argv\[0\])/.test(rest)) {
+      return { line: hit.line, snippet: hit.snippet };
+    }
+  }
+  return null;
+}
+
+function unsafeUpload(file: SourceFile): { line: number; snippet: string } | null {
+  for (const hit of eachMatch(file.text, "\\b(?:writeFileSync|writeFile|putObject)\\s*\\(", languageOf(file))) {
+    if (regionAt(file.text, hit.index, languageOf(file)) !== "code") continue;
+    const window = file.text.slice(Math.max(0, hit.index - 500), hit.index + 500);
+    if (!/formData|req\.file|multer/.test(window)) continue;
+    if (/mimetype|mime|content-type|allowedTypes|fileFilter|maxSize|file\.size/i.test(window)) continue;
+    return { line: hit.line, snippet: hit.snippet };
+  }
+  return null;
 }
 
 function configRule(repo: RepoFacts): CodeFinding[] {
@@ -659,25 +788,28 @@ function configRule(repo: RepoFacts): CodeFinding[] {
         }),
       );
     }
-    if (/^next\.config\./.test(file.relativePath.split("/").pop() ?? "") && !/content-security-policy|Content-Security-Policy|X-Frame-Options|strict-transport-security|headers\s*\(/i.test(file.text)) {
+    const headerNames = /content-security-policy|Content-Security-Policy|X-Frame-Options|strict-transport-security/i;
+    const headersInMiddleware = repo.files.some((item) => /(?:^|\/)middleware\.[cm]?[jt]sx?$/.test(item.relativePath) && headerNames.test(item.text));
+    if (/^next\.config\./.test(file.relativePath.split("/").pop() ?? "") && !headerNames.test(file.text) && !/headers\s*\(/.test(file.text) && !headersInMiddleware) {
+      const place = firstMatch(file.text, "const\\s+nextConfig|module\\.exports|export\\s+default", languageOf(file));
       findings.push(
         makeFinding({
           ruleId: "code_config_headers",
           family: "Configuration",
           file: file.relativePath,
-          line: 1,
-          snippet: lineText(file.text, 1) || "next config",
+          line: place?.line ?? 1,
+          snippet: place?.snippet || lineText(file.text, 1) || "next config",
           severity: "low",
           title: "Security headers are not set in the app config",
           explanation: "The Next config does not set a content security policy, frame protection, or strict transport security. Browsers will not get those protections from this file.",
           owasp: "A05:2021",
-          fixPrompt: promptFor(file.relativePath, 1, "Security headers are missing from the app config.", "Add headers for Content-Security-Policy, X-Frame-Options, and Strict-Transport-Security."),
+          fixPrompt: promptFor(file.relativePath, place?.line ?? 1, "Security headers are missing from the app config.", "Add headers for Content-Security-Policy, X-Frame-Options, and Strict-Transport-Security."),
         }),
       );
     }
-    if (/\.stack\b/.test(file.text) && /NextResponse\.json|res\.json|res\.send/.test(file.text)) {
-      const place = firstMatch(file.text, "\\.stack\\b");
-      if (place) {
+    const stack = nearResponse(file, "\\.stack\\b", "NextResponse\\.json|res\\.json|res\\.send");
+    if (stack) {
+      const place = stack;
         findings.push(
           makeFinding({
             ruleId: "code_config_debug",
@@ -692,26 +824,26 @@ function configRule(repo: RepoFacts): CodeFinding[] {
             fixPrompt: promptFor(file.relativePath, place.line, "A stack trace is available to the response.", "Log the stack on the server and return a short message to the client."),
           }),
         );
-      }
     }
-    if (isAuthRoute(file.relativePath) && HANDLER.test(file.text) && !RATE.test(file.text)) {
+    if (isAuthRoute(file.relativePath) && HANDLER.test(file.text) && !reachableSignal(file, repo, RATE_SIGNAL)) {
+      const place = firstMatch(file.text, "export\\s+(?:async\\s+)?function\\s+(?:GET|POST|PUT|PATCH|DELETE)|export\\s+const\\s+(?:GET|POST)", languageOf(file));
       findings.push(
         makeFinding({
           ruleId: "code_config_rate_limit",
           family: "Configuration",
           file: file.relativePath,
-          line: 1,
-          snippet: file.relativePath,
+          line: place?.line ?? 1,
+          snippet: place?.snippet ?? file.relativePath,
           severity: "medium",
           title: "Auth route has no rate limit",
           explanation: "This login or signup route does not limit how often it can be called. Attackers can guess passwords or create accounts without a delay.",
           owasp: "A07:2021",
-          fixPrompt: promptFor(file.relativePath, 1, "The auth route is not rate limited.", "Limit attempts per IP and per account, and return 429 when the limit is hit."),
+          fixPrompt: promptFor(file.relativePath, place?.line ?? 1, "The auth route is not rate limited.", "Limit attempts per IP and per account, and return 429 when the limit is hit."),
         }),
       );
     }
-    const cookie = firstMatch(file.text, "httpOnly\\s*:\\s*false|secure\\s*:\\s*false|sameSite\\s*:\\s*[\"']none[\"']");
-    if (cookie && /cookie|setCookie|cookies\(/i.test(file.text)) {
+    const cookie = nearResponse(file, "httpOnly\\s*:\\s*false|secure\\s*:\\s*false|sameSite\\s*:\\s*[\"']none[\"']", "cookie|setCookie|cookies\\(");
+    if (cookie) {
       findings.push(
         makeFinding({
           ruleId: "code_config_cookie",
@@ -727,8 +859,9 @@ function configRule(repo: RepoFacts): CodeFinding[] {
         }),
       );
     }
-    if (/createHash\(\s*["'](?:md5|sha1)["']\)/.test(file.text) && /password/i.test(file.text)) {
-      const place = firstMatch(file.text, "createHash\\(\\s*[\"'](?:md5|sha1)[\"']\\)");
+    const weakHash = nearResponse(file, "createHash\\(\\s*[\"'](?:md5|sha1)[\"']\\)", "password");
+    if (weakHash) {
+      const place = weakHash;
       findings.push(
         makeFinding({
           ruleId: "code_config_hash",
@@ -748,41 +881,53 @@ function configRule(repo: RepoFacts): CodeFinding[] {
   return dedupe(findings);
 }
 
+function nearResponse(file: SourceFile, left: string, right: string): { line: number; snippet: string } | null {
+  const language = languageOf(file);
+  for (const hit of eachMatch(file.text, left, language)) {
+    if (regionAt(file.text, hit.index, language) === "comment") continue;
+    const window = file.text.slice(Math.max(0, hit.index - 350), hit.index + 350);
+    if (!new RegExp(right, "i").test(window)) continue;
+    return { line: hit.line, snippet: hit.snippet };
+  }
+  return null;
+}
+
 function paymentRule(repo: RepoFacts): CodeFinding[] {
   const findings: CodeFinding[] = [];
   for (const file of repo.javascript) {
-    const webhook = /webhook/i.test(file.relativePath) && /stripe|payment|dodo|checkout/i.test(file.text);
-    if (webhook && !/constructEvent|stripe-signature|webhook-signature|webhookSecret|standardwebhooks|verifySignature/i.test(file.text)) {
+    const paymentWords = hasCodeSignal(file.text, "stripe|payment|dodo|checkout", languageOf(file));
+    if (isApiRoute(file.relativePath) && /webhook/i.test(file.relativePath) && paymentWords && !reachesSignatureVerification(file, repo.files)) {
+      const place = firstMatch(file.text, "export\\s+(?:async\\s+)?function\\s+(?:GET|POST|PUT|PATCH|DELETE)|export\\s+const\\s+(?:GET|POST)", languageOf(file));
       findings.push(
         makeFinding({
           ruleId: "code_pay_webhook",
           family: "Payments",
           file: file.relativePath,
-          line: 1,
-          snippet: file.relativePath,
+          line: place?.line ?? 1,
+          snippet: place?.snippet ?? file.relativePath,
           severity: "critical",
           title: "Payment webhook does not check a signature",
           explanation: "This webhook handler talks about a payment and does not verify the provider signature. Anyone can post a fake paid event.",
           owasp: "A08:2021",
-          fixPrompt: promptFor(file.relativePath, 1, "The webhook body is trusted without a signature.", "Verify the provider signature with the webhook secret before changing an order."),
+          fixPrompt: promptFor(file.relativePath, place?.line ?? 1, "The webhook body is trusted without a signature.", "Verify the provider signature with the webhook secret before changing an order."),
         }),
       );
     }
-    const clientPrice = /body\.(?:amount|price|paid)\b|(?:amount|price|paid)\s*:\s*(?:body|req\.body|payload)\./.test(file.text);
-    if (clientPrice && /stripe|checkout|payment|order/i.test(file.text) && !/constructEvent|stripe-signature/i.test(file.text)) {
-      const place = firstMatch(file.text, "body\\.(?:amount|price|paid)|(?:amount|price|paid)\\s*:\\s*(?:body|req\\.body|payload)\\.");
+    const clientPrice = codeCall(file, "body\\.(?:amount|price|paid)\\b|(?:amount|price|paid)\\s*:\\s*(?:body|req\\.body|payload)\\.");
+    const verifiedHere = hasCodeSignal(file.text, "constructEvent|stripe-signature", languageOf(file));
+    if (clientPrice && paymentWords && !verifiedHere) {
       findings.push(
         makeFinding({
           ruleId: "code_pay_client_price",
           family: "Payments",
           file: file.relativePath,
-          line: place?.line ?? 1,
-          snippet: place?.snippet ?? "price",
+          line: clientPrice.line,
+          snippet: clientPrice.snippet,
           severity: "critical",
           title: "Price or paid status comes from the client",
           explanation: "The handler trusts an amount or paid flag sent by the browser. A caller can change the price or mark an order paid.",
           owasp: "A04:2021",
-          fixPrompt: promptFor(file.relativePath, place?.line ?? 1, "The client supplies the price or paid flag.", "Look up the price on the server and set paid only after a verified payment event."),
+          fixPrompt: promptFor(file.relativePath, clientPrice.line, "The client supplies the price or paid flag.", "Look up the price on the server and set paid only after a verified payment event."),
         }),
       );
     }
@@ -798,11 +943,12 @@ function loggingRule(repo: RepoFacts): CodeFinding[] {
     const source = file.language === "python" ? file.text : file.text;
     const expression = file.language === "python" ? /(?:print|logger\.\w+)\s*\(([^)\n]{0,180})\)/g : pattern;
     for (const match of source.matchAll(expression)) {
+      const index = match.index ?? 0;
+      if (regionAt(file.text, index, languageOf(file)) !== "code") continue;
       const args = match[1] ?? "";
-      if (/^[\s"'`]/.test(args) && !/(password|secret|api[_-]?key|token|prompt|email)/i.test(args.replace(/["'`][^"'`]*["'`]/g, ""))) continue;
-      if (!/(password|secret|api[_-]?key|token|prompt|email|ssn)/i.test(args)) continue;
-      if (/^[\s]*["'`][^"'`]*["'`]\s*$/.test(args)) continue;
-      const line = lineAt(file.text, match.index ?? 0);
+      const stripped = args.replace(/["'`][^"'`]*["'`]/g, "");
+      if (!/\b(?:password|secret|api[_-]?key|token|prompt|email|ssn)\b/i.test(stripped)) continue;
+      const line = lineAt(file.text, index);
       findings.push(
         makeFinding({
           ruleId: "code_log_sensitive",
@@ -825,37 +971,38 @@ function loggingRule(repo: RepoFacts): CodeFinding[] {
 function aiRule(repo: RepoFacts): CodeFinding[] {
   const findings: CodeFinding[] = [];
   for (const file of repo.javascript) {
-    const callsModel = /openai|anthropic|generateText|chat\.completions|GoogleGenerativeAI|new Groq|messages\.create/i.test(file.text);
+    const callsModel = hasCodeSignal(file.text, "openai|anthropic|generateText|chat\\.completions|GoogleGenerativeAI|new Groq|messages\\.create", languageOf(file));
     const aiRoute = isApiRoute(file.relativePath) && (/\/api\/(?:chat|ai|generate|completions|openai|anthropic)\//.test(file.relativePath) || callsModel);
-    if (aiRoute && callsModel && !AUTH.test(file.text)) {
+    const handler = firstMatch(file.text, "export\\s+(?:async\\s+)?function\\s+(?:GET|POST|PUT|PATCH|DELETE)|export\\s+const\\s+(?:GET|POST)", languageOf(file));
+    if (aiRoute && callsModel && !reachableSignal(file, repo, AUTH_SIGNAL)) {
       findings.push(
         makeFinding({
           ruleId: "code_ai_endpoint_auth",
           family: "AI security",
           file: file.relativePath,
-          line: 1,
-          snippet: file.relativePath,
+          line: handler?.line ?? 1,
+          snippet: handler?.snippet ?? file.relativePath,
           severity: "high",
           title: "AI endpoint does not check who is calling",
           explanation: "This route calls a model and does not check a session. Anyone who can reach the URL can spend your model budget.",
           owasp: "A01:2021",
-          fixPrompt: promptFor(file.relativePath, 1, "The model route has no auth check.", "Require a session before calling the model and reject anonymous requests."),
+          fixPrompt: promptFor(file.relativePath, handler?.line ?? 1, "The model route has no auth check.", "Require a session before calling the model and reject anonymous requests."),
         }),
       );
     }
-    if (aiRoute && callsModel && !RATE.test(file.text) && !/spend|budget|maxSpend/i.test(file.text)) {
+    if (aiRoute && callsModel && !reachableSignal(file, repo, `${RATE_SIGNAL}|spend|budget|maxSpend`)) {
       findings.push(
         makeFinding({
           ruleId: "code_ai_endpoint_limit",
           family: "AI security",
           file: file.relativePath,
-          line: 1,
-          snippet: file.relativePath,
+          line: handler?.line ?? 1,
+          snippet: handler?.snippet ?? file.relativePath,
           severity: "medium",
           title: "AI endpoint has no rate limit or spend cap",
           explanation: "The route can call a model without a per-user limit or a spend cap. A loop of requests can run up the bill.",
           owasp: "A04:2021",
-          fixPrompt: promptFor(file.relativePath, 1, "The model route has no limit.", "Add a per-user rate limit and a daily spend cap before the provider is called."),
+          fixPrompt: promptFor(file.relativePath, handler?.line ?? 1, "The model route has no limit.", "Add a per-user rate limit and a daily spend cap before the provider is called."),
         }),
       );
     }
@@ -879,7 +1026,7 @@ function aiRule(repo: RepoFacts): CodeFinding[] {
         }),
       );
     }
-    const promptSecret = firstMatch(file.text, "(?:systemPrompt|system\\s*:|role\\s*:\\s*[\"']system[\"'])[\\s\\S]{0,200}(?:sk-|sk_live_|sk-ant-|gsk_|api[_-]?key)");
+    const promptSecret = promptContainsSecret(file);
     if (promptSecret) {
       findings.push(
         makeFinding({
@@ -896,7 +1043,7 @@ function aiRule(repo: RepoFacts): CodeFinding[] {
         }),
       );
     }
-    const sink = firstMatch(file.text, "dangerouslySetInnerHTML[\\s\\S]{0,120}(?:completion|message\\.content|choices)|eval\\s*\\([^)]*(?:completion|llm|choices)|(?:exec|queryRawUnsafe|query)\\s*\\([^)]*(?:completion|llmOutput|modelOutput)");
+    const sink = codeCall(file, "dangerouslySetInnerHTML[\\s\\S]{0,120}(?:completion|message\\.content|choices)|(?<![\\w.])eval\\s*\\([^)]*(?:completion|llm|choices)|(?:exec|queryRawUnsafe|query)\\s*\\([^)]*(?:completion|llmOutput|modelOutput)");
     if (sink) {
       findings.push(
         makeFinding({
@@ -913,25 +1060,29 @@ function aiRule(repo: RepoFacts): CodeFinding[] {
         }),
       );
     }
-    if (/tools\s*:\s*\[|functions\s*:\s*\[/.test(file.text) && /delete|drop|transfer|refund|charge/i.test(file.text) && !/confirm|allowlist|allowedTools/i.test(file.text)) {
-      const place = firstMatch(file.text, "tools\\s*:\\s*\\[|functions\\s*:\\s*\\[");
-      findings.push(
-        makeFinding({
-          ruleId: "code_ai_tool_unconfirmed",
-          family: "AI security",
-          file: file.relativePath,
-          line: place?.line ?? 1,
-          snippet: place?.snippet ?? "tools",
-          severity: "high",
-          title: "Model tools can take a destructive action without a check",
-          explanation: "The model can call a tool that deletes, transfers, refunds, or charges, and the file has no confirmation step or allow-list.",
-          owasp: "A04:2021",
-          fixPrompt: promptFor(file.relativePath, place?.line ?? 1, "A model tool can change or destroy data on its own.", "Allow only named tools and require a person to confirm destructive actions."),
-        }),
-      );
+    const tools = firstMatch(file.text, "tools\\s*:\\s*\\[|functions\\s*:\\s*\\[", languageOf(file));
+    if (tools && !lineHasRegexSource(tools.snippet) && regionAt(file.text, tools.index, languageOf(file)) === "code") {
+      const around = file.text.slice(Math.max(0, tools.index - 200), tools.index + 400);
+      if (/delete|drop|transfer|refund|charge/i.test(around) && !/confirm|allowlist|allowedTools/i.test(around)) {
+        findings.push(
+          makeFinding({
+            ruleId: "code_ai_tool_unconfirmed",
+            family: "AI security",
+            file: file.relativePath,
+            line: tools.line,
+            snippet: tools.snippet,
+            severity: "high",
+            title: "Model tools can take a destructive action without a check",
+            explanation: "The model can call a tool that deletes, transfers, refunds, or charges, and the file has no confirmation step or allow-list.",
+            owasp: "A04:2021",
+            fixPrompt: promptFor(file.relativePath, tools.line, "A model tool can change or destroy data on its own.", "Allow only named tools and require a person to confirm destructive actions."),
+          }),
+        );
+      }
     }
-    if (/match_documents|similaritySearch|vectorSearch|\.rpc\(\s*["']match/.test(file.text) && !/user_id|tenant|owner_id|ownerId/.test(file.text)) {
-      const place = firstMatch(file.text, "match_documents|similaritySearch|vectorSearch|\\.rpc\\(\\s*[\"']match");
+    const retrieval = firstMatch(file.text, "match_documents|similaritySearch|vectorSearch|\\.rpc\\(\\s*[\"']match", languageOf(file));
+    if (retrieval && !lineHasRegexSource(retrieval.snippet) && regionAt(file.text, retrieval.index, languageOf(file)) !== "comment" && !/user_id|tenant|owner_id|ownerId/.test(file.text.slice(Math.max(0, retrieval.index - 200), retrieval.index + 300))) {
+      const place = retrieval;
       findings.push(
         makeFinding({
           ruleId: "code_ai_rag_tenant",
@@ -981,7 +1132,7 @@ function aiRule(repo: RepoFacts): CodeFinding[] {
         }),
       );
     }
-    const gemini = /gemini|generativelanguage/i.test(file.text) ? firstMatch(file.text, "\\bAIza[0-9A-Za-z_\\-]{30,}") : null;
+    const gemini = /gemini|generativelanguage/i.test(file.text) ? acceptedGemini(file) : null;
     if (gemini) {
       findings.push(
         makeFinding({
@@ -1002,11 +1153,31 @@ function aiRule(repo: RepoFacts): CodeFinding[] {
   return dedupe(findings);
 }
 
+function promptContainsSecret(file: SourceFile): { line: number; snippet: string } | null {
+  for (const marker of eachMatch(file.text, "systemPrompt|role\\s*:\\s*[\"']system[\"']", languageOf(file))) {
+    if (lineHasRegexSource(marker.snippet)) continue;
+    const window = file.text.slice(marker.index, marker.index + 500);
+    const secrets = findAcceptedSecrets(window).filter((secret) => secretOnLine(file, marker.index + secret.index, secret.value.length));
+    if (secrets.length === 0) continue;
+    return { line: marker.line, snippet: marker.snippet };
+  }
+  return null;
+}
+
+function acceptedGemini(file: SourceFile): { line: number; snippet: string } | null {
+  for (const hit of eachMatch(file.text, "\\bAIza[0-9A-Za-z_-]{35,}", languageOf(file))) {
+    const body = hit.value.slice(4);
+    if (body.length < 35 || !looksLikeRealSecret(body)) continue;
+    return { line: hit.line, snippet: hit.snippet };
+  }
+  return null;
+}
+
 function dedupe(findings: CodeFinding[]): CodeFinding[] {
   const seen = new Set<string>();
   const unique: CodeFinding[] = [];
   for (const finding of findings) {
-    const key = `${finding.ruleId}:${finding.file}:${finding.line}`;
+    const key = `${finding.ruleId}:${finding.file}:${finding.line}:${finding.snippet}`;
     if (seen.has(key)) continue;
     seen.add(key);
     unique.push(finding);
