@@ -1061,7 +1061,7 @@ export function renderChecklistMarkdown(): string {
   lines.push("");
   lines.push("## Headline top 10");
   lines.push("");
-  lines.push("These themes sort first in paid reports. They sit on top of the full catalog. They do not replace it. A free preview shows the lowest-severity finding, not the headline rank.");
+  lines.push("These themes are labeled on a paid report. They do not replace the rest of the catalog, and they do not set the list order. A paid report lists site and code findings together, critical first, then high, medium, low, and info. A free preview shows the lowest-severity finding, not the headline rank.");
   lines.push("");
   for (const theme of HEADLINE_THEMES) {
     const ids = CHECK_CATALOG.filter((check) => check.headlineRank === theme.rank).map((check) => `\`${check.id}\``);
@@ -1086,7 +1086,7 @@ export function renderChecklistMarkdown(): string {
   }
   lines.push("## What a customer report shows");
   lines.push("");
-  lines.push("Reports group findings by the eight families and include a coverage row for each family: ran, pass, findings, not run, or not completed. A paid finding shows a title, severity, evidence, impact, the exact location that was tested, the request and a short redacted response, steps to reproduce, and a copy-paste fix. The owner of an unlocked scan can download that report as a PDF or as a Markdown file to paste into an AI coding assistant. The free teaser keeps one finding, the lowest severity, in full detail, plus the true total and the count for each severity. Every other finding is left out of the page, the download, and the email. Score, scan date, and the public badge are derived from severities. The badge and share page show the score out of 100 and the date only, and they switch to a rescan-needed state 30 days after the scan.");
+  lines.push("Reports include a coverage row for each family: ran, pass, findings, not run, or not completed. Site and code findings are one list sorted by severity, and each finding is tagged Site or Code. A paid finding shows a title, severity, evidence, impact, the exact location that was tested, the request and a short redacted response, steps to reproduce, and a copy-paste fix. The owner of an unlocked scan can download that report as a PDF or as a Markdown file to paste into an AI coding assistant. The free teaser keeps one finding, the lowest severity, in full detail, plus the true total and the count for each severity. Every other finding is left out of the page, the download, and the email. Score, scan date, and the public badge are derived from severities. The badge and share page show the score out of 100 and the date only, and they switch to a rescan-needed state 30 days after the scan.");
   lines.push("");
   lines.push(`## ${SCAN_LIMITATIONS_TITLE}`);
   lines.push("");

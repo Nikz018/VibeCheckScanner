@@ -5,14 +5,6 @@ import { CODE_PRIVACY_PROMISE, CODE_SCAN_LIMITATIONS, OWASP_ALIGNMENT } from "@/
 import { CodeScanRefresh } from "./CodeScanRefresh";
 import { RunCodeScanButton } from "./RunCodeScanButton";
 
-const SEVERITY_STYLE: Record<string, string> = {
-  critical: "bg-[#f3c7bc] text-[#6e2414]",
-  high: "bg-[#f8d7a8] text-[#6a3d09]",
-  medium: "bg-[#f3e7a2] text-[#5c4a10]",
-  low: "bg-[#e4e0d4] text-[#3d453f]",
-  info: "bg-[#e7eee8] text-[#24503a]",
-};
-
 export function CodeScanPanel({
   scanId,
   projectId,
@@ -91,27 +83,6 @@ export function CodeScanPanel({
                   {owaspStatusLabel(row.status)}
                   {row.findingCount > 0 ? ` · ${row.findingCount}` : ""}
                 </p>
-              </article>
-            ))}
-          </div>
-          <h3 className="mt-6 font-display text-2xl">Findings</h3>
-          {report.findings.length === 0 ? <p className="mt-2 text-sm text-[#e6ddd6]">No issues in the files this scan read.</p> : null}
-          <div className="mt-3 space-y-4">
-            {report.findings.map((finding) => (
-              <article key={`${finding.ruleId}-${finding.file}-${finding.line}`} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className={`rounded-full px-2 py-1 font-semibold uppercase ${SEVERITY_STYLE[finding.severity] ?? SEVERITY_STYLE.info}`}>{finding.severity}</span>
-                  <span className="text-[#cfc4bb]">{finding.family}</span>
-                  <span className="text-[#cfc4bb]">{finding.owasp}</span>
-                </div>
-                <h4 className="mt-2 font-display text-2xl">{finding.title}</h4>
-                <p className="mt-2 text-sm text-[#e6ddd6]">
-                  {finding.file}:{finding.line}
-                </p>
-                <p className="mt-2 text-sm leading-6 text-[#f3eee9]">{finding.explanation}</p>
-                {finding.snippet ? <pre className="mt-3 overflow-x-auto rounded-xl bg-[#12100f] p-3 text-xs text-[#f3eee9]">{finding.snippet}</pre> : null}
-                <p className="mt-3 text-xs uppercase tracking-wide text-[#cfc4bb]">Fix prompt</p>
-                <pre className="mt-1 whitespace-pre-wrap rounded-xl bg-[#12100f] p-3 text-xs text-[#f3eee9]">{finding.fixPrompt}</pre>
               </article>
             ))}
           </div>
