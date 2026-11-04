@@ -6,6 +6,7 @@ import { readRecentHistory } from "./history";
 import { buildOwasp } from "./owasp";
 import { CODE_PRIVACY_PROMISE, OWASP_ALIGNMENT } from "./privacy";
 import { RULES, scopeActive, type RepoFacts } from "./rules";
+import { isNoisePath } from "./signals";
 import type { CodeFinding, CodeScanReport, OwaspId } from "./types";
 
 const MAX_FINDINGS = 80;
@@ -21,6 +22,7 @@ export async function scanRepoDirectory(root: string, options: ScanRepoOptions =
   const lookup = options.lookup ?? lookupAdvisories;
   const advisories = await lookupLocked(dependencies.locked, lookup);
   const repo: RepoFacts = {
+    root,
     files: walked.files,
     javascript: walked.files.filter((file) => file.language === "javascript" || file.kind === "javascript" || file.kind === "config"),
     sql: walked.files.filter((file) => file.kind === "sql"),
@@ -71,7 +73,9 @@ function dedupe(findings: CodeFinding[]): CodeFinding[] {
   const seen = new Set<string>();
   const unique: CodeFinding[] = [];
   for (const finding of findings) {
-    const key = `${finding.ruleId}:${finding.file}:${finding.line}:${finding.title}`;
+    if (isNoisePath(finding.file)) continue;
+    const snippet = finding.snippet.replace(/\s+/g, " ").trim();
+    const key = `${finding.ruleId}:${finding.file}:${finding.line}:${finding.title}:${snippet}`;
     if (seen.has(key)) continue;
     seen.add(key);
     unique.push(finding);
