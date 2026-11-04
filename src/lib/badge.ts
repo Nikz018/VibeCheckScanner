@@ -51,9 +51,9 @@ export function renderBadgeSvg(model: BadgeModel): string {
   const label = escapeXml(badgeLabel(model));
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="360" height="68" viewBox="0 0 360 68" role="img" aria-label="${label}, ${escapeXml(date)}">
-  <rect width="360" height="68" rx="10" fill="#14201b"/>
+  <rect width="360" height="68" rx="10" fill="#0b0b0c"/>
   <rect x="10" y="14" width="44" height="40" rx="8" fill="${band.color}"/>
-  <text x="32" y="39" text-anchor="middle" font-family="Georgia, serif" font-size="16" fill="#14201b">VC</text>
+  <text x="32" y="39" text-anchor="middle" font-family="Georgia, serif" font-size="16" fill="#1a100c">VC</text>
   <text x="66" y="30" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="700" fill="${band.color}">${escapeXml(ratio)}</text>
   <text x="66" y="50" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12" fill="#c9c2b2">${escapeXml(date)}</text>
 </svg>`;

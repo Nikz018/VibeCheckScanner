@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Figtree, Fraunces } from "next/font/google";
 import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
+import { ThemeAtmosphere } from "@/components/ThemeAtmosphere";
 import { DISCLAIMER, FOOTER_GROUPS } from "@/lib/seo/content";
 import { rootMetadata } from "@/lib/seo/metadata";
 import "./globals.css";
@@ -14,7 +15,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = rootMetadata();
 
 export const viewport: Viewport = {
-  themeColor: "#071018",
+  themeColor: "#0b0b0c",
   colorScheme: "dark",
   width: "device-width",
   initialScale: 1,
@@ -24,7 +25,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${sans.variable} ${display.variable} font-sans antialiased`}>
-        <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-5">
+        <ThemeAtmosphere />
+        <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col px-5">
           <SiteHeader />
           <main className="flex-1">{children}</main>
           <footer className="mt-16 border-t border-white/10 py-10 text-sm text-[#b7b1a4]">

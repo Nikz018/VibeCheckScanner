@@ -44,7 +44,7 @@ export function RepoPicker({
     <div className="mt-4 space-y-3">
       <label className="block text-sm" htmlFor="repo">
         Choose one repository
-        <select id="repo" className="mt-1 w-full rounded-xl border border-white/15 bg-[#0c1422] px-3 py-2" value={repoId} onChange={(event) => setRepoId(event.target.value)}>
+        <select id="repo" className="mt-1 w-full rounded-xl border border-white/15 bg-[#12100f] px-3 py-2" value={repoId} onChange={(event) => setRepoId(event.target.value)}>
           {repos.map((repo) => (
             <option key={repo.id} value={repo.id}>
               {repo.owner}/{repo.name}

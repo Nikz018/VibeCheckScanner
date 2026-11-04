@@ -13,7 +13,7 @@ export async function SiteHeader() {
   const account = headerAccountActions(signedIn);
 
   return (
-    <header className="site-header sticky top-0 z-40 -mx-5 mb-4 border-b border-white/10 bg-[#071018]/80 px-5 backdrop-blur-md">
+    <header className="site-header sticky top-0 z-40 -mx-5 mb-4 border-b border-white/10 bg-[#0b0b0c]/75 px-5 backdrop-blur-md">
       <div className="flex items-center justify-between gap-4 py-3">
         <Link href="/" className="flex items-center gap-2 text-lg font-semibold tracking-tight">
           <span aria-hidden="true" className="grid h-9 w-9 place-items-center rounded-xl bg-lime font-display text-ink">
@@ -23,11 +23,11 @@ export async function SiteHeader() {
         </Link>
         <details className="relative md:hidden">
           <summary className="btn btn-ghost cursor-pointer px-3 py-1.5 text-sm">Menu</summary>
-          <div className="absolute right-0 z-50 mt-2 w-56 rounded-2xl border border-white/10 bg-[#10192c] p-3 shadow-card">
+          <div className="absolute right-0 z-50 mt-2 w-56 rounded-2xl border border-white/10 bg-[#161311] p-3 shadow-card">
             <NavLinks links={links} account={account} />
           </div>
         </details>
-        <nav aria-label="Main" className="hidden flex-wrap items-center justify-end gap-x-4 gap-y-2 text-sm text-[#d5deee] md:flex">
+        <nav aria-label="Main" className="hidden flex-wrap items-center justify-end gap-x-4 gap-y-2 text-sm text-[#e6ddd6] md:flex">
           <NavLinks links={links} account={account} inline />
         </nav>
       </div>

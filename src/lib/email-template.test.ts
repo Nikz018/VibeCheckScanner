@@ -56,10 +56,10 @@ test("magic-link email includes the link, expiry, button, and plain-text part", 
   assert.match(mail.html, />VC</);
   assert.match(mail.html, />VibeCheck</);
   assert.match(mail.html, /role="presentation"/);
-  assert.match(mail.html, /bgcolor="#071018"/);
+  assert.match(mail.html, /bgcolor="#0b0b0c"/);
   assert.match(mail.html, /bgcolor="#f4f7fb"/);
-  assert.match(mail.html, /bgcolor="#dff25b"/);
-  assert.match(mail.html, /bgcolor="#3ec6ff"/);
+  assert.match(mail.html, /bgcolor="#ff6a3d"/);
+  assert.match(mail.html, /bgcolor="#ff8a5c"/);
   assert.match(mail.html, /name="color-scheme" content="light dark"/);
   assert.match(mail.html, /name="supported-color-schemes" content="light dark"/);
   assert.match(mail.html, /prefers-color-scheme:\s*dark/);
