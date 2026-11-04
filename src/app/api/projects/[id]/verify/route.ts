@@ -17,7 +17,7 @@ import { recordScanAuthorization } from "@/lib/scan-authorization";
 const bodySchema = z.object({
   consent: z.boolean(),
   mode: z.enum(["full", "mini"]).default("full"),
-  use: z.enum(["teaser", "credit", "rescan", "checkout-report", "checkout-rescan"]).default("teaser"),
+  use: z.enum(["teaser", "credit", "rescan", "code-credit", "checkout-report", "checkout-rescan"]).default("teaser"),
   auth: z.unknown().optional(),
 });
 
@@ -80,7 +80,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ error: message }, { status: 400 });
     }
   }
-  const entitlementUse = use === "credit" || use === "rescan" ? use : "teaser";
+  const entitlementUse = use === "credit" || use === "rescan" || use === "code-credit" ? use : "teaser";
   const access = mode === "mini" ? { access: "full" as const, spentRescanCredit: false } : await takeReportAccess(user.id, entitlementUse);
   const reportAccess = access.access;
   const checkout = fullLaunchCheckout({ mode, use, granted: reportAccess });

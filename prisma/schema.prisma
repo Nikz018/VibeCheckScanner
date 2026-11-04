@@ -10,8 +10,9 @@ datasource db {
 model User {
   id               String        @id @default(cuid())
   email            String        @unique
-  reportCredits    Int           @default(0)
-  rescanCredits    Int           @default(0)
+  reportCredits     Int           @default(0)
+  codeReportCredits Int           @default(0)
+  rescanCredits     Int           @default(0)
   stripeCustomerId String?
   createdAt        DateTime      @default(now())
   sessions         Session[]

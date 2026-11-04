@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { enqueueScan } from "@/lib/queue";
 import { recordScanAuthorization } from "@/lib/scan-authorization";
 
+/** Monitoring rescans are site scans. A $99 code scan is not started here and does not wait for GitHub. */
 export async function scheduleMonitors(): Promise<void> {
   const hours = Number(process.env.MONITOR_INTERVAL_HOURS || 24);
   const cutoff = new Date(Date.now() - (Number.isFinite(hours) && hours > 0 ? hours : 24) * 60 * 60 * 1000);

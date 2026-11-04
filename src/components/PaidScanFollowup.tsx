@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { OwnershipNotFoundHint, OwnershipProofFields } from "@/components/OwnershipProofFields";
 import { PAYMENT_CONFIRMING_COPY, PAYMENT_CONFIRM_TIMEOUT_MS } from "@/lib/payments/checkout-return";
+import { AWAITING_REPO_STATUS } from "@/lib/code-scan/gate";
 import {
   CHECK_OWNERSHIP_LABEL,
+  CONNECT_GITHUB_CODE_SCAN_LABEL,
   FULL_SCAN_PROGRESS_LABEL,
   FULL_SCAN_STOPPED_LABEL,
   OPEN_FULL_REPORT_LABEL,
@@ -31,6 +33,17 @@ export interface PaidScanFollowupState {
 export function PaidScanFollowup({ followup }: { followup: PaidScanFollowupState | null }) {
   if (!followup) return null;
   const scan = followup.fullScan;
+  if (scan && scan.status === AWAITING_REPO_STATUS) {
+    return (
+      <section id="code-scan-step" className="rounded-3xl border border-lime/40 bg-lime/10 p-5">
+        <h2 className="font-display text-3xl">{CONNECT_GITHUB_CODE_SCAN_LABEL}</h2>
+        <p className="mt-3 text-sm text-[#d9d3c5]">Choose the repository for this $99 scan before it starts. The last connected repo is waiting on the next page.</p>
+        <a className="btn btn-lime mt-4" href={`/scans/${scan.id}`}>
+          {CONNECT_GITHUB_CODE_SCAN_LABEL}
+        </a>
+      </section>
+    );
+  }
   if (scan && (scan.status === "queued" || scan.status === "running")) {
     return (
       <section className="rounded-3xl border border-lime/40 bg-lime/10 p-5">

@@ -9,7 +9,8 @@ export function codeScanEnabledForTier(tier: string | null | undefined): boolean
 }
 
 export function codeScanEnabledForCredit(input: { mode: string; use: string; spentRescanCredit: boolean }): boolean {
-  return input.mode === "full" && input.use === "rescan" && input.spentRescanCredit;
+  const codeCredit = input.use === "rescan" || input.use === "code-credit";
+  return input.mode === "full" && codeCredit && input.spentRescanCredit;
 }
 
 export function canConnectRepository(input: {
@@ -29,6 +30,27 @@ export type CodeScanChoice = "skip" | "connect";
 
 /** A credit-funded code scan exists, but it is not queued until the repository step is decided. */
 export const AWAITING_REPO_STATUS = "awaiting_repo";
+
+/**
+ * The first scan of a $99 purchase includes a code scan. Hold it until the buyer
+ * confirms the repository. A $49 purchase, a monitoring rescan, and a $99 scan
+ * whose buyer already chose (or whose server cannot connect GitHub) queue now.
+ */
+export function firstPaidScanPlan(input: {
+  tier: string | null | undefined;
+  githubConfigured: boolean;
+  choice: CodeScanChoice | null;
+  repoConnected: boolean;
+}): { codeScanEnabled: boolean; status: typeof AWAITING_REPO_STATUS | "queued"; enqueue: boolean } {
+  const codeScanEnabled = codeScanEnabledForTier(input.tier);
+  if (!codeScanEnabled || !input.githubConfigured) {
+    return { codeScanEnabled, status: "queued", enqueue: true };
+  }
+  if (input.choice === "skip" || (input.choice === "connect" && input.repoConnected)) {
+    return { codeScanEnabled: true, status: "queued", enqueue: true };
+  }
+  return { codeScanEnabled: true, status: AWAITING_REPO_STATUS, enqueue: false };
+}
 
 /**
  * A rescan credit is spent when the scan row is created. Hold that scan whenever the code scan

@@ -6,7 +6,7 @@ import { OwnershipNotFoundHint, OwnershipProofFields } from "@/components/Owners
 import { pricingCheckoutPath } from "@/lib/checkout-path";
 import { TIERS } from "@/lib/pricing";
 
-type ReportUse = "teaser" | "credit" | "rescan" | "checkout-report" | "checkout-rescan";
+type ReportUse = "teaser" | "credit" | "rescan" | "code-credit" | "checkout-report" | "checkout-rescan" | "included";
 
 interface Proof {
   projectId: string;
@@ -34,6 +34,7 @@ export function NewScanForm({
   lockMode = false,
   reportCredits,
   rescanCredits,
+  codeReportCredits = 0,
   monitoring = false,
 }: {
   initialUrl?: string;
@@ -41,12 +42,15 @@ export function NewScanForm({
   lockMode?: boolean;
   reportCredits: number;
   rescanCredits: number;
+  codeReportCredits?: number;
   monitoring?: boolean;
 }) {
   const router = useRouter();
   const [url, setUrl] = useState(initialUrl);
   const [mode, setMode] = useState<"full" | "mini">(initialMode);
-  const [use, setUse] = useState<ReportUse>(initialMode === "full" ? "checkout-report" : "teaser");
+  const [use, setUse] = useState<ReportUse>(
+    initialMode !== "full" ? "teaser" : !monitoring && codeReportCredits > 0 ? "code-credit" : "checkout-report",
+  );
   const [consent, setConsent] = useState(false);
   const [proof, setProof] = useState<Proof | null>(null);
   const [error, setError] = useState("");
@@ -55,8 +59,9 @@ export function NewScanForm({
   const [authConsent, setAuthConsent] = useState(false);
   const [accounts, setAccounts] = useState<AccountDraft[]>([emptyAccount("A"), emptyAccount("B")]);
 
-  const paid = monitoring || (mode === "full" && (use === "credit" || use === "rescan"));
+  const paid = monitoring || (mode === "full" && (use === "credit" || use === "rescan" || use === "code-credit"));
   const checkoutChoice = mode === "full" && !monitoring && (use === "checkout-report" || use === "checkout-rescan" || use === "teaser");
+  const spendingCodeCredit = use === "code-credit" || use === "rescan";
 
   async function createProject(event: React.FormEvent) {
     event.preventDefault();
@@ -117,7 +122,7 @@ export function NewScanForm({
     }
     setBusy(true);
     setError("");
-    const submittedUse: ReportUse = mode === "mini" || monitoring ? "teaser" : use;
+    const submittedUse: ReportUse = mode === "mini" || (monitoring && !spendingCodeCredit) ? "teaser" : use;
     const response = await fetch(`/api/projects/${proof.projectId}/verify`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -173,7 +178,18 @@ export function NewScanForm({
             <select className="field mt-1" value={use === "teaser" ? "checkout-report" : use} onChange={(event) => setUse(event.target.value as ReportUse)}>
               <option value="checkout-report">{TIERS.report.priceLabel} report</option>
               <option value="checkout-rescan">{TIERS.rescan.priceLabel} report with a fix rescan and code scan</option>
+              {codeReportCredits > 0 ? <option value="code-credit">Use a $99 full-report credit ({codeReportCredits} left)</option> : null}
               {reportCredits > 0 ? <option value="credit">Use a full-report credit ({reportCredits} left)</option> : null}
+              {rescanCredits > 0 ? <option value="rescan">Use a rescan credit ({rescanCredits} left)</option> : null}
+            </select>
+          </label>
+        ) : null}
+        {mode === "full" && monitoring && (codeReportCredits > 0 || rescanCredits > 0) ? (
+          <label className="block text-sm">
+            Report access
+            <select className="field mt-1" value={use === "code-credit" || use === "rescan" ? use : "included"} onChange={(event) => setUse(event.target.value as ReportUse)}>
+              <option value="included">Included with monitoring (site scan)</option>
+              {codeReportCredits > 0 ? <option value="code-credit">Use a $99 full-report credit ({codeReportCredits} left)</option> : null}
               {rescanCredits > 0 ? <option value="rescan">Use a rescan credit ({rescanCredits} left)</option> : null}
             </select>
           </label>

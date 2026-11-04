@@ -66,6 +66,8 @@ export default async function DashboardPage() {
         <article className="lift rounded-2xl border border-white/10 bg-white/5 p-4">
           <p className="text-xs uppercase tracking-wide text-[#c5d2e6]">Full-report credits</p>
           <p className="font-display text-4xl">{user.reportCredits}</p>
+          <p className="mt-3 text-xs uppercase tracking-wide text-[#c5d2e6]">$99 full-report credits</p>
+          <p className="font-display text-4xl">{user.codeReportCredits}</p>
         </article>
         <article className="lift rounded-2xl border border-white/10 bg-white/5 p-4">
           <p className="text-xs uppercase tracking-wide text-[#c5d2e6]">Rescan credits</p>

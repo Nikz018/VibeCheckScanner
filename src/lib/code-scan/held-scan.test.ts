@@ -297,6 +297,64 @@ test("a connected repository still waits for confirmation, and a server without 
   }
 });
 
+test("a $99 full-report credit waits for GitHub and a $49 credit does not", { skip }, async () => {
+  const { prisma } = await import("../db");
+  const { takeReportAccess } = await import("../entitlements");
+  const { codeScanEnabledForCredit } = await import("./gate");
+  const { openHeldOrQueuedScan, settleVerifiedScan } = await import("./held-scan");
+  const { user, project } = await seed(prisma);
+  const enqueued: string[] = [];
+  const enqueue = async (scanId: string) => {
+    enqueued.push(scanId);
+  };
+  try {
+    await prisma.user.update({ where: { id: user.id }, data: { codeReportCredits: 1, reportCredits: 1 } });
+    await prisma.repoLink.create({
+      data: { projectId: project.id, userId: user.id, installationId: "77", repoId: "88", owner: "acme", name: "app", status: "connected" },
+    });
+    const code = await startCreditScan({
+      prisma,
+      takeReportAccess,
+      codeScanEnabledForCredit,
+      openHeldOrQueuedScan,
+      settleVerifiedScan,
+      userId: user.id,
+      projectId: project.id,
+      targetUrl: project.url,
+      githubConfigured: true,
+      repoConnected: true,
+      use: "code-credit",
+      enqueue,
+    });
+    assert.equal(code.codeScanEnabled, true);
+    assert.equal(code.settled.needsRepo, true);
+    assert.equal((await prisma.scan.findUniqueOrThrow({ where: { id: code.scanId } })).status, AWAITING_REPO_STATUS);
+    assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).codeReportCredits, 0);
+
+    const report = await startCreditScan({
+      prisma,
+      takeReportAccess,
+      codeScanEnabledForCredit,
+      openHeldOrQueuedScan,
+      settleVerifiedScan,
+      userId: user.id,
+      projectId: project.id,
+      targetUrl: project.url,
+      githubConfigured: true,
+      repoConnected: true,
+      use: "credit",
+      enqueue,
+    });
+    assert.equal(report.codeScanEnabled, false);
+    assert.equal(report.settled.needsRepo, false);
+    assert.equal((await prisma.scan.findUniqueOrThrow({ where: { id: report.scanId } })).status, "queued");
+    assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).reportCredits, 0);
+    assert.deepEqual(enqueued, [report.scanId]);
+  } finally {
+    await cleanup(prisma, user.id);
+  }
+});
+
 after(async () => {
   if (!databaseUrl) return;
   const { prisma } = await import("../db");
@@ -314,7 +372,7 @@ async function startCreditScan(input: {
   targetUrl: string;
   githubConfigured: boolean;
   repoConnected: boolean;
-  use?: "rescan" | "credit";
+  use?: "rescan" | "credit" | "code-credit";
   enqueue: (scanId: string) => Promise<void>;
 }) {
   const use = input.use ?? "rescan";

@@ -4,7 +4,7 @@ import { CodeScanConnectStep } from "@/components/CodeScanConnectStep";
 import { OwnershipProof, RetryFullScanButton } from "@/components/PaidScanFollowup";
 import { ScanPoller } from "@/components/ScanPoller";
 import { CodeScanPanel } from "@/components/CodeScanPanel";
-import { shouldOfferCodeRepoStep, shouldOfferCreditCodeStep } from "@/lib/code-scan/gate";
+import { AWAITING_REPO_STATUS, shouldOfferCodeRepoStep, shouldOfferCreditCodeStep } from "@/lib/code-scan/gate";
 import { ReportView } from "@/components/ReportView";
 import { parseCodeReport } from "@/lib/code-scan/parse";
 import { codeScanRepoLabel } from "@/lib/code-scan/messages";
@@ -71,6 +71,9 @@ export default async function ScanPage({
     } else if (settled.kind === "confirming" || settled.kind === "declined") {
       paymentNotice = settled.kind;
     }
+  }
+  if (purchase?.fullScan && purchase.fullScan.status === AWAITING_REPO_STATUS && purchase.fullScan.id !== scan.id) {
+    redirect(`/scans/${purchase.fullScan.id}`);
   }
   const githubReady = githubAppConfig() !== null;
   const connectedRepo =

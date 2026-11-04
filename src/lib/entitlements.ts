@@ -8,13 +8,21 @@ export async function resolveReportAccess(userId: string, choice: "teaser" | "cr
 /** Same rules as resolveReportAccess, plus whether a $99 rescan credit was spent. */
 export async function takeReportAccess(
   userId: string,
-  choice: "teaser" | "credit" | "rescan",
+  choice: "teaser" | "credit" | "rescan" | "code-credit",
 ): Promise<{ access: "teaser" | "full"; spentRescanCredit: boolean }> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: { subscription: true },
   });
   if (!user) return { access: "teaser", spentRescanCredit: false };
+  if (choice === "code-credit" && user.codeReportCredits > 0) {
+    await prisma.user.update({ where: { id: userId }, data: { codeReportCredits: { decrement: 1 } } });
+    return { access: "full", spentRescanCredit: true };
+  }
+  if (choice === "rescan" && user.rescanCredits > 0) {
+    await prisma.user.update({ where: { id: userId }, data: { rescanCredits: { decrement: 1 } } });
+    return { access: "full", spentRescanCredit: true };
+  }
   if (user.subscription && (user.subscription.status === "active" || user.subscription.status === "trialing")) {
     return { access: "full", spentRescanCredit: false };
   }
@@ -22,14 +30,10 @@ export async function takeReportAccess(
     await prisma.user.update({ where: { id: userId }, data: { reportCredits: { decrement: 1 } } });
     return { access: "full", spentRescanCredit: false };
   }
-  if (choice === "rescan" && user.rescanCredits > 0) {
-    await prisma.user.update({ where: { id: userId }, data: { rescanCredits: { decrement: 1 } } });
-    return { access: "full", spentRescanCredit: true };
-  }
   return { access: "teaser", spentRescanCredit: false };
 }
 
-export type ScanAccessChoice = "teaser" | "credit" | "rescan" | "checkout-report" | "checkout-rescan";
+export type ScanAccessChoice = "teaser" | "credit" | "rescan" | "code-credit" | "checkout-report" | "checkout-rescan";
 
 /**
  * A full launch scan with no paid access must not run as a free teaser.
@@ -41,7 +45,7 @@ export function fullLaunchCheckout(input: {
   granted: "teaser" | "full";
 }): { checkoutTier: "report" | "rescan" } | null {
   if (input.mode !== "full" || input.granted === "full") return null;
-  if (input.use === "checkout-rescan") return { checkoutTier: "rescan" };
+  if (input.use === "checkout-rescan" || input.use === "code-credit") return { checkoutTier: "rescan" };
   return { checkoutTier: "report" };
 }
 

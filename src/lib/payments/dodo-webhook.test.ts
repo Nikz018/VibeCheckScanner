@@ -87,7 +87,8 @@ test("signed payment unlocks a scan once, a failure does not, and subscription e
   assert.equal(credits.status, 200);
   const once = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
   assert.equal(once.rescanCredits, 1);
-  assert.equal(once.reportCredits, 1);
+  assert.equal(once.codeReportCredits, 1);
+  assert.equal(once.reportCredits, 0);
   await post(
     POST,
     event(`msg_rescan_${suffix}`, "payment.succeeded", {
@@ -97,7 +98,8 @@ test("signed payment unlocks a scan once, a failure does not, and subscription e
   );
   const twice = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
   assert.equal(twice.rescanCredits, 1);
-  assert.equal(twice.reportCredits, 1);
+  assert.equal(twice.codeReportCredits, 1);
+  assert.equal(twice.reportCredits, 0);
 
   const periodEnd = "2026-11-25T00:00:00.000Z";
   const active = await post(
