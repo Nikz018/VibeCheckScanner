@@ -1,7 +1,7 @@
 import { overallScoreExplanation, renderScoreRingsHtml, renderUnavailableScoresHtml, type CodeScoreGap, type CombinedScores } from "./code-scan/score";
 import { POINT_IN_TIME_DISCLAIMER, formatScanDate } from "./badge";
 import { SEVERITIES } from "./catalog";
-import { formatSeverityBreakdown, visibleCustomerFindings, type CustomerFinding, type CustomerReport } from "./report";
+import { describeFindingCounts, findingTotal, formatSeverityBreakdown, severityCountsWithCode, visibleCustomerFindings, type CustomerFinding, type CustomerReport } from "./report";
 import { containsToolBrand } from "./sanitize";
 import { SCORE_EXPLAINER, formatScoreRatio, renderScoreGaugeSvg, scoreBand } from "./score-gauge";
 import { toolBrandPattern } from "./tool-denylist";
@@ -36,15 +36,20 @@ export function downloadBasename(targetUrl: string, finishedAt: Date | null): st
   return `vibecheck-${safeHost}-${day}`;
 }
 
-export function renderFixMarkdown(report: CustomerReport, targetUrl: string): string {
+export function renderFixMarkdown(
+  report: CustomerReport,
+  targetUrl: string,
+  codeReport?: { status: string; empty?: boolean; findings: Array<{ severity: string }> } | null,
+): string {
   const when = report.finishedAt ? formatScanDate(new Date(report.finishedAt)) : "an unknown date";
   const host = safeHostLabel(targetUrl);
+  const counted = severityCountsWithCode(report.severityCounts, codeReport);
   const lines: string[] = [
     "Fix these security issues in my app.",
     "",
     `VibeCheck scanned \`${host}\` on ${when}. VibeCheck score: ${scoreLine(report)}. ${report.disclaimer}`,
     "",
-    `Findings: ${report.totalFindings}. ${formatSeverityBreakdown(report.severityCounts) || "No findings."}`,
+    `Findings: ${findingTotal(counted.counts)}. ${formatSeverityBreakdown(counted.counts) || "No findings."}${counted.includesCode ? " Site and code are both included." : ""}`,
     "",
     ...(report.pagesScanned !== null
       ? [`Scanned ${report.pagesScanned} ${report.pagesScanned === 1 ? "page" : "pages"}.`, ""]
@@ -107,11 +112,19 @@ export function renderFixMarkdown(report: CustomerReport, targetUrl: string): st
   return scrubTools(lines.join("\n").trim() + "\n");
 }
 
-export function renderPrintHtml(report: CustomerReport, targetUrl: string, scores?: CombinedScores | null, codeGap?: CodeScoreGap | null): string {
+export function renderPrintHtml(
+  report: CustomerReport,
+  targetUrl: string,
+  scores?: CombinedScores | null,
+  codeGap?: CodeScoreGap | null,
+  codeReport?: { status: string; empty?: boolean; findings: Array<{ severity: string }> } | null,
+): string {
   const when = report.finishedAt ? formatScanDate(new Date(report.finishedAt)) : "Unknown date";
   const findings = orderedFindings(report);
+  const counted = severityCountsWithCode(report.severityCounts, codeReport);
+  const findingLine = describeFindingCounts(counted.counts, { includesCode: counted.includesCode });
   const counts = SEVERITIES.map(
-    (severity) => `<li><strong>${report.severityCounts[severity] ?? 0}</strong><span>${escapeHtml(severity)}</span></li>`,
+    (severity) => `<li data-severity-count="${escapeHtml(severity)}"><strong>${counted.counts[severity] ?? 0}</strong><span>${escapeHtml(severity)}</span></li>`,
   ).join("");
   const blocks = findings
     .map((finding) => {
@@ -202,7 +215,7 @@ export function renderPrintHtml(report: CustomerReport, targetUrl: string, score
     <div class="brand"><span class="mark">VC</span> VibeCheck</div>
     ${scores ? renderScoreRingsHtml(scores, "light") : codeGap ? renderUnavailableScoresHtml(codeGap, "light") : `<div class="gauge">${renderScoreGaugeSvg({ score: report.score, tone: "light" })}</div>`}
     <p class="explain">${escapeHtml(scores ? overallScoreExplanation() : codeGap ? codeGap.reason : SCORE_EXPLAINER)}</p>
-    <p class="label">${report.totalFindings} finding${report.totalFindings === 1 ? "" : "s"}</p>
+    <p class="label">${escapeHtml(findingLine)}</p>
     <p class="meta-line"><strong>Target.</strong> ${escapeHtml(targetUrl)}</p>
     <p class="meta-line"><strong>Scanned.</strong> ${escapeHtml(when)}</p>
     ${report.pagesScanned !== null ? `<p class="meta-line"><strong>Pages.</strong> ${report.pagesScanned} ${report.pagesScanned === 1 ? "page" : "pages"}</p>` : ""}

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { CodeScoreGap, CombinedScores } from "@/lib/code-scan/score";
 import type { CustomerReport } from "@/lib/report";
-import { FREE_PREVIEW_LABEL, FULL_REPORT_PURCHASE_LEDE, RESCAN_PURCHASE_NOTE, formatSeverityBreakdown, freePreviewFacts, freePreviewLines, lockedSeverityRows, reportBadge } from "@/lib/report";
+import { FREE_PREVIEW_LABEL, FULL_REPORT_PURCHASE_LEDE, RESCAN_PURCHASE_NOTE, describeFindingCounts, formatSeverityBreakdown, freePreviewFacts, freePreviewLines, lockedSeverityRows, reportBadge, severityCountsWithCode } from "@/lib/report";
 import type { Severity } from "@/lib/catalog";
 import { TAX_NOTE, TIERS, type TierId } from "@/lib/pricing";
 import { PAYMENT_DECLINED_COPY, PAYMENT_TRY_AGAIN_LABEL } from "@/lib/payments/checkout-return";
@@ -39,6 +39,7 @@ export function ReportView({
   codeScan = null,
   scores = null,
   codeGap = null,
+  codeReport = null,
 }: {
   report: CustomerReport;
   targetLabel?: string;
@@ -54,12 +55,10 @@ export function ReportView({
   codeScan?: ReactNode;
   scores?: CombinedScores | null;
   codeGap?: CodeScoreGap | null;
+  codeReport?: { status: string; empty?: boolean; findings: Array<{ severity: string }> } | null;
 }) {
-  const breakdown = formatSeverityBreakdown(report.severityCounts);
-  const findingLabel =
-    report.totalFindings === 0
-      ? "No findings"
-      : `${report.totalFindings} finding${report.totalFindings === 1 ? "" : "s"}${breakdown ? `: ${breakdown}` : ""}`;
+  const counted = severityCountsWithCode(report.severityCounts, codeReport);
+  const findingLabel = describeFindingCounts(counted.counts, { includesCode: counted.includesCode });
 
   return (
     <div className="space-y-6">
@@ -92,7 +91,7 @@ export function ReportView({
             ) : null}
           </div>
           <div className="grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-5">
-            {Object.entries(report.severityCounts).map(([severity, count]) => (
+            {Object.entries(counted.counts).map(([severity, count]) => (
               <div key={severity} className={`rounded-2xl px-3 py-2 ${SEVERITY_STYLE[severity as Severity]}`}>
                 <div className="font-display text-2xl">{count}</div>
                 {severity}

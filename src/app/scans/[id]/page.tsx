@@ -190,6 +190,7 @@ export default async function ScanPage({
               })
             : null
         }
+        codeReport={scan.codeScanEnabled && scan.reportAccess === "full" && !gating.upsell ? codeReport : null}
         codeScan={
           scan.codeScanEnabled && scan.reportAccess === "full" && !gating.upsell ? (
             <CodeScanPanel
