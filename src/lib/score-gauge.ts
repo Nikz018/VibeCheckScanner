@@ -43,11 +43,11 @@ export function renderScoreGaugeSvg(input: { score: number | null; tone?: GaugeT
   const ratio = score === null ? "—" : formatScoreRatio(score);
   const label = band?.label ?? "";
   const progress =
-    score === null || score <= 0
+    score === null || score <= 0 || !band
       ? ""
-      : `<circle class="gauge-progress" cx="100" cy="100" r="78" fill="none" stroke="${band?.color}" stroke-width="12" stroke-linecap="round" pathLength="100" stroke-dasharray="${score} 100" transform="rotate(-90 100 100)"/>`;
+      : `<circle class="gauge-progress" cx="100" cy="100" r="78" fill="none" stroke="${band.color}" style="stroke:${band.color}" stroke-width="12" stroke-linecap="round" pathLength="100" stroke-dasharray="${score} 100" transform="rotate(-90 100 100)"/>`;
   const aria = score === null ? "Score not ready" : `${ratio}, ${label}`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="${escapeXml(aria)}" data-score-gauge="${score ?? ""}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="${escapeXml(aria)}" data-score-gauge="${score ?? ""}" data-score-band="${band?.id ?? ""}">
   <circle cx="100" cy="100" r="78" fill="none" stroke="${tone.track}" stroke-width="12"/>
   ${progress}
   <text x="100" y="96" text-anchor="middle" font-family="Georgia, serif" font-size="28" font-weight="700" fill="${tone.value}">${escapeXml(ratio)}</text>

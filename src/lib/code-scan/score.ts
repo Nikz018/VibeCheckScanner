@@ -1,6 +1,6 @@
 import type { Severity } from "@/lib/catalog";
 import { SEVERITY_WEIGHTS } from "@/lib/score";
-import { clampScore, renderScoreGaugeSvg, type GaugeTone } from "@/lib/score-gauge";
+import { clampScore, renderScoreGaugeSvg, scoreBand, type GaugeTone } from "@/lib/score-gauge";
 import { CODE_SCAN_EMPTY_NOTICE, CODE_SCAN_SCORE_UNAVAILABLE } from "./messages";
 import type { CodeScanReport } from "./types";
 
@@ -120,7 +120,8 @@ export function renderUnavailableScoresHtml(gap: CodeScoreGap, tone: GaugeTone =
         `<div class="gauge${ring.role === "overall" ? " gauge-overall" : ""}" data-score-role="${ring.role}" data-score-unavailable="${ring.role}"><p class="ring-label">${ring.label}</p><p class="unavailable-score">—</p></div>`,
     )
     .join("");
-  return `<div class="score-rings"><div class="gauge" data-score-role="site"><p class="ring-label">Site</p>${renderScoreGaugeSvg({ score: gap.site, tone })}</div>${blank}</div>`;
+  const siteColor = scoreBand(gap.site).color;
+  return `<div class="score-rings"><div class="gauge" data-score-role="site"><p class="ring-label" style="color:${siteColor}">Site</p>${renderScoreGaugeSvg({ score: gap.site, tone })}</div>${blank}</div>`;
 }
 
 export function renderScoreRingsHtml(scores: CombinedScores, tone: GaugeTone = "light"): string {
@@ -132,7 +133,7 @@ export function renderScoreRingsHtml(scores: CombinedScores, tone: GaugeTone = "
   return `<div class="score-rings">${rings
     .map(
       (ring) =>
-        `<div class="gauge${ring.prominent ? " gauge-overall" : ""}" data-score-role="${ring.role}"><p class="ring-label">${ring.label}</p>${renderScoreGaugeSvg({ score: ring.score, tone })}</div>`,
+        `<div class="gauge${ring.prominent ? " gauge-overall" : ""}" data-score-role="${ring.role}"><p class="ring-label" style="color:${scoreBand(ring.score).color}">${ring.label}</p>${renderScoreGaugeSvg({ score: ring.score, tone })}</div>`,
     )
     .join("")}</div>`;
 }

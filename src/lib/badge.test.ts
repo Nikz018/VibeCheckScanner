@@ -42,6 +42,8 @@ test("score bands and the gauge read as a ratio out of 100", () => {
   assert.match(gauge, /Critical risk/);
   assert.match(gauge, /stroke-dasharray="7 100"/);
   assert.match(gauge, new RegExp(scoreBand(7).color));
+  assert.match(gauge, /style="stroke:#e24b3a"/);
+  assert.match(gauge, /data-score-band="critical"/);
   assert.doesNotMatch(gauge, />7</);
 });
 

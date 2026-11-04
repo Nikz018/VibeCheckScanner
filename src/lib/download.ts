@@ -192,7 +192,6 @@ export function renderPrintHtml(
     .cover { padding: 8px 0 12px; }
     .brand { display: flex; align-items: center; gap: 10px; font-family: Georgia, serif; font-size: 22px; font-weight: 700; }
     .mark { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: #ff6a3d; color: #1a100c; font-size: 14px; }
-    .gauge-overall > .ring-label { color: #c4471a; }
     .score-rings { display: flex; align-items: flex-end; gap: 18px; margin-top: 12px; }
     .gauge { width: 220px; margin-top: 12px; }
     .score-rings .gauge { width: 150px; margin-top: 0; }

@@ -1,5 +1,5 @@
 import { overallScoreExplanation, type CodeScoreGap, type CombinedScores } from "@/lib/code-scan/score";
-import type { GaugeTone } from "@/lib/score-gauge";
+import { scoreBand, type GaugeTone } from "@/lib/score-gauge";
 import { ScoreGauge } from "./ScoreGauge";
 
 export function ScoreRings({
@@ -23,7 +23,9 @@ export function ScoreRings({
       <div className="flex flex-wrap items-end gap-4">
         {rings.map((ring) => (
           <div key={ring.label}>
-            <p className={`mb-1 text-center text-xs font-semibold uppercase tracking-[0.14em] ${ring.label === "Overall" ? "text-lime" : caption}`}>{ring.label}</p>
+            <p className="mb-1 text-center text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: scoreBand(ring.score).color }}>
+              {ring.label}
+            </p>
             <ScoreGauge score={ring.score} size={ring.size} tone={tone} showExplainer={false} />
           </div>
         ))}
@@ -49,21 +51,23 @@ export function UnavailableScoreRings({
     <div>
       <div className="flex flex-wrap items-end gap-4">
         <div>
-          <p className={`mb-1 text-center text-xs font-semibold uppercase tracking-[0.14em] ${caption}`}>Site</p>
+          <p className="mb-1 text-center text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: scoreBand(gap.site).color }}>
+            Site
+          </p>
           <ScoreGauge score={gap.site} size={compact ? "sm" : "md"} tone={tone} showExplainer={false} />
         </div>
         <ScoreBlank label="Code" caption={caption} compact={compact} />
-        <ScoreBlank label="Overall" caption={caption} compact={compact} prominent />
+        <ScoreBlank label="Overall" caption={caption} compact={compact} />
       </div>
       <p className={`mt-3 max-w-xl text-sm ${caption}`}>{gap.reason}</p>
     </div>
   );
 }
 
-function ScoreBlank({ label, caption, compact, prominent = false }: { label: string; caption: string; compact: boolean; prominent?: boolean }) {
+function ScoreBlank({ label, caption, compact }: { label: string; caption: string; compact: boolean }) {
   return (
     <div>
-      <p className={`mb-1 text-center text-xs font-semibold uppercase tracking-[0.14em] ${prominent ? "text-lime" : caption}`}>{label}</p>
+      <p className={`mb-1 text-center text-xs font-semibold uppercase tracking-[0.14em] ${caption}`}>{label}</p>
       <p className={`grid place-items-center font-display ${caption} ${compact ? "h-16 w-16 text-3xl" : "h-24 w-24 text-5xl"}`} aria-label={`${label} score unavailable`}>
         —
       </p>
