@@ -1,17 +1,16 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { NewScanForm } from "@/components/NewScanForm";
-import { getCurrentUser } from "@/lib/auth";
 import { monitoringActive } from "@/lib/entitlements";
+import { requirePageUser } from "@/lib/require-user";
 import { privateMetadata } from "@/lib/seo/metadata";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = privateMetadata("New scan");
 
 export default async function NewScanPage({ searchParams }: { searchParams: Promise<{ checkout?: string }> }) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login?next=/scans/new");
   const query = await searchParams;
+  const returnPath = query.checkout === "success" || query.checkout === "cancel" ? `/scans/new?checkout=${query.checkout}` : "/scans/new";
+  const user = await requirePageUser(returnPath);
   const monitoring = monitoringActive(user.subscription?.status);
   return (
     <div className="mx-auto max-w-3xl space-y-4 py-6">

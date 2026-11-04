@@ -11,14 +11,14 @@ import { codeScanRepoLabel } from "@/lib/code-scan/messages";
 import { codeScanRepoName } from "@/lib/code-scan/repo-lock";
 import { codeScoreGap, combinedScores } from "@/lib/code-scan/score";
 import { githubAppConfig } from "@/lib/github/app";
-import { getCurrentUser } from "@/lib/auth";
+import { requirePageUser } from "@/lib/require-user";
 import { prisma } from "@/lib/db";
 import { monitoringActive, ownedScanAccess } from "@/lib/entitlements";
 import { instructionsFor } from "@/lib/ownership";
 import { collectsBillingAddress } from "@/lib/payments";
 import { settlePreviewCheckout } from "@/lib/payments/confirm-purchase";
 import { FULL_SCAN_PROGRESS_LABEL, FULL_SCAN_STOPPED_LABEL, RETRY_FULL_SCAN_LABEL } from "@/lib/payments/paid-scan-status";
-import { signInPath } from "@/lib/checkout-path";
+import { scanPageReturnPath } from "@/lib/checkout-path";
 import { privateMetadata } from "@/lib/seo/metadata";
 import { clientScanReport } from "@/lib/finding-order";
 import { severityCountsWithCode } from "@/lib/report";
@@ -36,8 +36,7 @@ export default async function ScanPage({
 }) {
   const { id } = await params;
   const query = await searchParams;
-  const user = await getCurrentUser();
-  if (!user) redirect(signInPath(`/scans/${id}`));
+  const user = await requirePageUser(scanPageReturnPath(id, query.checkout));
   const scan = await prisma.scan.findFirst({
     where: { id, userId: user.id },
     include: { findings: true, project: { include: { repoLink: true } } },
@@ -136,7 +135,7 @@ export default async function ScanPage({
           progressTitle={paidFullScan ? FULL_SCAN_PROGRESS_LABEL : undefined}
           stoppedTitle={paidFullScan ? FULL_SCAN_STOPPED_LABEL : undefined}
         />
-        {connectedRepo && scan.codeScanEnabled ? <p className="text-sm text-[#d5deee]">{codeScanRepoLabel(connectedRepo)}</p> : null}
+        {connectedRepo && scan.codeScanEnabled ? <p className="text-sm text-[#e6ddd6]">{codeScanRepoLabel(connectedRepo)}</p> : null}
         {paidFullScan && purchase && scan.status === "failed" ? (
           <section className="paper rounded-3xl p-6 text-ink">
             <h2 className="font-display text-3xl">{FULL_SCAN_STOPPED_LABEL}</h2>

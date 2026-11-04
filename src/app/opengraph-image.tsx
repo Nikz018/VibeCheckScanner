@@ -19,7 +19,7 @@ export default function OpenGraphImage() {
           width: "100%",
           height: "100%",
           display: "flex",
-          background: "#101410",
+          background: "linear-gradient(115deg, #0b0b0c 42%, #3a1a12 100%)",
           color: "#f4f0e6",
         }}
       >
@@ -38,8 +38,8 @@ export default function OpenGraphImage() {
                 width: 64,
                 height: 64,
                 borderRadius: 16,
-                background: "#dff25b",
-                color: "#14201b",
+                background: "#ff6a3d",
+                color: "#1a100c",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

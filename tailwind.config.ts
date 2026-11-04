@@ -5,11 +5,12 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#071018",
-        paper: "#f4f7fb",
-        lime: "#dff25b",
-        moss: "#12324a",
-        bark: "#071018",
+        ink: "#1a100c",
+        paper: "#f6f3f0",
+        // Utility name stays `lime` so existing classes keep working. The brand accent is coral.
+        lime: "#ff6a3d",
+        moss: "#2a211c",
+        bark: "#1a100c",
       },
       fontFamily: {
         sans: ["var(--font-sans)", "ui-sans-serif", "system-ui"],

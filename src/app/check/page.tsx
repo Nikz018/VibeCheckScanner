@@ -1,16 +1,14 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { NewScanForm } from "@/components/NewScanForm";
-import { getCurrentUser } from "@/lib/auth";
+import { requirePageUser } from "@/lib/require-user";
 import { privateMetadata } from "@/lib/seo/metadata";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = privateMetadata("Mini check");
 
 export default async function CheckPage({ searchParams }: { searchParams: Promise<{ url?: string }> }) {
-  const user = await getCurrentUser();
   const params = await searchParams;
-  if (!user) redirect(`/login?next=${encodeURIComponent(params.url ? `/check?url=${params.url}` : "/check")}`);
+  const user = await requirePageUser(params.url ? `/check?url=${params.url}` : "/check");
   return (
     <div className="mx-auto max-w-3xl space-y-4 py-6">
       <h1 className="font-display text-5xl">Mini check</h1>

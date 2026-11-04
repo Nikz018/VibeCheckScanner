@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { signInPath } from "@/lib/checkout-path";
 import { progressPercent, stageState, type ScanStageId } from "@/lib/scan-progress";
 
 interface ProgressPayload {
@@ -58,6 +59,10 @@ export function ScanPoller({
     if (status === "completed" || status === "failed") return;
     const timer = setInterval(async () => {
       const response = await fetch(`/api/scans/${scanId}`);
+      if (response.status === 401) {
+        window.location.assign(signInPath(`/scans/${scanId}`, { expired: true }));
+        return;
+      }
       if (!response.ok) return;
       const data = (await response.json()) as ProgressPayload;
       setStatus(data.status);

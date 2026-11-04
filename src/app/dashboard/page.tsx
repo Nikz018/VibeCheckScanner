@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { CancelSubscription } from "@/components/CancelSubscription";
 import { ScoreGauge } from "@/components/ScoreGauge";
 import { ScoreRings, UnavailableScoreRings } from "@/components/ScoreRings";
 import { codeScoreGap, combinedScores } from "@/lib/code-scan/score";
 import { parseCodeReport } from "@/lib/code-scan/parse";
-import { getCurrentUser } from "@/lib/auth";
+import { requirePageUser } from "@/lib/require-user";
 import { prisma } from "@/lib/db";
 import { monitoringActive, ownedScanAccess } from "@/lib/entitlements";
 import { describeFindingCounts, readSeverityCounts, reportBadge, severityCountsWithCode } from "@/lib/report";
@@ -22,8 +21,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = privateMetadata("Dashboard");
 
 export default async function DashboardPage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login?next=/dashboard");
+  const user = await requirePageUser("/dashboard");
   const [projects, scans, alerts, purchases] = await Promise.all([
     prisma.project.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" } }),
     prisma.scan.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 20, include: { project: { include: { repoLink: true } } } }),
@@ -49,7 +47,7 @@ export default async function DashboardPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-5xl">Dashboard</h1>
-          <p className="mt-2 text-sm text-[#c5d2e6]">{user.email}</p>
+          <p className="mt-2 text-sm text-[#cfc4bb]">{user.email}</p>
         </div>
         <div className="flex gap-3">
           <Link href="/scans/new" className="btn btn-lime">
@@ -64,17 +62,17 @@ export default async function DashboardPage() {
       </div>
       <section className="grid gap-3 md:grid-cols-3">
         <article className="lift rounded-2xl border border-white/10 bg-white/5 p-4">
-          <p className="text-xs uppercase tracking-wide text-[#c5d2e6]">Full-report credits</p>
+          <p className="text-xs uppercase tracking-wide text-[#cfc4bb]">Full-report credits</p>
           <p className="font-display text-4xl">{user.reportCredits}</p>
-          <p className="mt-3 text-xs uppercase tracking-wide text-[#c5d2e6]">$99 full-report credits</p>
+          <p className="mt-3 text-xs uppercase tracking-wide text-[#cfc4bb]">$99 full-report credits</p>
           <p className="font-display text-4xl">{user.codeReportCredits}</p>
         </article>
         <article className="lift rounded-2xl border border-white/10 bg-white/5 p-4">
-          <p className="text-xs uppercase tracking-wide text-[#c5d2e6]">Rescan credits</p>
+          <p className="text-xs uppercase tracking-wide text-[#cfc4bb]">Rescan credits</p>
           <p className="font-display text-4xl">{user.rescanCredits}</p>
         </article>
         <article className="lift rounded-2xl border border-white/10 bg-white/5 p-4">
-          <p className="text-xs uppercase tracking-wide text-[#c5d2e6]">Monitoring</p>
+          <p className="text-xs uppercase tracking-wide text-[#cfc4bb]">Monitoring</p>
           <p className="font-display text-4xl">{subscribed ? "On" : "Off"}</p>
           {subscribed && (user.subscription?.dodoSubscriptionId || user.subscription?.stripeSubscriptionId) ? <CancelSubscription /> : null}
         </article>
@@ -97,7 +95,7 @@ export default async function DashboardPage() {
       <section>
         <h2 className="font-display text-3xl">Recent scans</h2>
         <ul className="mt-3 space-y-3">
-          {scans.length === 0 ? <li className="py-4 text-sm text-[#c5d2e6]">No scans yet.</li> : null}
+          {scans.length === 0 ? <li className="py-4 text-sm text-[#cfc4bb]">No scans yet.</li> : null}
           {scans.map((scan) => {
             const access = ownedScanAccess({
               mode: scan.mode,
@@ -174,12 +172,12 @@ export default async function DashboardPage() {
                     <Link href={`/scans/${scan.id}`} className="font-semibold underline">
                       {scan.project.url}
                     </Link>
-                    <p className="text-[#c5d2e6]">
+                    <p className="text-[#cfc4bb]">
                       {reportBadge({ upsell: access.upsell })} · {scan.status === AWAITING_REPO_STATUS ? "waiting for a repository" : scan.status}
                       {scan.scheduled ? " · scheduled" : ""}
                     </p>
-                    {codeRepo ? <p className="text-[#c5d2e6]">{codeScanRepoLabel(codeRepo)}</p> : null}
-                    {scan.status === "completed" && findingLine ? <p className="text-[#c5d2e6]">{findingLine}</p> : null}
+                    {codeRepo ? <p className="text-[#cfc4bb]">{codeScanRepoLabel(codeRepo)}</p> : null}
+                    {scan.status === "completed" && findingLine ? <p className="text-[#cfc4bb]">{findingLine}</p> : null}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
@@ -203,7 +201,7 @@ export default async function DashboardPage() {
                       {action.label}
                     </Link>
                   ) : null}
-                  <span className="text-[#c5d2e6]">{scan.createdAt.toISOString().slice(0, 10)}</span>
+                  <span className="text-[#cfc4bb]">{scan.createdAt.toISOString().slice(0, 10)}</span>
                 </div>
               </li>
             );
